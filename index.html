@@ -17834,14 +17834,33 @@ const sum = a => a.reduce((x, y) => x + y, 0);
 const mean = a => a.length ? sum(a) / a.length : 0;
 function sd(a) { if (a.length < 2)
     return 0; const m = mean(a); return Math.sqrt(sum(a.map(x => (x - m) ** 2)) / (a.length - 1)); }
-function playerMetrics(entries, player, today) {
+// Wie lange wird überhaupt schon erfasst? Ohne Historie ist der ACWR wertlos.
+function historyInfo(entries, today) {
+    const dates = entries.map(e => e.date).filter(Boolean).sort();
+    const first = dates[0] || today;
+    const spanned = Math.round((parseISO(today) - parseISO(first)) / 864e5) + 1;
+    const days = Math.max(1, Math.min(28, spanned));
+    const window = Math.max(7, days); // Vergleichsfenster, mindestens eine Woche
+    return {
+        first, days, window, weeks: window / 7,
+        usable: days >= 14, // ab hier ist ein Verhältnis überhaupt sinnvoll
+        mature: days >= 28, // ab hier volle Aussagekraft
+        readyAt: addDays(first, 13),
+        matureAt: addDays(first, 27),
+    };
+}
+function playerMetrics(entries, player, today, hist) {
     // Ausfälle erzeugen keine Last und verfälschen keine Durchschnitte
+    const H = hist || historyInfo(entries, today);
     const d28 = dailyLoads(entries, player.id, today, 28).map(x => x.load);
     const week = d28.slice(-7);
     const prevWeek = d28.slice(-14, -7);
     const acute = sum(week);
-    const chronic = sum(d28) / 4; // 28-Tage-Wochenmittel
-    const acwr = chronic > 0 ? acute / chronic : (acute > 0 ? 1.6 : 0);
+    // Chronische Last nur über den Zeitraum, der tatsächlich erfasst wurde
+    const dHist = dailyLoads(entries, player.id, today, H.window).map(x => x.load);
+    const chronic = H.weeks > 0 ? sum(dHist) / H.weeks : 0;
+    const acwr = chronic > 0 ? acute / chronic : 0;
+    const acwrUsable = H.usable && chronic > 0;
     const m = mean(week), s = sd(week);
     const monotony = s > 0 ? m / s : (m > 0 ? 2.6 : 0);
     const strain = acute * monotony;
@@ -17889,6 +17908,7 @@ function playerMetrics(entries, player, today) {
     return {
         player, acute, chronic, acwr, monotony, strain, avgRpe, minutes,
         avgSleep, avgStress, badSleepDays, highStressDays,
+        acwrUsable, hist: H,
         injury, injuredNow, missedSessions, injLast7: injLast7.length, injAll,
         absence, absAll, absLast7: absLast7.length, absMissed: absAll.length,
         illLast7: absLast7.filter(e => absReason(e) === "krank").length,
@@ -17942,7 +17962,7 @@ function statusOf(m, today) {
         if (m.worstPain.level >= 2 && m.painDays >= 3)
             bump(2, "Beschwerden an " + m.painDays + " Tagen in Folge");
     }
-    if (m.chronic > 0) {
+    if (m.acwrUsable) {
         if (m.acwr > 1.5)
             bump(2, "ACWR " + nf2(m.acwr) + " – Lastspitze weit über Gewöhnung");
         else if (m.acwr > 1.3)
@@ -17950,10 +17970,13 @@ function statusOf(m, today) {
         else if (m.acwr < 0.8 && m.acute > 0)
             bump(1, "ACWR " + nf2(m.acwr) + " – Unterbelastung / Detraining");
     }
-    if (m.monotony >= 2.2)
-        bump(1, "Monotonie " + nf1(m.monotony) + " – zu wenig Variation");
-    if (m.strain > 8000 && m.monotony >= 2)
-        bump(1, "Hoher Strain (" + compact(m.strain) + ")");
+    // Monotonie braucht mindestens eine volle Woche, sonst rechnet sie Unsinn
+    if (m.hist && m.hist.days >= 7) {
+        if (m.monotony >= 2.2)
+            bump(1, "Monotonie " + nf1(m.monotony) + " – zu wenig Variation");
+        if (m.strain > 8000 && m.monotony >= 2)
+            bump(1, "Hoher Strain (" + compact(m.strain) + ")");
+    }
     if (m.latest && m.latest.mood === "angeschlagen")
         bump(2, "Zuletzt „angeschlagen“ gemeldet");
     else if (m.tiredStreak >= 3)
@@ -19087,7 +19110,7 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
 /* ============================================================
    8) ANSICHT 2 — TRAINER-DASHBOARD
    ============================================================ */
-function Dashboard({ squad, entries, today, metrics, calendar, onOpenPlayer }) {
+function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlayer }) {
     const [scope, setScope] = useState("all");
     const scoped = useMemo(() => {
         if (scope === "all")
@@ -19123,15 +19146,17 @@ function Dashboard({ squad, entries, today, metrics, calendar, onOpenPlayer }) {
             color: sess.some(s => s.type === "Spiel") ? "var(--s2)" : "var(--s1)",
         };
     });
-    const hist = dailyLoads(scopedEntries, null, today, 56);
-    const linePoints = hist.slice(28).map((d, j) => {
+    const histDaily = dailyLoads(scopedEntries, null, today, 56);
+    const linePoints = histDaily.slice(28).map((d, j) => {
         const i = 28 + j;
-        const acute = sum(hist.slice(i - 6, i + 1).map(x => x.load));
-        const chronic = sum(hist.slice(i - 27, i + 1).map(x => x.load)) / 4;
+        const acute = sum(histDaily.slice(i - 6, i + 1).map(x => x.load));
+        const chronic = sum(histDaily.slice(i - 27, i + 1).map(x => x.load)) / 4;
         return { date: d.date, acute, chronic };
     });
     const lastPoint = linePoints[linePoints.length - 1] || { acute: 0, chronic: 1 };
-    const teamAcwr = lastPoint.chronic > 0 ? lastPoint.acute / lastPoint.chronic : 0;
+    const H = hist || historyInfo(entries, today);
+    const teamChronic = H.weeks > 0 ? sum(dailyLoads(scopedEntries, null, today, H.window).map(d => d.load)) / H.weeks : 0;
+    const teamAcwr = teamChronic > 0 ? weekLoad / teamChronic : 0;
     const injured = scopedMetrics.filter(m => m.status.key === "injured")
         .sort((a, b) => (b.injury ? b.injury.date : "") < (a.injury ? a.injury.date : "") ? -1 : 1);
     const ill = scopedMetrics.filter(m => m.status.key === "ill");
@@ -19181,7 +19206,24 @@ function Dashboard({ squad, entries, today, metrics, calendar, onOpenPlayer }) {
                 React.createElement("div", null,
                     React.createElement("span", { className: "eyebrow" }, "Team-ACWR"),
                     React.createElement("div", { style: { fontSize: 19, fontWeight: 640, marginTop: 4,
-                            color: teamAcwr > 1.5 ? "var(--crit)" : teamAcwr > 1.3 ? "var(--warn)" : teamAcwr < 0.8 ? "var(--warn)" : "var(--good)" } }, nf2(teamAcwr))))),
+                            color: !H.usable ? "var(--muted)"
+                                : teamAcwr > 1.5 ? "var(--crit)" : teamAcwr > 1.3 ? "var(--warn)" : teamAcwr < 0.8 ? "var(--warn)" : "var(--good)" } }, H.usable ? nf2(teamAcwr) : "–")))),
+        !H.mature && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(57,135,229,0.35)", background: "rgba(57,135,229,0.06)" } },
+            React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
+                React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(57,135,229,0.16)", color: "var(--s1)",
+                        display: "grid", placeItems: "center", flex: "0 0 auto" } },
+                    React.createElement(Icon, { d: I.alert, size: 19 })),
+                React.createElement("div", { style: { flex: 1 } },
+                    React.createElement("h3", { style: { fontSize: 14.5, marginBottom: 4 } },
+                        "Aufbauphase \u2013 Datenbasis ",
+                        H.days,
+                        " von 28 Tagen"),
+                    React.createElement("p", { style: { margin: 0, fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.6 } },
+                        H.usable
+                            ? "Der ACWR vergleicht aktuell die letzte Woche mit " + nf1(H.weeks) + " Wochen Historie und ist noch grob. Voll belastbar ab " + fmtDate(H.matureAt) + "."
+                            : "Für den ACWR fehlt noch die Gewöhnungsbasis – er wird erst ab " + fmtDate(H.readyAt) + " berechnet. Bis dahin zeigt die Ampel nur Schmerz, Befinden, Schlaf und Stress.",
+                        " ",
+                        "Last, Beschwerden und R\u00FCckmeldequote stimmen von der ersten Einheit an."))))),
         React.createElement("div", { className: "tiles four" },
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "\u00D8 RPE letzte 7 Tage"),
@@ -19325,16 +19367,19 @@ function Dashboard({ squad, entries, today, metrics, calendar, onOpenPlayer }) {
                     React.createElement("span", { className: "num" },
                         compact(m.acute),
                         React.createElement("small", null, "AU")),
-                    React.createElement("span", { className: "num", style: { minWidth: 44, color: m.acwr > 1.5 ? "var(--crit)" : m.acwr > 1.3 ? "var(--warn)" : "var(--ink-2)" } },
-                        m.chronic > 0 ? nf2(m.acwr) : "–",
+                    React.createElement("span", { className: "num", style: { minWidth: 44, color: !m.acwrUsable ? "var(--muted)" : m.acwr > 1.5 ? "var(--crit)" : m.acwr > 1.3 ? "var(--warn)" : "var(--ink-2)" } },
+                        m.acwrUsable ? nf2(m.acwr) : "–",
                         React.createElement("small", null, "ACWR")),
                     React.createElement(StatusPill, { st: m.status }))))))) : null),
-            React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: 0 } }, "AU = Arbitrary Units (RPE \u00D7 Minuten) \u00B7 ACWR = Acute:Chronic Workload Ratio, Zielkorridor 0,80\u20131,30."))));
+            React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: 0 } },
+                "AU = Arbitrary Units (RPE \u00D7 Minuten) \u00B7 ACWR = Acute:Chronic Workload Ratio, Zielkorridor 0,80\u20131,30",
+                !H.usable ? " · ACWR erst ab 14 Tagen Datenbasis" : "",
+                "."))));
 }
 /* ============================================================
    9) ANSICHT 3 — WOCHENBERICHT (regelbasierte Auswertung)
    ============================================================ */
-function buildReport({ squad, entries, metrics, today, calendar }) {
+function buildReport({ squad, entries, metrics, today, calendar, hist }) {
     const from = addDays(today, -6);
     const inWeek = e => parseISO(e.date) >= parseISO(from);
     const week = entries.filter(inWeek);
@@ -19360,8 +19405,9 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
     const wStress = week.filter(e => e.stress > 0).map(e => e.stress);
     const avgSleepW = wSleep.length ? mean(wSleep) : null;
     const avgStressW = wStress.length ? mean(wStress) : null;
+    const H = hist || historyInfo(entries, today);
     const teamAcute = teamLoad;
-    const teamChronic = sum(dailyLoads(entries, null, today, 28).map(d => d.load)) / 4;
+    const teamChronic = H.weeks > 0 ? sum(dailyLoads(entries, null, today, H.window).map(d => d.load)) / H.weeks : 0;
     const teamAcwr = teamChronic > 0 ? teamAcute / teamChronic : 0;
     const teamMono = (() => { const v = days7.map(d => d.load); const s = sd(v); return s > 0 ? mean(v) / s : 0; })();
     const counts = { green: 0, amber: 0, red: 0, none: 0, injured: 0, ill: 0, away: 0 };
@@ -19391,7 +19437,12 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
     if (avgSleepW !== null || avgStressW !== null)
         L.push("Ø Schlafqualität: " + (avgSleepW === null ? "–" : nf1(avgSleepW) + " von 5") +
             " · Ø Stresslevel: " + (avgStressW === null ? "–" : nf1(avgStressW) + " von 5"));
-    L.push("Team-ACWR: " + nf2(teamAcwr) + " (Zielkorridor 0,80–1,30) · Monotonie: " + nf1(teamMono));
+    L.push("Team-ACWR: " + (H.usable ? nf2(teamAcwr) + " (Zielkorridor 0,80–1,30)" : "noch nicht berechenbar")
+        + " · Monotonie: " + (H.days >= 7 ? nf1(teamMono) : "–"));
+    if (!H.mature)
+        L.push("Datenbasis: " + H.days + " von 28 Tagen"
+            + (H.usable ? " – ACWR noch grob, voll aussagekräftig ab " + fmtDate(H.matureAt)
+                : " – ACWR wird ab " + fmtDate(H.readyAt) + " berechnet") + ".");
     L.push("Ampel: " + counts.green + " fit · " + counts.amber + " beobachten · " + counts.red + " Belastung senken"
         + (counts.injured ? " · " + counts.injured + " verletzt" : "")
         + (counts.ill ? " · " + counts.ill + " krank" : "")
@@ -19436,7 +19487,7 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
         .filter(m => m.status.key !== "none" && m.status.key !== "injured" && m.status.key !== "ill" && m.status.key !== "away")
         .map(m => {
         let score = m.acute / 1000;
-        if (m.chronic > 0 && m.acwr > 1.3)
+        if (m.acwrUsable && m.acwr > 1.3)
             score += (m.acwr - 1.3) * 10;
         if (m.worstPain)
             score += m.worstPain.level * 2.5;
@@ -19452,7 +19503,7 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
     risky.forEach(({ m }, i) => {
         const p = m.player;
         L.push((i + 1) + ". " + ref(p) + (p.pos ? " (" + p.pos + ")" : "") + " · " + m.status.label.toUpperCase());
-        L.push("   Last " + nf(m.acute) + " AU · ACWR " + (m.chronic > 0 ? nf2(m.acwr) : "–") + " · Monotonie " + nf1(m.monotony) + " · Ø RPE " + nf1(m.avgRpe));
+        L.push("   Last " + nf(m.acute) + " AU · ACWR " + (m.acwrUsable ? nf2(m.acwr) : "–") + " · Monotonie " + (m.hist && m.hist.days >= 7 ? nf1(m.monotony) : "–") + " · Ø RPE " + nf1(m.avgRpe));
         if (m.avgSleep !== null || m.avgStress !== null)
             L.push("   Schlaf " + (m.avgSleep === null ? "–" : nf1(m.avgSleep)) + "/5 · Stress " + (m.avgStress === null ? "–" : nf1(m.avgStress)) + "/5");
         L.push("   → " + m.status.reasons.slice(0, 2).join(" | "));
@@ -19475,7 +19526,7 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
         const p = m.player;
         L.push("• " + ref(p) + " — " + m.status.label);
         L.push("   Last " + nf(m.acute) + " AU · " + m.sessions + " Einheiten · Ø RPE " + nf1(m.avgRpe)
-            + " · ACWR " + (m.chronic > 0 ? nf2(m.acwr) : "–"));
+            + " · ACWR " + (m.acwrUsable ? nf2(m.acwr) : "–"));
         const shoulder = m.worstPain && ["Schulter", "Handgelenk", "Finger"].includes(m.worstPain.region);
         if (m.worstPain)
             L.push("   Beschwerden: " + m.worstPain.region + " (" + PAIN_LVL[m.worstPain.level] + ", zuletzt " + fmtDate(m.worstPain.date) + ")"
@@ -19512,7 +19563,13 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
     rule("📈 TRAININGS-EMPFEHLUNG KOMMENDE WOCHE");
     const redShare = metrics.length ? counts.red / metrics.length : 0;
     let head, detail;
-    if (teamAcwr > 1.4 || redShare > 0.2) {
+    if (!H.usable) {
+        head = "DATENBASIS AUFBAUEN – Belastung wie geplant fortführen.";
+        detail = ["Noch " + Math.max(0, 14 - H.days) + " Tage bis der ACWR rechnet. Bis dahin keine Steuerung über Kennzahlen.",
+            "Was jetzt zählt: vollständige Rückmeldungen und die gemeldeten Beschwerden.",
+            "Volumen und Intensität so lassen, wie ihr sie ohnehin geplant hattet."];
+    }
+    else if (teamAcwr > 1.4 || redShare > 0.2) {
         head = "TAPERING EINLEITEN – Last deutlich senken.";
         detail = ["Gesamtvolumen −30 % (kürzere Einheiten, gleiche Intensität).",
             "Eine Einheit als reine Regeneration (Rad/Mobility, RPE ≤ 4).",
@@ -19605,8 +19662,8 @@ function PlayerDetail({ m, entries, today }) {
                 React.createElement("span", { className: "d" }, "AU")),
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "ACWR"),
-                React.createElement("span", { className: "v", style: { color: m.acwr > 1.5 ? "var(--crit)" : m.acwr > 1.3 ? "var(--warn)" : "var(--good)" } }, m.chronic > 0 ? nf2(m.acwr) : "–"),
-                React.createElement("span", { className: "d" }, "Ziel 0,80\u20131,30")),
+                React.createElement("span", { className: "v", style: { color: !m.acwrUsable ? "var(--muted)" : m.acwr > 1.5 ? "var(--crit)" : m.acwr > 1.3 ? "var(--warn)" : "var(--good)" } }, m.acwrUsable ? nf2(m.acwr) : "–"),
+                React.createElement("span", { className: "d" }, m.acwrUsable ? (m.hist && !m.hist.mature ? "vorläufig · Ziel 0,80–1,30" : "Ziel 0,80–1,30") : "ab 14 Tagen Daten")),
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "Monotonie"),
                 React.createElement("span", { className: "v", style: { color: m.monotony >= 2.2 ? "var(--warn)" : "var(--ink)" } }, nf1(m.monotony)),
@@ -20195,11 +20252,12 @@ function App() {
     // Spieler wählt sich aus -> eigene Einträge nachladen
     useEffect(() => { if (cfg && mode === "player" && meId)
         pull(); }, [meId, mode, cfg, pull]);
+    const hist = useMemo(() => historyInfo(entries, today), [entries, today]);
     const metrics = useMemo(() => squad.map(p => {
-        const m = playerMetrics(entries, p, today);
+        const m = playerMetrics(entries, p, today, hist);
         return { ...m, status: statusOf(m, today) };
-    }), [entries, squad, today]);
-    const report = useMemo(() => buildReport({ squad, entries, metrics, today, calendar }), [squad, entries, metrics, today, calendar]);
+    }), [entries, squad, today, hist]);
+    const report = useMemo(() => buildReport({ squad, entries, metrics, today, calendar, hist }), [squad, entries, metrics, today, calendar, hist]);
     const saveEntry = e => {
         const rec = { ...e, _pending: !!cfgRef.current };
         setEntries(list => [...list.filter(x => x.id !== rec.id), rec]);
@@ -20338,7 +20396,7 @@ function App() {
             React.createElement("span", { className: "lbl-short" }, t.short))))),
         isPlayer && React.createElement(PlayerArea, { squad: squad, calendar: calendar, entries: entries, today: today, metrics: metrics, submitted: submitted, onSave: saveEntry, toast: toast, sub: tab, setSub: setTab, meId: meId, setMeId: setMeId }),
         !isPlayer && tab === "input" && React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: saveEntry, toast: toast, onManage: () => setPlanner(true) }),
-        !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: entries, today: today, metrics: metrics, calendar: calendar, onOpenPlayer: setOpenPlayer }),
+        !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: entries, today: today, metrics: metrics, calendar: calendar, hist: hist, onOpenPlayer: setOpenPlayer }),
         !isPlayer && tab === "resp" && React.createElement(ResponsesView, { squad: squad, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: cfg ? cfgToLink(cfg) : "", onCopy: copyText, onDownload: download }),
         !isPlayer && tab === "report" && React.createElement(ReportView, { report: report, onCopy: copyReport, onDownload: () => { download(report, "wochenbericht_KW" + isoWeek(today) + ".txt", "text/plain;charset=utf-8"); toast("Bericht gesichert."); } }),
         openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: entries, today: today, onClose: () => setOpenPlayer(null) }),
