@@ -157,6 +157,14 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
 .prow .grow{flex:1;min-width:0}
 .prow .num{font-size:13px;font-weight:640;font-variant-numeric:tabular-nums;text-align:right;line-height:1.2}
 .prow .num small{display:block;font-size:10.5px;color:var(--muted);font-weight:600;letter-spacing:0.03em}
+.statuslegend{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:620px){
+  .prow{gap:9px}
+  .prow .painchip{display:none}
+  .prow .num{font-size:12.5px;min-width:0}
+  .prow .num small{font-size:9.5px}
+  .card-head .statuslegend{display:none}
+}
 .statusbar{width:3px;align-self:stretch;border-radius:2px;flex:0 0 auto;min-height:34px}
 
 /* ---------- Chips / choice buttons ---------- */
@@ -298,6 +306,9 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
 .dtable td.num{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}
 .dtable tbody tr:hover td{background:var(--surface-2)}
 .dtable td.nm{color:var(--ink);font-weight:600}
+.viewswitch{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.viewswitch button{padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:650;color:var(--muted)}
+.viewswitch button[aria-pressed="true"]{background:var(--surface-3);color:var(--ink)}
 .togglechip{
   display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:10px;font-size:13px;font-weight:600;
   background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);
@@ -17694,6 +17705,22 @@ const ABSENCE = [
     { key: "urlaub", em: "✈️", label: "Urlaub / Reise", sub: "nicht in der Stadt" },
     { key: "sonst", em: "❓", label: "Anderer Grund", sub: "" },
 ];
+// Fachbegriffe in Trainersprache
+const acwrWord = v => v < 0.8 ? "weniger als gewohnt"
+    : v <= 1.3 ? "wie gewohnt"
+        : v <= 1.5 ? "mehr als gewohnt"
+            : "viel mehr als gewohnt";
+const acwrShort = v => v < 0.8 ? "weniger" : v <= 1.3 ? "gewohnt" : v <= 1.5 ? "mehr" : "viel mehr";
+const TINT = {
+    "var(--good)": "rgba(12,163,12,0.16)",
+    "var(--warn)": "rgba(250,178,25,0.16)",
+    "var(--crit)": "rgba(208,59,59,0.16)",
+    "var(--serious)": "rgba(236,131,90,0.16)",
+    "var(--s1)": "rgba(57,135,229,0.16)",
+    "var(--muted)": "rgba(134,142,158,0.16)",
+};
+const tint = c => TINT[c] || "rgba(255,255,255,0.08)";
+const acwrColor = v => v > 1.5 ? "var(--crit)" : v > 1.3 ? "var(--warn)" : v < 0.8 ? "var(--warn)" : "var(--good)";
 const labelOf = (list, key) => (list.find(x => x.key === key) || {}).label || "–";
 const isInjured = e => e && e.status === "injured";
 const isAbsent = e => e && e.status === "absent";
@@ -18024,36 +18051,36 @@ function statusOf(m, today) {
     }
     if (m.acwrUsable) {
         if (m.acwr > 1.5)
-            bump(2, "ACWR " + nf2(m.acwr) + " – Lastspitze weit über Gewöhnung");
+            bump(2, "Viel mehr Belastung als gewohnt (Faktor " + nf2(m.acwr) + ")");
         else if (m.acwr > 1.3)
-            bump(1, "ACWR " + nf2(m.acwr) + " – Last steigt schnell");
+            bump(1, "Mehr Belastung als gewohnt (Faktor " + nf2(m.acwr) + ")");
         else if (m.acwr < 0.8 && m.acute > 0)
-            bump(1, "ACWR " + nf2(m.acwr) + " – Unterbelastung / Detraining");
+            bump(1, "Deutlich weniger als gewohnt (Faktor " + nf2(m.acwr) + ") – verliert Anschluss");
     }
     // Monotonie braucht mindestens eine volle Woche, sonst rechnet sie Unsinn
     if (m.hist && m.hist.days >= 7) {
         if (m.monotony >= 2.2)
-            bump(1, "Monotonie " + nf1(m.monotony) + " – zu wenig Variation");
+            bump(1, "Woche zu gleichförmig – harte und lockere Tage fehlen");
         if (m.strain > 8000 && m.monotony >= 2)
-            bump(1, "Hoher Strain (" + compact(m.strain) + ")");
+            bump(1, "Viel Belastung bei wenig Abwechslung");
     }
     if (m.latest && m.latest.mood === "angeschlagen")
         bump(2, "Zuletzt „angeschlagen“ gemeldet");
     else if (m.tiredStreak >= 3)
         bump(1, m.tiredStreak + "× in Folge „müde“ gemeldet");
     if (m.avgRpe >= 8.2)
-        bump(1, "Ø RPE " + nf1(m.avgRpe) + " – durchgehend sehr hart");
+        bump(1, "Alle Einheiten sehr hart empfunden (Ø " + nf1(m.avgRpe) + " von 10)");
     if (m.badSleepDays >= 3)
-        bump(2, "Schlaf an " + m.badSleepDays + " Tagen schlecht – Regeneration fehlt");
+        bump(2, "An " + m.badSleepDays + " Tagen schlecht geschlafen – Erholung fehlt");
     else if (m.avgSleep !== null && m.avgSleep <= 2.5)
-        bump(1, "Ø Schlafqualität " + nf1(m.avgSleep) + " von 5");
+        bump(1, "Schlaf im Schnitt schlecht (" + nf1(m.avgSleep) + " von 5)");
     if (m.highStressDays >= 3)
-        bump(1, "Hoher Alltagsstress an " + m.highStressDays + " Tagen");
+        bump(1, "An " + m.highStressDays + " Tagen viel Stress außerhalb des Platzes");
     else if (m.avgStress !== null && m.avgStress >= 4)
-        bump(1, "Ø Stresslevel " + nf1(m.avgStress) + " von 5");
+        bump(1, "Viel Stress außerhalb des Platzes (" + nf1(m.avgStress) + " von 5)");
     const st = level >= 2 ? STATUS.red : level === 1 ? STATUS.amber : STATUS.green;
     if (!reasons.length)
-        reasons.push("Last, Befinden und Beschwerden im grünen Bereich");
+        reasons.push("Belastung, Befinden und Beschwerden unauffällig");
     return { ...st, reasons, level };
 }
 /* ============================================================
@@ -18271,6 +18298,27 @@ const I = {
         React.createElement("path", { d: "M10 11V4a2 2 0 0 1 4 0v7" }),
         React.createElement("path", { d: "M14 11V6a2 2 0 0 1 4 0v8a7 7 0 0 1-7 7H9a5 5 0 0 1-5-5v-3a2 2 0 0 1 4 0" })),
 };
+function Help({ text }) {
+    const [open, setOpen] = useState(false);
+    return (React.createElement("span", { style: { position: "relative", display: "inline-flex", verticalAlign: "middle", marginLeft: 5 } },
+        React.createElement("button", { onClick: e => { e.stopPropagation(); setOpen(o => !o); }, "aria-label": "Erkl\u00E4rung", style: { width: 16, height: 16, borderRadius: "50%", border: "1px solid var(--line)", background: "var(--surface-3)",
+                color: "var(--muted)", fontSize: 10.5, fontWeight: 700, lineHeight: 1, display: "grid", placeItems: "center" } }, "?"),
+        open && (React.createElement(React.Fragment, null,
+            React.createElement("span", { onClick: e => { e.stopPropagation(); setOpen(false); }, style: { position: "fixed", inset: 0, zIndex: 60 } }),
+            React.createElement("span", { style: { position: "absolute", top: 22, left: -8, zIndex: 61, width: 250, background: "var(--surface-3)",
+                    border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: 12, lineHeight: 1.55,
+                    color: "var(--ink-2)", fontWeight: 500, boxShadow: "var(--shadow)", textTransform: "none", letterSpacing: 0 } }, text)))));
+}
+const HELP = {
+    punkte: "Belastungspunkte = gefühlte Anstrengung (1–10) mal Minuten. 90 Minuten bei Anstrengung 7 sind 630 Punkte. So lässt sich hartes kurzes Training mit lockerem langem vergleichen.",
+    sprung: "Vergleicht die letzten 7 Tage mit dem, was der Körper aus den letzten 4 Wochen gewohnt ist. „Wie gewohnt“ ist gut. „Viel mehr als gewohnt“ heißt: zu schneller Anstieg, das ist der häufigste Verletzungsauslöser.",
+    gleich: "Waren alle Tage der Woche ähnlich hart? Gleichförmige Wochen belasten mehr als Wochen mit klaren harten und lockeren Tagen – auch bei gleicher Gesamtlast.",
+    anstrengung: "Durchschnitt aller Anstrengungswerte der Woche auf der Skala 1 bis 10. Ab etwa 8 im Schnitt trainiert die Mannschaft dauerhaft am Limit.",
+    einsatz: "Alle Spieler außer verletzt und krank. Abgemeldete zählen als einsatzfähig – sie sind gesund, nur diese eine Einheit nicht da.",
+    quote: "Wie viele Spieler sich zur letzten Einheit gemeldet haben. Unter 75 % wird die Auswertung unzuverlässig – dann fehlen genau die, um die es geht.",
+    schlaf: "Selbsteinschätzung der letzten Nacht, 1 = sehr schlecht bis 5 = sehr gut. Schlaf ist der stärkste Erholungsfaktor, den ein Spieler selbst beeinflussen kann.",
+    stress: "Belastung außerhalb des Platzes: Arbeit, Schule, Familie. 1 = sehr entspannt bis 5 = sehr gestresst. Zählt zur Gesamtbelastung dazu, auch wenn sie nichts mit Fußball zu tun hat.",
+};
 const StatusPill = ({ st, small }) => (React.createElement("span", { className: "pill", style: { color: st.color, borderColor: st.color + "55", background: st.color + "1f" } },
     React.createElement(Icon, { d: st.key === "green" ? I.check : st.key === "injured" ? I.cross : st.key === "red" ? I.alert : st.key === "amber" ? I.eye : I.minus, size: 12 }),
     small ? null : st.label));
@@ -18312,7 +18360,7 @@ function niceTicks(max, count = 4) {
 /* ============================================================
    6) CHARTS
    ============================================================ */
-function ColumnChart({ data, unit = "AU", avgLine = true }) {
+function ColumnChart({ data, unit = "Punkte", avgLine = true }) {
     const [ref, W] = useMeasure();
     const [hover, setHover] = useState(null);
     const H = 200, mL = 42, mR = 10, mT = 14, mB = 34;
@@ -18871,7 +18919,7 @@ const RANGES = [
 ];
 const SORTS = [
     { key: "name", label: "Name A–Z" },
-    { key: "load", label: "Belastung (AU) ↓" },
+    { key: "load", label: "Belastungspunkte ↓" },
     { key: "rpe", label: "Ø RPE ↓" },
     { key: "sleep", label: "Schlaf – schlechteste zuerst" },
     { key: "stress", label: "Stress – höchste zuerst" },
@@ -19155,7 +19203,7 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
                                 x.n === 0 && React.createElement("span", { style: { color: "var(--warn)" } }, "\u00B7 nichts eingetragen"))),
                         React.createElement("span", { className: "num" },
                             x.load ? compact(x.load) : "–",
-                            React.createElement("small", null, "AU")),
+                            React.createElement("small", null, "Punkte")),
                         React.createElement("span", { className: "num", style: { minWidth: 40 } },
                             x.rpe === null ? "–" : nf1(x.rpe),
                             React.createElement("small", null, "\u00D8 RPE")),
@@ -19174,7 +19222,7 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
                                     React.createElement("th", null, "Status"),
                                     React.createElement("th", { style: { textAlign: "right" } }, "RPE"),
                                     React.createElement("th", { style: { textAlign: "right" } }, "Min"),
-                                    React.createElement("th", { style: { textAlign: "right" } }, "AU"),
+                                    React.createElement("th", { style: { textAlign: "right" } }, "Punkte"),
                                     React.createElement("th", { style: { textAlign: "right" } }, "Schlaf"),
                                     React.createElement("th", { style: { textAlign: "right" } }, "Stress"),
                                     React.createElement("th", null, "Befinden"),
@@ -19334,6 +19382,107 @@ function MatchWeek({ calendar, today }) {
         }))));
 }
 /* ============================================================
+   7e) DIE LAGE IN KLARTEXT
+   ============================================================ */
+function Situation({ scoped, metrics, counts, fit, weekLoad, delta, quote, respondedToday, nextMatch, hist, teamAcwr, avgSleep, todaySessions }) {
+    const red = metrics.filter(m => m.status.key === "red");
+    const lines = [];
+    lines.push({
+        c: fit < scoped.length ? "var(--warn)" : "var(--good)",
+        icon: I.users,
+        t: React.createElement(React.Fragment, null,
+            React.createElement("b", null,
+                fit,
+                " von ",
+                scoped.length,
+                " einsatzf\u00E4hig."),
+            " ",
+            counts.injured || counts.ill
+                ? "Raus: " + [counts.injured ? counts.injured + " verletzt" : "", counts.ill ? counts.ill + " krank" : ""].filter(Boolean).join(", ") + "."
+                : "Keine Ausfälle.",
+            counts.away ? " " + counts.away + " abgemeldet." : ""),
+    });
+    const dTxt = delta === null ? "" : (delta > 0 ? "+" : "") + nf(delta * 100) + " % zur Vorwoche";
+    let loadMsg;
+    if (!hist.usable)
+        loadMsg = "Für den Vergleich mit den Vorwochen fehlen noch Daten.";
+    else if (teamAcwr > 1.4)
+        loadMsg = "Deutlich härter als gewohnt – Umfang zurücknehmen.";
+    else if (teamAcwr > 1.25)
+        loadMsg = "Steigt schneller als die Gewöhnung – nicht weiter draufpacken.";
+    else if (teamAcwr < 0.8)
+        loadMsg = "Luft nach oben – ihr könnt aufbauen.";
+    else
+        loadMsg = "Im gewohnten Rahmen.";
+    lines.push({
+        c: !hist.usable ? "var(--muted)" : teamAcwr > 1.4 ? "var(--crit)" : teamAcwr > 1.25 || teamAcwr < 0.8 ? "var(--warn)" : "var(--good)",
+        icon: I.chart,
+        t: React.createElement(React.Fragment, null,
+            React.createElement("b", null,
+                compact(weekLoad),
+                " Belastungspunkte"),
+            " in 7 Tagen",
+            dTxt ? ", " + dTxt : "",
+            ". ",
+            loadMsg),
+    });
+    lines.push({
+        c: red.length ? "var(--crit)" : "var(--good)",
+        icon: red.length ? I.alert : I.check,
+        t: red.length
+            ? React.createElement(React.Fragment, null,
+                React.createElement("b", null, "Heute individuell steuern:"),
+                " ",
+                red.map(m => displayName(m.player)).join(", "),
+                ".")
+            : React.createElement(React.Fragment, null, "Niemand muss heute individuell gesteuert werden."),
+    });
+    if (nextMatch) {
+        const d = Math.round((parseISO(nextMatch.date) - parseISO(iso(new Date()))) / 864e5);
+        lines.push({
+            c: "var(--s1)", icon: I.cal,
+            t: React.createElement(React.Fragment, null,
+                React.createElement("b", null, nextMatch.label),
+                " am ",
+                fmtDay(nextMatch.date),
+                " ",
+                fmtDate(nextMatch.date),
+                d >= 0 ? " – noch " + d + (d === 1 ? " Tag" : " Tage") : "",
+                ".",
+                d >= 3 ? " Letzte harte Einheit spätestens " + fmtDay(addDays(nextMatch.date, -3)) + " " + fmtDate(addDays(nextMatch.date, -3)) : d >= 1 ? " Ab jetzt nur noch kurz und spritzig." : ""),
+        });
+    }
+    if (quote < 75 && todaySessions.length) {
+        lines.push({ c: "var(--warn)", icon: I.eye,
+            t: React.createElement(React.Fragment, null,
+                "Nur ",
+                React.createElement("b", null,
+                    quote,
+                    " %"),
+                " haben sich heute gemeldet (",
+                respondedToday,
+                " von ",
+                scoped.length,
+                "). Ohne R\u00FCckmeldungen ist die Auswertung blind.") });
+    }
+    if (avgSleep !== null && avgSleep <= 2.7) {
+        lines.push({ c: "var(--warn)", icon: I.alert,
+            t: React.createElement(React.Fragment, null,
+                "Schlaf im Schnitt ",
+                React.createElement("b", null,
+                    nf1(avgSleep),
+                    " von 5"),
+                " \u2013 die Mannschaft erholt sich schlecht. Sp\u00E4te Einheiten und Ansto\u00DFzeiten pr\u00FCfen.") });
+    }
+    return (React.createElement("div", { className: "card", style: { marginTop: 12 } },
+        React.createElement("div", { className: "eyebrow", style: { marginBottom: 12 } }, "Die Lage"),
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 11 } }, lines.map((l, i) => (React.createElement("div", { key: i, style: { display: "flex", gap: 11, alignItems: "flex-start" } },
+            React.createElement("span", { style: { width: 26, height: 26, borderRadius: 8, flex: "0 0 auto", display: "grid", placeItems: "center",
+                    background: tint(l.c), color: l.c } },
+                React.createElement(Icon, { d: l.icon, size: 14 })),
+            React.createElement("span", { style: { fontSize: 14, lineHeight: 1.55, color: "var(--ink-2)", paddingTop: 3 } }, l.t)))))));
+}
+/* ============================================================
    8) ANSICHT 2 — TRAINER-DASHBOARD
    ============================================================ */
 function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlayer }) {
@@ -19360,7 +19509,14 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
     const scopedMetrics = metrics.filter(m => scopeIds.has(m.player.id));
     const counts = { green: 0, amber: 0, red: 0, none: 0, injured: 0, ill: 0, away: 0 };
     scopedMetrics.forEach(m => { counts[m.status.key]++; });
+    const [detail, setDetail] = useState(() => !!store.get("detail", false));
+    useEffect(() => { store.set("detail", detail); }, [detail]);
     const todaySessions = calendar.filter(s => s.date === today);
+    const nextMatch = calendar.filter(c => (c.type === "Spiel" || c.type === "Testspiel") && c.date >= today)
+        .sort((a, b) => a.date < b.date ? -1 : 1)[0] || null;
+    const teamMono = (() => { const v = days7.map(d => d.load); const sd7 = sd(v); return sd7 > 0 ? mean(v) / sd7 : 0; })();
+    const slTeam = last7Entries.filter(e => e.sleep > 0).map(e => e.sleep);
+    const avgSleepTeam = slTeam.length ? mean(slTeam) : null;
     const respondedToday = new Set(scopedEntries.filter(e => e.date === today).map(e => e.playerId)).size;
     const quote = scoped.length ? Math.round(respondedToday / scoped.length * 100) : 0;
     const colData = days7.map(d => {
@@ -19408,32 +19564,14 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                 React.createElement("option", { value: "gk" }, "Nur Torh\u00FCter"),
                 React.createElement("optgroup", { label: "Einzelner Spieler" }, squad.slice().sort(byNr).map(p => React.createElement("option", { key: p.id, value: p.id }, ref(p))))),
             React.createElement("span", { style: { fontSize: 12, color: "var(--muted)", fontWeight: 600 } },
-                "Zeitraum: ",
                 fmtDate(addDays(today, -6)),
                 " \u2013 ",
-                fmtDate(today),
-                " (7 Tage)")),
-        React.createElement("div", { className: "hero" },
-            React.createElement("div", null,
-                React.createElement("span", { className: "eyebrow" },
-                    "Belastung letzte 7 Tage \u00B7 ",
-                    scope === "all" ? "Kader gesamt" : scoped.length === 1 ? scoped[0].name : scoped.length + " Spieler"),
-                React.createElement("div", { style: { display: "flex", alignItems: "flex-end", marginTop: 6 } },
-                    React.createElement("span", { className: "val" }, compact(weekLoad)),
-                    React.createElement("span", { className: "unit" }, "AU (RPE \u00D7 Min)"))),
+                fmtDate(today)),
             React.createElement("div", { style: { flex: 1 } }),
-            React.createElement("div", { style: { display: "flex", gap: 18, flexWrap: "wrap" } },
-                React.createElement("div", null,
-                    React.createElement("span", { className: "eyebrow" }, "vs. Vorwoche"),
-                    React.createElement("div", { style: { fontSize: 19, fontWeight: 640, marginTop: 4, display: "flex", alignItems: "center", gap: 6,
-                            color: delta === null ? "var(--ink)" : delta > 0.25 ? "var(--warn)" : delta < -0.25 ? "var(--s1)" : "var(--ink)" } },
-                        delta !== null && React.createElement(Icon, { d: delta >= 0 ? I.up : I.down, size: 15 }),
-                        delta === null ? "–" : (delta > 0 ? "+" : "") + nf(delta * 100) + " %")),
-                React.createElement("div", null,
-                    React.createElement("span", { className: "eyebrow" }, "Team-ACWR"),
-                    React.createElement("div", { style: { fontSize: 19, fontWeight: 640, marginTop: 4,
-                            color: !H.usable ? "var(--muted)"
-                                : teamAcwr > 1.5 ? "var(--crit)" : teamAcwr > 1.3 ? "var(--warn)" : teamAcwr < 0.8 ? "var(--warn)" : "var(--good)" } }, H.usable ? nf2(teamAcwr) : "–")))),
+            React.createElement("div", { className: "viewswitch" },
+                React.createElement("button", { "aria-pressed": !detail, onClick: () => setDetail(false) }, "Einfach"),
+                React.createElement("button", { "aria-pressed": detail, onClick: () => setDetail(true) }, "Alle Details"))),
+        React.createElement(Situation, { scoped: scoped, metrics: scopedMetrics, counts: counts, fit: fit, weekLoad: weekLoad, delta: delta, quote: quote, respondedToday: respondedToday, nextMatch: nextMatch, hist: H, teamAcwr: teamAcwr, avgSleep: avgSleepTeam, todaySessions: todaySessions }),
         !H.mature && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(57,135,229,0.35)", background: "rgba(57,135,229,0.06)" } },
             React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
                 React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(57,135,229,0.16)", color: "var(--s1)",
@@ -19446,26 +19584,15 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                         " von 28 Tagen"),
                     React.createElement("p", { style: { margin: 0, fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.6 } },
                         H.usable
-                            ? "Der ACWR vergleicht aktuell die letzte Woche mit " + nf1(H.weeks) + " Wochen Historie und ist noch grob. Voll belastbar ab " + fmtDate(H.matureAt) + "."
-                            : "Für den ACWR fehlt noch die Gewöhnungsbasis – er wird erst ab " + fmtDate(H.readyAt) + " berechnet. Bis dahin zeigt die Ampel nur Schmerz, Befinden, Schlaf und Stress.",
+                            ? "Der Vergleich mit den Vorwochen ist noch grob. Voll belastbar ab " + fmtDate(H.matureAt) + "."
+                            : "Für den Vergleich mit den Vorwochen fehlt noch die Gewöhnungsbasis – er startet am " + fmtDate(H.readyAt) + ". Bis dahin zeigt die Ampel nur Schmerz, Befinden, Schlaf und Stress.",
                         " ",
-                        "Last, Beschwerden und R\u00FCckmeldequote stimmen von der ersten Einheit an."))))),
+                        "Belastungspunkte, Beschwerden und R\u00FCckmeldequote stimmen von der ersten Einheit an."))))),
         React.createElement("div", { className: "tiles four" },
             React.createElement("div", { className: "tile" },
-                React.createElement("span", { className: "lab" }, "\u00D8 RPE letzte 7 Tage"),
-                React.createElement("span", { className: "v" }, nf1(avgRpe)),
-                React.createElement("span", { className: "d" },
-                    last7Entries.length,
-                    " R\u00FCckmeldungen")),
-            React.createElement("div", { className: "tile" },
-                React.createElement("span", { className: "lab" }, "Ampel-Status"),
-                React.createElement("span", { className: "v", style: { display: "flex", alignItems: "center", gap: 8, fontSize: 20 } },
-                    React.createElement("span", { style: { color: "var(--good)" } }, counts.green),
-                    React.createElement("span", { style: { color: "var(--warn)" } }, counts.amber),
-                    React.createElement("span", { style: { color: "var(--crit)" } }, counts.red)),
-                React.createElement("span", { className: "d" }, "fit \u00B7 beobachten \u00B7 senken")),
-            React.createElement("div", { className: "tile" },
-                React.createElement("span", { className: "lab" }, "Einsatzf\u00E4hig"),
+                React.createElement("span", { className: "lab" },
+                    "Einsatzf\u00E4hig",
+                    React.createElement(Help, { text: HELP.einsatz })),
                 React.createElement("span", { className: "v", style: { color: fit < scoped.length * 0.8 ? "var(--warn)" : "var(--good)" } },
                     fit,
                     React.createElement("span", { style: { fontSize: 14, color: "var(--muted)", fontWeight: 600 } },
@@ -19478,7 +19605,9 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                     !injured.length && !ill.length ? "keine Ausfälle" : "",
                     away.length ? " · " + away.length + " abgemeldet" : "")),
             React.createElement("div", { className: "tile" },
-                React.createElement("span", { className: "lab" }, "R\u00FCckmeldung heute"),
+                React.createElement("span", { className: "lab" },
+                    "R\u00FCckmeldung heute",
+                    React.createElement(Help, { text: HELP.quote })),
                 React.createElement("span", { className: "v", style: { color: quote >= 80 ? "var(--good)" : quote >= 50 ? "var(--warn)" : "var(--crit)" } },
                     quote,
                     " %"),
@@ -19487,7 +19616,64 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                     " / ",
                     scoped.length,
                     " ",
-                    todaySessions.length ? "· " + todaySessions[0].label : "· kein Training"))),
+                    todaySessions.length ? "· " + todaySessions[0].label : "· kein Training")),
+            React.createElement("div", { className: "tile" },
+                React.createElement("span", { className: "lab" },
+                    "Belastungspunkte",
+                    React.createElement(Help, { text: HELP.punkte })),
+                React.createElement("span", { className: "v" }, compact(weekLoad)),
+                React.createElement("span", { className: "d", style: { display: "flex", alignItems: "center", gap: 5,
+                        color: delta === null ? "var(--muted)" : delta > 0.25 ? "var(--warn)" : delta < -0.25 ? "var(--s1)" : "var(--muted)" } },
+                    delta !== null && React.createElement(Icon, { d: delta >= 0 ? I.up : I.down, size: 12 }),
+                    delta === null ? "letzte 7 Tage" : (delta > 0 ? "+" : "") + nf(delta * 100) + " % zur Vorwoche")),
+            React.createElement("div", { className: "tile" },
+                React.createElement("span", { className: "lab" },
+                    "\u00D8 Anstrengung",
+                    React.createElement(Help, { text: HELP.anstrengung })),
+                React.createElement("span", { className: "v" }, nf1(avgRpe)),
+                React.createElement("span", { className: "d" },
+                    "von 10 \u00B7 ",
+                    last7Entries.length,
+                    " R\u00FCckmeldungen"))),
+        React.createElement("div", { className: "card", style: { marginTop: 12 } },
+            React.createElement("div", { className: "card-head" },
+                React.createElement("div", null,
+                    React.createElement("h3", null, "Wer kann heute voll trainieren?"),
+                    React.createElement("p", null, "Tippen f\u00FCr Details zum Spieler.")),
+                React.createElement("div", { className: "spacer" }),
+                React.createElement("div", { className: "statuslegend" }, [STATUS.green, STATUS.amber, STATUS.red, STATUS.injured, STATUS.ill, STATUS.away].map(s => React.createElement(StatusPill, { key: s.key, st: s })))),
+            groups.map(g => g.list.length ? (React.createElement("div", { key: g.title, style: { marginBottom: 16 } },
+                React.createElement("div", { className: "eyebrow", style: { marginBottom: 8, display: "flex", alignItems: "center", gap: 6 } },
+                    g.icon && React.createElement("span", { style: { color: "var(--s2)", display: "inline-flex" } },
+                        React.createElement(Icon, { d: I.glove, size: 13 })),
+                    g.title,
+                    " ",
+                    React.createElement("span", { style: { opacity: 0.6 } },
+                        "(",
+                        g.list.length,
+                        ")")),
+                React.createElement("div", { className: "rows" }, g.list.map(m => (React.createElement("button", { className: "prow", key: m.player.id, onClick: () => onOpenPlayer(m) },
+                    React.createElement("span", { className: "statusbar", style: { background: m.status.color } }),
+                    m.player.nr > 0 && React.createElement("span", { className: "nr" }, m.player.nr),
+                    React.createElement("span", { className: "grow" },
+                        React.createElement("span", { className: "nm" }, m.player.name),
+                        React.createElement("span", { className: "sub" },
+                            m.player.pos ? React.createElement(React.Fragment, null,
+                                React.createElement("span", null, m.player.pos),
+                                React.createElement("span", null, "\u00B7")) : null,
+                            React.createElement("span", null, m.status.reasons[0]))),
+                    m.worstPain && (React.createElement("span", { className: "pill painchip", style: { color: PAIN_COLOR[m.worstPain.level], borderColor: PAIN_COLOR[m.worstPain.level] + "55", background: PAIN_COLOR[m.worstPain.level] + "1f" } }, m.worstPain.region)),
+                    React.createElement("span", { className: "num" },
+                        m.acute ? compact(m.acute) : "–",
+                        React.createElement("small", null, "Punkte")),
+                    detail && (React.createElement("span", { className: "num", style: { minWidth: 62, color: m.acwrUsable ? acwrColor(m.acwr) : "var(--muted)" } },
+                        m.acwrUsable ? acwrShort(m.acwr) : "–",
+                        React.createElement("small", null, "Belastung"))),
+                    React.createElement(StatusPill, { st: m.status }))))))) : null),
+            React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: 0 } },
+                "Belastungspunkte = Anstrengung \u00D7 Minuten der letzten 7 Tage.",
+                detail ? " „Belastung“ vergleicht diese Woche mit der Gewöhnung der letzten vier Wochen." : "")),
+        React.createElement(MatchWeek, { calendar: calendar, today: today }),
         outList.length > 0 && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(208,59,59,0.35)" } },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
@@ -19498,7 +19684,6 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                     React.createElement("p", null, "Wer ist raus \u2013 und aus welchem Grund?"))),
             React.createElement("div", { className: "rows" },
                 [...ill, ...away].map(m => {
-                    const a = m.absence || {};
                     const rsn = absReason(m.absence);
                     const info = ABSENCE.find(x => x.key === rsn) || ABSENCE[4];
                     return (React.createElement("button", { className: "prow", key: m.player.id, onClick: () => onOpenPlayer(m) },
@@ -19548,66 +19733,44 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                             m.injury ? fmtDate(m.injury.date) : "–",
                             React.createElement("small", null, "zuletzt"))));
                 })),
-            React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: "12px 0 0" } }, "Ausf\u00E4lle und Abmeldungen z\u00E4hlen nicht in Last, \u00D8 RPE und ACWR \u2013 sonst w\u00FCrde die Teamlast k\u00FCnstlich sinken. Als R\u00FCckmeldung z\u00E4hlen sie trotzdem: Wer sich abmeldet, gilt nicht als vergesslich."))),
-        React.createElement(MatchWeek, { calendar: calendar, today: today }),
-        React.createElement("div", { style: { marginTop: 12 } },
-            React.createElement(PlanVsActual, { calendar: calendar, entries: scopedEntries, today: today })),
-        React.createElement("div", { className: "card", style: { marginTop: 12 } },
-            React.createElement("div", { className: "card-head" },
-                React.createElement("div", null,
-                    React.createElement("h3", null, "Tagesbelastung der Woche"),
-                    React.createElement("p", null, "Summe RPE \u00D7 Trainingsminuten je Tag. Orange = Spieltag."))),
-            React.createElement(TableToggle, { cols: ["Tag", "Datum", "Last (AU)"], rows: days7.map(d => [fmtDay(d.date), fmtDate(d.date), nf(d.load)]) },
-                React.createElement(ColumnChart, { data: colData }))),
-        React.createElement("div", { className: "card" },
-            React.createElement("div", { className: "card-head" },
-                React.createElement("div", null,
-                    React.createElement("h3", null, "Akutlast vs. chronische Last"),
-                    React.createElement("p", null, "Rollende 7-Tage-Summe gegen 28-Tage-Gew\u00F6hnung. Schere nach oben = Verletzungsrisiko."))),
-            React.createElement(TableToggle, { cols: ["Datum", "Akut (AU)", "Chronisch (AU)"], rows: linePoints.filter((_, i) => i % 4 === 0 || i === linePoints.length - 1).map(p => [fmtDate(p.date), nf(p.acute), nf(p.chronic)]) },
-                React.createElement(LineChart, { points: linePoints, series: [
-                        { key: "acute", color: "var(--s1)", label: "Akut", legend: "Akutlast (7 Tage)" },
-                        { key: "chronic", color: "var(--s2)", label: "Chronisch", legend: "Chronische Last (28-Tage-Mittel)" },
-                    ] }))),
-        React.createElement("div", { className: "card" },
-            React.createElement("div", { className: "card-head" },
-                React.createElement("div", null,
-                    React.createElement("h3", null, "Tagesstatus des Kaders"),
-                    React.createElement("p", null, "Wer ist fit f\u00FCr die n\u00E4chste Einheit? Tippen f\u00FCr Details.")),
-                React.createElement("div", { className: "spacer" }),
-                React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" } }, [STATUS.green, STATUS.amber, STATUS.red, STATUS.injured, STATUS.ill, STATUS.away].map(s => React.createElement(StatusPill, { key: s.key, st: s })))),
-            groups.map(g => g.list.length ? (React.createElement("div", { key: g.title, style: { marginBottom: 16 } },
-                React.createElement("div", { className: "eyebrow", style: { marginBottom: 8, display: "flex", alignItems: "center", gap: 6 } },
-                    g.icon && React.createElement("span", { style: { color: "var(--s2)", display: "inline-flex" } },
-                        React.createElement(Icon, { d: I.glove, size: 13 })),
-                    g.title,
-                    " ",
-                    React.createElement("span", { style: { opacity: 0.6 } },
-                        "(",
-                        g.list.length,
-                        ")")),
-                React.createElement("div", { className: "rows" }, g.list.map(m => (React.createElement("button", { className: "prow", key: m.player.id, onClick: () => onOpenPlayer(m) },
-                    React.createElement("span", { className: "statusbar", style: { background: m.status.color } }),
-                    m.player.nr > 0 && React.createElement("span", { className: "nr" }, m.player.nr),
-                    React.createElement("span", { className: "grow" },
-                        React.createElement("span", { className: "nm" }, m.player.name),
-                        React.createElement("span", { className: "sub" },
-                            m.player.pos ? React.createElement(React.Fragment, null,
-                                React.createElement("span", null, m.player.pos),
-                                React.createElement("span", null, "\u00B7")) : null,
-                            React.createElement("span", null, m.status.reasons[0]))),
-                    m.worstPain && (React.createElement("span", { className: "pill", style: { color: PAIN_COLOR[m.worstPain.level], borderColor: PAIN_COLOR[m.worstPain.level] + "55", background: PAIN_COLOR[m.worstPain.level] + "1f" } }, m.worstPain.region)),
-                    React.createElement("span", { className: "num" },
-                        compact(m.acute),
-                        React.createElement("small", null, "AU")),
-                    React.createElement("span", { className: "num", style: { minWidth: 44, color: !m.acwrUsable ? "var(--muted)" : m.acwr > 1.5 ? "var(--crit)" : m.acwr > 1.3 ? "var(--warn)" : "var(--ink-2)" } },
-                        m.acwrUsable ? nf2(m.acwr) : "–",
-                        React.createElement("small", null, "ACWR")),
-                    React.createElement(StatusPill, { st: m.status }))))))) : null),
-            React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: 0 } },
-                "AU = Arbitrary Units (RPE \u00D7 Minuten) \u00B7 ACWR = Acute:Chronic Workload Ratio, Zielkorridor 0,80\u20131,30",
-                !H.usable ? " · ACWR erst ab 14 Tagen Datenbasis" : "",
-                "."))));
+            React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: "12px 0 0" } }, "Ausf\u00E4lle und Abmeldungen z\u00E4hlen nicht in die Belastungspunkte \u2013 sonst w\u00FCrde die Teamlast k\u00FCnstlich sinken. Als R\u00FCckmeldung z\u00E4hlen sie trotzdem: Wer sich abmeldet, gilt nicht als vergesslich."))),
+        detail && (React.createElement(React.Fragment, null,
+            React.createElement("div", { className: "tiles", style: { gridTemplateColumns: "repeat(2,1fr)", marginTop: 12 } },
+                React.createElement("div", { className: "tile" },
+                    React.createElement("span", { className: "lab" },
+                        "Belastung gegen Gew\u00F6hnung",
+                        React.createElement(Help, { text: HELP.sprung })),
+                    React.createElement("span", { className: "v", style: { fontSize: 19, color: H.usable ? acwrColor(teamAcwr) : "var(--muted)" } }, H.usable ? acwrWord(teamAcwr) : "–"),
+                    React.createElement("span", { className: "d" }, H.usable ? "Faktor " + nf2(teamAcwr) + " · gut ist 0,80–1,30" : "ab 14 Tagen Daten")),
+                React.createElement("div", { className: "tile" },
+                    React.createElement("span", { className: "lab" },
+                        "Gleichf\u00F6rmigkeit der Woche",
+                        React.createElement(Help, { text: HELP.gleich })),
+                    React.createElement("span", { className: "v", style: { fontSize: 19, color: H.days < 7 ? "var(--muted)" : teamMono >= 2.2 ? "var(--warn)" : "var(--good)" } }, H.days < 7 ? "–" : teamMono >= 2.2 ? "zu gleichförmig" : "gut verteilt"),
+                    React.createElement("span", { className: "d" }, H.days < 7 ? "ab einer vollen Woche" : "Wert " + nf1(teamMono) + " · gut ist unter 2,0"))),
+            React.createElement("div", { style: { marginTop: 12 } },
+                React.createElement(PlanVsActual, { calendar: calendar, entries: scopedEntries, today: today })),
+            React.createElement("div", { className: "card", style: { marginTop: 12 } },
+                React.createElement("div", { className: "card-head" },
+                    React.createElement("div", null,
+                        React.createElement("h3", null,
+                            "Belastung je Tag",
+                            React.createElement(Help, { text: HELP.punkte })),
+                        React.createElement("p", null, "Anstrengung \u00D7 Minuten, zusammengez\u00E4hlt \u00FCber alle Spieler. Orange = Spieltag."))),
+                React.createElement(TableToggle, { cols: ["Tag", "Datum", "Punkte"], rows: days7.map(d => [fmtDay(d.date), fmtDate(d.date), nf(d.load)]) },
+                    React.createElement(ColumnChart, { data: colData, unit: "Punkte" }))),
+            React.createElement("div", { className: "card" },
+                React.createElement("div", { className: "card-head" },
+                    React.createElement("div", null,
+                        React.createElement("h3", null,
+                            "Diese Woche gegen die Gew\u00F6hnung",
+                            React.createElement(Help, { text: HELP.sprung })),
+                        React.createElement("p", null, "Liegt die blaue Linie deutlich \u00FCber der orangen, steigt die Belastung schneller als die Gew\u00F6hnung."))),
+                React.createElement(TableToggle, { cols: ["Datum", "Diese Woche", "Gewöhnung"], rows: linePoints.filter((_, i) => i % 4 === 0 || i === linePoints.length - 1).map(p => [fmtDate(p.date), nf(p.acute), nf(p.chronic)]) },
+                    React.createElement(LineChart, { points: linePoints, series: [
+                            { key: "acute", color: "var(--s1)", label: "Woche", legend: "Diese Woche (7 Tage)" },
+                            { key: "chronic", color: "var(--s2)", label: "Gewöhnung", legend: "Gewöhnung (4-Wochen-Schnitt)" },
+                        ] })))))));
 }
 /* ============================================================
    9) ANSICHT 3 — WOCHENBERICHT (regelbasierte Auswertung)
@@ -19884,21 +20047,233 @@ function buildReport({ squad, entries, metrics, today, calendar, hist }) {
     L.push("AU = RPE × Minuten · ACWR = Akutlast (7 T) ÷ chronische Last (28-T-Mittel).");
     return L.join("\n");
 }
-function ReportView({ report, onCopy, onDownload }) {
+function buildShortReport({ squad, entries, metrics, today, calendar, hist }) {
+    const from = addDays(today, -6);
+    const week = entries.filter(e => parseISO(e.date) >= parseISO(from));
+    const H = hist || historyInfo(entries, today);
+    const days7 = dailyLoads(entries, null, today, 7);
+    const days14 = dailyLoads(entries, null, today, 14);
+    const load = sum(days7.map(d => d.load));
+    const prev = sum(days14.slice(0, 7).map(d => d.load));
+    const delta = prev > 0 ? (load - prev) / prev : null;
+    const chronic = H.weeks > 0 ? sum(dailyLoads(entries, null, today, H.window).map(d => d.load)) / H.weeks : 0;
+    const acwr = chronic > 0 ? load / chronic : 0;
+    const g = k => metrics.filter(m => m.status.key === k);
+    const red = g("red"), inj = g("injured"), ill = g("ill"), away = g("away");
+    const fit = squad.length - inj.length - ill.length;
+    const sl = week.filter(e => e.sleep > 0).map(e => e.sleep);
+    const st = week.filter(e => e.stress > 0).map(e => e.stress);
+    const sessions = calendar.filter(c => c.date >= from && c.date <= today);
+    let expected = 0, got = 0;
+    sessions.forEach(c => { expected += squad.length; got += new Set(entries.filter(e => e.sessionId === c.id).map(e => e.playerId)).size; });
+    const quote = expected ? Math.round(got / expected * 100) : 0;
+    const nextMatch = calendar.filter(c => (c.type === "Spiel" || c.type === "Testspiel") && c.date > today)
+        .sort((a, b) => a.date < b.date ? -1 : 1)[0];
+    let tip;
+    if (!H.usable)
+        tip = "Datenbasis aufbauen – Belastung wie geplant fortführen.";
+    else if (acwr > 1.4)
+        tip = "Umfang um rund 30 % zurücknehmen.";
+    else if (acwr > 1.25)
+        tip = "Nicht weiter steigern, Niveau halten.";
+    else if (acwr < 0.8)
+        tip = "Es ist Luft nach oben – bis +15 % aufbauen.";
+    else
+        tip = "Belastung halten, Intensität früh in der Woche.";
+    const L = [];
+    L.push("⚽ " + CLUB.toUpperCase() + " · KW " + isoWeek(today) + " (" + fmtDate(from) + "–" + fmtDate(today) + ")");
+    L.push(fit + " von " + squad.length + " einsatzfähig");
+    L.push("Belastung: " + nf(load) + " Punkte" + (delta === null ? "" : " (" + (delta > 0 ? "+" : "") + nf(delta * 100) + " % zur Vorwoche)"));
+    if (red.length)
+        L.push("🔴 Belastung senken: " + red.map(m => displayName(m.player)).join(", "));
+    if (inj.length)
+        L.push("🚑 Verletzt: " + inj.map(m => displayName(m.player) + " (" + (((m.injury || {}).injury || {}).region || "?") + ")").join(", "));
+    if (ill.length || away.length)
+        L.push([ill.length ? "🤒 Krank: " + ill.map(m => displayName(m.player)).join(", ") : "",
+            away.length ? "✈️ Abgemeldet: " + away.map(m => displayName(m.player)).join(", ") : ""].filter(Boolean).join(" · "));
+    if (sl.length || st.length)
+        L.push("😴 Schlaf " + (sl.length ? nf1(mean(sl)) : "–") + "/5 · Stress " + (st.length ? nf1(mean(st)) : "–") + "/5");
+    L.push("▸ " + tip);
+    if (nextMatch)
+        L.push("📅 " + nextMatch.label + " am " + fmtDay(nextMatch.date) + " " + fmtDate(nextMatch.date));
+    L.push("Rückmeldungen: " + got + " von " + expected + " (" + quote + " %)");
+    return L.join("\n");
+}
+const STATUS_ORDER = { injured: 0, ill: 1, red: 2, amber: 3, away: 4, green: 5, none: 6 };
+function buildAllPlayerReports({ squad, entries, metrics, calendar, today, mode }) {
+    const from = addDays(today, -6);
+    const list = [...metrics].sort((a, b) => (STATUS_ORDER[a.status.key] - STATUS_ORDER[b.status.key]) || byNr(a.player, b.player));
+    const head = [
+        "📋 EINZELBERICHTE · " + CLUB.toUpperCase(),
+        "KW " + isoWeek(today) + " · " + fmtDate(from) + "–" + fmtDateFull(today),
+        mode === "player" ? "Fassung: an die Spieler gerichtet" : "Fassung: fürs Trainerteam",
+        "Sortiert nach Handlungsbedarf.",
+        "", "",
+    ];
+    const body = list.map(m => buildPlayerReport(m, { entries, calendar, today, mode }));
+    return head.join("\n") + body.join("\n\n────────────────\n\n");
+}
+function ReportView({ report, shortReport, allReports, onCopy, onDownload }) {
+    const [view, setView] = useState("short");
+    const [mode, setMode] = useState("coach");
+    const long = view === "long";
+    const text = view === "short" ? shortReport : view === "long" ? report : allReports(mode);
     return (React.createElement("div", null,
         React.createElement("div", { className: "card" },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
                     React.createElement("h3", null, "Wochenbericht f\u00FCr das Trainerteam"),
-                    React.createElement("p", null, "Automatisch aus RPE, Trainingsminuten, Beschwerden und Befinden der letzten 7 Tage."))),
+                    React.createElement("p", null, view === "short"
+                        ? "Das Wichtigste in zehn Zeilen – gemacht für die Trainergruppe."
+                        : view === "long"
+                            ? "Alle Details: Ausfälle, Top-Belastete, Torhüter, Schlaf und Stress, Empfehlung."
+                            : "Ein eigener Kurzbericht je Spieler, sortiert nach Handlungsbedarf.")),
+                React.createElement("div", { className: "spacer" }),
+                React.createElement("div", { className: "viewswitch" },
+                    React.createElement("button", { "aria-pressed": view === "short", onClick: () => setView("short") }, "Kurz"),
+                    React.createElement("button", { "aria-pressed": view === "long", onClick: () => setView("long") }, "Ausf\u00FChrlich"),
+                    React.createElement("button", { "aria-pressed": view === "each", onClick: () => setView("each") }, "Je Spieler"))),
+            view === "each" && (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 } },
+                React.createElement("span", { style: { fontSize: 12, color: "var(--muted)", fontWeight: 600 } }, "Fassung:"),
+                React.createElement("div", { className: "viewswitch" },
+                    React.createElement("button", { "aria-pressed": mode === "coach", onClick: () => setMode("coach") }, "F\u00FCrs Trainerteam"),
+                    React.createElement("button", { "aria-pressed": mode === "player", onClick: () => setMode("player") }, "An die Spieler")))),
             React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 } },
-                React.createElement("button", { className: "btn sm", onClick: onCopy },
+                React.createElement("button", { className: "btn sm", onClick: () => onCopy(text) },
                     React.createElement(Icon, { d: I.copy, size: 15 }),
-                    " F\u00FCr WhatsApp kopieren"),
-                React.createElement("button", { className: "btn sm ghost", onClick: onDownload },
+                    " ",
+                    view === "short" ? "Für WhatsApp kopieren" : view === "long" ? "Langfassung kopieren" : "Alle Einzelberichte kopieren"),
+                React.createElement("button", { className: "btn sm ghost", onClick: () => onDownload(text, view) },
                     React.createElement(Icon, { d: I.down, size: 15 }),
                     " Als .txt sichern")),
-            React.createElement("div", { className: "report" }, report))));
+            React.createElement("div", { className: "report" }, text))));
+}
+/* ============================================================
+   9b) KURZBERICHT JE SPIELER
+   ============================================================ */
+function buildPlayerReport(m, { entries, calendar, today, mode }) {
+    const p = m.player;
+    const from = addDays(today, -6);
+    const sess = calendar.filter(c => c.date >= from && c.date <= today);
+    const mine = entries.filter(e => e.playerId === p.id && e.date >= from);
+    const got = new Set(mine.map(e => e.sessionId)).size;
+    const trained = mine.filter(e => !isOut(e));
+    const inj = (m.injury && m.injury.injury) || {};
+    const cs = injuryCases(entries, p.id)[0];
+    const du = mode === "player";
+    const L = [];
+    // Kopf
+    L.push(du
+        ? "⚽ Deine Woche, " + displayName(p) + " (" + fmtDate(from) + "–" + fmtDate(today) + ")"
+        : "📋 " + ref(p) + " · KW " + isoWeek(today) + " (" + fmtDate(from) + "–" + fmtDate(today) + ")");
+    // Status
+    if (!du)
+        L.push("Status: " + m.status.label);
+    // Ausfälle zuerst – da ist die Belastung kein Thema
+    if (m.status.key === "injured") {
+        const step = cs ? nextStep(cs) : null;
+        L.push(du
+            ? "Du bist mit " + (inj.region || "Beschwerden") + " raus" + (cs ? ", seit " + cs.days + " Tagen" : "") + "."
+                + " " + (cs ? cs.missed : m.missedSessions) + " Einheiten hast du verpasst."
+            : (inj.region || "Region offen") + (inj.level ? " (" + PAIN_LVL[inj.level] + ")" : "")
+                + (cs ? " · seit " + cs.days + " Tagen · " + cs.missed + " Einheiten verpasst" : "")
+                + " · Stufe " + (cs ? cs.stage : stageOf(inj.activity)) + "/5"
+                + " · ärztlich " + labelOf(INJ_MEDICAL, inj.medical).toLowerCase());
+        if (cs && cs.trend !== 0)
+            L.push(du ? (cs.trend > 0 ? "Der Schmerz wird weniger – gutes Zeichen." : "Der Schmerz nimmt zu. Bitte nicht auf eigene Faust weitermachen.")
+                : (cs.trend > 0 ? "Schmerz rückläufig." : "Schmerz nimmt zu."));
+        if (step)
+            L.push(du ? "👉 Nächster Schritt: " + step.t + ". " + step.d : "→ Nächster Schritt: " + step.t + ". " + step.d);
+        if (m.avgSleep !== null)
+            L.push((du ? "Schlaf " : "Schlaf Ø ") + nf1(m.avgSleep) + "/5"
+                + (m.avgStress !== null ? " · Stress " + nf1(m.avgStress) + "/5" : ""));
+        return L.join("\n");
+    }
+    if (m.status.key === "ill") {
+        L.push(du ? "Du bist krank gemeldet – gute Besserung." : "Krank gemeldet, zuletzt " + (m.absence ? fmtDate(m.absence.date) : "–") + " · " + m.absMissed + " Einheiten ohne Teilnahme.");
+        L.push(du ? "👉 Steig erst wieder ein, wenn du zwei Tage beschwerdefrei bist – und dann locker."
+            : "→ Stufenweiser Wiedereinstieg, erste Einheit ohne Intensitätsspitze.");
+        return L.join("\n");
+    }
+    if (m.status.key === "away") {
+        L.push(du ? "Du warst abgemeldet (" + labelOf(ABSENCE, absReason(m.absence)) + "). Alles gut – danke fürs Bescheidgeben."
+            : "Abgemeldet: " + labelOf(ABSENCE, absReason(m.absence)) + " · " + m.absMissed + " Einheiten.");
+        return L.join("\n");
+    }
+    if (m.status.key === "none") {
+        L.push(du ? "Von dir liegt diese Woche keine Rückmeldung vor. Zwei Minuten reichen – trag bitte nach."
+            : "Keine Rückmeldung in den letzten 7 Tagen (" + sess.length + " Einheiten).");
+        return L.join("\n");
+    }
+    // Belastung
+    const gew = m.acwrUsable ? acwrWord(m.acwr) : null;
+    L.push(du
+        ? "Du hast " + trained.length + " Einheit" + (trained.length === 1 ? "" : "en") + " mitgemacht, zusammen "
+            + nf(m.acute) + " Belastungspunkte" + (gew ? " – " + (gew === "wie gewohnt" ? "genau dein gewohntes Pensum" : gew) : "") + "."
+        : "Belastung: " + nf(m.acute) + " Punkte in " + trained.length + " Einheit" + (trained.length === 1 ? "" : "en")
+            + (gew ? " (" + gew + ", Faktor " + nf2(m.acwr) + ")" : ""));
+    L.push((du ? "Anstrengung im Schnitt " : "Anstrengung Ø ") + nf1(m.avgRpe) + " von 10"
+        + (m.avgSleep !== null ? " · Schlaf " + nf1(m.avgSleep) + "/5" : "")
+        + (m.avgStress !== null ? " · Stress " + nf1(m.avgStress) + "/5" : ""));
+    // Beschwerden
+    if (m.worstPain)
+        L.push(du
+            ? "Du hast " + m.worstPain.region + " gemeldet (" + PAIN_LVL[m.worstPain.level] + ")"
+                + (m.painDays > 1 ? ", an " + m.painDays + " Tagen" : "") + "."
+            : "Beschwerden: " + m.worstPain.region + " (" + PAIN_LVL[m.worstPain.level] + ")"
+                + (m.painDays > 1 ? ", an " + m.painDays + " Tagen" : ""));
+    if (!du)
+        L.push("Rückmeldungen: " + got + " von " + sess.length + " Einheiten");
+    // Empfehlung – aus dem Ampelgrund abgeleitet
+    let tip;
+    if (m.status.key === "red") {
+        if (m.worstPain && m.worstPain.level === 3)
+            tip = du ? "Melde dich vor der nächsten Einheit beim Trainerteam. Wir nehmen dich lieber einmal zu früh raus als einmal zu spät."
+                : "Individuell steuern: kein Sprint- und Zweikampfvolumen, vor Freigabe Physio-Check.";
+        else if (m.badSleepDays >= 3)
+            tip = du ? "Dein Schlaf ist der Knackpunkt. Zwei, drei ruhige Nächte bringen dir mehr als jede Zusatzeinheit."
+                : "Erholung fehlt (Schlaf). Volumen senken, Intensitätsspitzen vermeiden.";
+        else
+            tip = du ? "Deine Belastung ist schneller gestiegen als deine Gewöhnung. Die nächste Einheit ruhiger angehen."
+                : "Volumen 30–40 % senken, keine intensiven Blöcke.";
+    }
+    else if (m.status.key === "amber") {
+        if (m.avgStress !== null && m.avgStress >= 4)
+            tip = du ? "Viel los außerhalb des Platzes – das zählt mit. Sag Bescheid, wenn es zu viel wird."
+                : "Hoher Alltagsstress. Kurz ansprechen, Belastung nicht zusätzlich steigern.";
+        else if (m.avgSleep !== null && m.avgSleep <= 2.5)
+            tip = du ? "Achte auf den Schlaf – das ist gerade dein größter Hebel."
+                : "Schlaf niedrig. Beobachten, Volumen nicht steigern.";
+        else
+            tip = du ? "Alles im Rahmen, aber wir schauen diese Woche genauer hin. Trag weiter ehrlich ein."
+                : "Beobachten, Intensität halten, Volumen leicht senken.";
+    }
+    else {
+        tip = du ? "Alles im grünen Bereich. Weiter so – und melde Beschwerden früh, nicht erst wenn es weh tut."
+            : "Voll belastbar.";
+    }
+    L.push((du ? "👉 " : "→ ") + tip);
+    return L.join("\n");
+}
+function PlayerReportBox({ m, entries, calendar, today, onCopy }) {
+    const [mode, setMode] = useState("player");
+    const text = buildPlayerReport(m, { entries, calendar, today, mode });
+    return (React.createElement("div", { style: { marginTop: 18, borderTop: "1px solid var(--line-soft)", paddingTop: 16 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 } },
+            React.createElement("span", { className: "eyebrow" }, "Kurzbericht"),
+            React.createElement("div", { style: { flex: 1 } }),
+            React.createElement("div", { className: "viewswitch" },
+                React.createElement("button", { "aria-pressed": mode === "player", onClick: () => setMode("player") }, "An den Spieler"),
+                React.createElement("button", { "aria-pressed": mode === "coach", onClick: () => setMode("coach") }, "F\u00FCrs Trainerteam"))),
+        React.createElement("div", { className: "report", style: { maxHeight: "none", fontSize: 11.5 } }, text),
+        React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 } },
+            React.createElement("button", { className: "btn sm", onClick: () => onCopy(text, "Kurzbericht kopiert.") },
+                React.createElement(Icon, { d: I.copy, size: 15 }),
+                " Kopieren"),
+            React.createElement("a", { className: "btn sm ghost", href: "https://wa.me/?text=" + encodeURIComponent(text), target: "_blank", rel: "noopener noreferrer", style: { textDecoration: "none" } }, "In WhatsApp \u00F6ffnen")),
+        React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: "10px 0 0", lineHeight: 1.55 } }, mode === "player"
+            ? "Persönlich formuliert – kann direkt an den Spieler geschickt werden."
+            : "Sachlich formuliert – für die Trainergruppe oder das Einzelgespräch.")));
 }
 /* ============================================================
    10) SPIELER-DETAIL
@@ -19913,9 +20288,9 @@ function PlayerDetail({ m, entries, today }) {
     return (React.createElement("div", null,
         React.createElement("div", { className: "tiles", style: { marginTop: 0 } },
             React.createElement("div", { className: "tile" },
-                React.createElement("span", { className: "lab" }, "Wochenlast"),
+                React.createElement("span", { className: "lab" }, "Belastungspunkte"),
                 React.createElement("span", { className: "v" }, compact(m.acute)),
-                React.createElement("span", { className: "d" }, "AU")),
+                React.createElement("span", { className: "d" }, "letzte 7 Tage")),
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "ACWR"),
                 React.createElement("span", { className: "v", style: { color: !m.acwrUsable ? "var(--muted)" : m.acwr > 1.5 ? "var(--crit)" : m.acwr > 1.3 ? "var(--warn)" : "var(--good)" } }, m.acwrUsable ? nf2(m.acwr) : "–"),
@@ -20016,7 +20391,7 @@ function PlayerDetail({ m, entries, today }) {
                                 "/5") : null)),
                     React.createElement("span", { className: "num", style: { color: "var(--crit)" } },
                         "0",
-                        React.createElement("small", null, "AU"))));
+                        React.createElement("small", null, "Punkte"))));
             return (React.createElement("div", { className: "prow", key: e.id, style: { cursor: "default" } },
                 React.createElement("span", { style: { fontSize: 20 } }, mood.em),
                 React.createElement("span", { className: "grow" },
@@ -20048,10 +20423,10 @@ function PlayerDetail({ m, entries, today }) {
                             ")")))),
                 React.createElement("span", { className: "num" },
                     nf(e.rpe * e.minutes),
-                    React.createElement("small", null, "AU"))));
+                    React.createElement("small", null, "Punkte"))));
         }) : React.createElement("p", { style: { fontSize: 13, color: "var(--muted)", margin: 0 } }, "Keine Eintr\u00E4ge vorhanden."))));
 }
-function PlayerSheet({ m, entries, today, onClose }) {
+function PlayerSheet({ m, entries, calendar, today, onCopy, onClose }) {
     const p = m.player;
     return (React.createElement("div", { className: "ov", onClick: onClose },
         React.createElement("div", { className: "sheet", onClick: e => e.stopPropagation() },
@@ -20067,7 +20442,8 @@ function PlayerSheet({ m, entries, today, onClose }) {
                 React.createElement(StatusPill, { st: m.status }),
                 React.createElement("button", { className: "icon-btn", onClick: onClose, "aria-label": "Schlie\u00DFen" },
                     React.createElement(Icon, { d: I.x, size: 16 }))),
-            React.createElement(PlayerDetail, { m: m, entries: entries, today: today }))));
+            React.createElement(PlayerDetail, { m: m, entries: entries, today: today }),
+            onCopy && React.createElement(PlayerReportBox, { m: m, entries: entries, calendar: calendar, today: today, onCopy: onCopy }))));
 }
 /* ============================================================
    10b) EINHEITEN-VERWALTUNG (Trainer)
@@ -20590,6 +20966,7 @@ function App() {
         return { ...m, status: statusOf(m, today) };
     }), [entries, squad, today, hist]);
     const report = useMemo(() => buildReport({ squad, entries, metrics, today, calendar, hist }), [squad, entries, metrics, today, calendar, hist]);
+    const shortReport = useMemo(() => buildShortReport({ squad, entries, metrics, today, calendar, hist }), [squad, entries, metrics, today, calendar, hist]);
     const saveEntry = e => {
         const rec = { ...e, _pending: !!cfgRef.current };
         setEntries(list => [...list.filter(x => x.id !== rec.id), rec]);
@@ -20634,7 +21011,7 @@ function App() {
             toast("Kopieren blockiert – Text bitte manuell markieren.");
         }
     };
-    const copyReport = () => copyText(report, "Bericht in die Zwischenablage kopiert.");
+    const copyReport = t => copyText(t || report, "Bericht in die Zwischenablage kopiert.");
     const download = (content, name, type) => {
         const blob = new Blob([content], { type });
         const url = URL.createObjectURL(blob);
@@ -20736,8 +21113,8 @@ function App() {
         !isPlayer && tab === "input" && React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: saveEntry, toast: toast, onManage: () => setPlanner(true) }),
         !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: entries, today: today, metrics: metrics, calendar: calendar, hist: hist, onOpenPlayer: setOpenPlayer }),
         !isPlayer && tab === "resp" && React.createElement(ResponsesView, { squad: squad, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: cfg ? cfgToLink(cfg) : "", onCopy: copyText, onDownload: download }),
-        !isPlayer && tab === "report" && React.createElement(ReportView, { report: report, onCopy: copyReport, onDownload: () => { download(report, "wochenbericht_KW" + isoWeek(today) + ".txt", "text/plain;charset=utf-8"); toast("Bericht gesichert."); } }),
-        openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: entries, today: today, onClose: () => setOpenPlayer(null) }),
+        !isPlayer && tab === "report" && React.createElement(ReportView, { report: report, shortReport: shortReport, allReports: m => buildAllPlayerReports({ squad, entries, metrics, calendar, today, mode: m }), onCopy: copyReport, onDownload: (t, v) => { download(t, "bericht_KW" + isoWeek(today) + "_" + v + ".txt", "text/plain;charset=utf-8"); toast("Bericht gesichert."); } }),
+        openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: entries, calendar: calendar, today: today, onCopy: copyText, onClose: () => setOpenPlayer(null) }),
         planner && React.createElement(SessionSheet, { sessions: sessions, entries: entries, today: today, onSave: saveSession, onDelete: deleteSession, onClose: () => setPlanner(false) }),
         settings && React.createElement(SettingsSheet, { squad: squad, setSquad: applySquad, pin: pin, setPin: setPin, onClose: () => setSettings(false), onExport: exportJson, onImport: importJson, onDemo: makeDemo, onClear: clearAll, toast: toast }),
         syncSheet && React.createElement(SyncSheet, { cfg: cfg, setCfg: setCfg, sync: sync, squad: squad, sessions: sessions, entryCount: entries.length, onPushAll: pushAll, onPull: pull, onPushMeta: () => pushMeta(squad, sessions), onCopy: copyText, onClose: () => setSyncSheet(false), toast: toast }),
