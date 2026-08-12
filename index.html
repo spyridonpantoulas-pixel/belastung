@@ -276,6 +276,7 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
 .mk.yes{background:var(--good)}
 .mk.no{border:1.5px solid #3a4150;background:transparent}
 .mk.inj{background:var(--crit)}
+.mk.away{background:var(--serious)}
 .mk.na{background:var(--surface-3)}
 .matrix tfoot td{padding-top:8px;font-size:10.5px;color:var(--muted);font-weight:650;font-variant-numeric:tabular-nums}
 .matrix tbody tr:hover td{background:var(--surface-2)}
@@ -17627,14 +17628,27 @@ const INJ_MEDICAL = [
     { key: "termin", label: "Termin steht" },
     { key: "ja", label: "Ja, abgeklärt" },
 ];
+const ABSENCE = [
+    { key: "krank", em: "🤒", label: "Krank", sub: "Infekt, Fieber, Magen-Darm" },
+    { key: "arbeit", em: "💼", label: "Arbeit / Schule", sub: "Schicht, Uni, Prüfung" },
+    { key: "privat", em: "🏠", label: "Privat / Familie", sub: "Termin, Kinder, Umzug" },
+    { key: "urlaub", em: "✈️", label: "Urlaub / Reise", sub: "nicht in der Stadt" },
+    { key: "sonst", em: "❓", label: "Anderer Grund", sub: "" },
+];
 const labelOf = (list, key) => (list.find(x => x.key === key) || {}).label || "–";
 const isInjured = e => e && e.status === "injured";
+const isAbsent = e => e && e.status === "absent";
+const isOut = e => isInjured(e) || isAbsent(e);
+const isIll = e => isAbsent(e) && e.absence && e.absence.reason === "krank";
+const absReason = e => (e && e.absence && e.absence.reason) || "sonst";
 const STATUS = {
     green: { key: "green", label: "Fit", color: "var(--good)" },
     amber: { key: "amber", label: "Beobachten", color: "var(--warn)" },
     red: { key: "red", label: "Belastung senken", color: "var(--crit)" },
     none: { key: "none", label: "Keine Rückmeldung", color: "var(--muted)" },
     injured: { key: "injured", label: "Verletzt", color: "var(--crit)" },
+    ill: { key: "ill", label: "Krank", color: "var(--serious)" },
+    away: { key: "away", label: "Abgemeldet", color: "var(--muted)" },
 };
 /* ============================================================
    2) DATUM / FORMAT HELFER
@@ -17701,6 +17715,7 @@ function buildDemoEntries(squad, calendar, today) {
             fragile: rnd() < 0.28,
             region: (p.gk ? REGIONS_GK : REGIONS_FIELD)[Math.floor(rnd() * 3)],
             injured: rnd() < 0.5,
+            absent: rnd() < 0.35,
         };
     });
     calendar.forEach(sess => {
@@ -17760,6 +17775,19 @@ function buildDemoEntries(squad, calendar, today) {
             stressBase = stress;
             if (sleep <= 2 && mood === "gut" && rnd() < 0.5)
                 mood = "muede";
+            // vereinzelt melden sich Spieler ab statt einfach zu fehlen
+            if (pr.absent && !pr.injured && rnd() < 0.28 && daysAgo <= 12) {
+                const rsn = ["krank", "arbeit", "privat", "urlaub", "sonst"][Math.floor(rnd() * 5)];
+                entries.push({
+                    id: p.id + "@" + sess.id, playerId: p.id, sessionId: sess.id, date: sess.date,
+                    type: sess.type, rpe: 0, minutes: 0, pains: [], mood: rsn === "krank" ? "angeschlagen" : "gut",
+                    sleep: rsn === "krank" ? Math.max(1, sleepBase - 1) : sleepBase,
+                    stress: rsn === "krank" ? Math.min(5, stressBase + 1) : stressBase,
+                    status: "absent", injury: null, absence: { reason: rsn },
+                    ts: parseISO(sess.date).getTime(),
+                });
+                return;
+            }
             // ein bis zwei Spieler fallen in der jüngsten Vergangenheit verletzt aus
             if (pr.fragile && pr.injured && daysAgo <= 8) {
                 entries.push({
@@ -17777,7 +17805,7 @@ function buildDemoEntries(squad, calendar, today) {
             }
             entries.push({
                 id: p.id + "@" + sess.id, playerId: p.id, sessionId: sess.id, date: sess.date,
-                type: sess.type, rpe, minutes, pains, mood, sleep, stress, status: "trained", injury: null,
+                type: sess.type, rpe, minutes, pains, mood, sleep, stress, status: "trained", injury: null, absence: null,
                 ts: parseISO(sess.date).getTime(),
             });
         });
@@ -17818,7 +17846,7 @@ function playerMetrics(entries, player, today) {
     const monotony = s > 0 ? m / s : (m > 0 ? 2.6 : 0);
     const strain = acute * monotony;
     const mineAll = entries.filter(e => e.playerId === player.id);
-    const mine = mineAll.filter(e => !isInjured(e));
+    const mine = mineAll.filter(e => !isOut(e));
     const week7 = mine.filter(e => e.date > addDays(today, -7) || e.date === addDays(today, -6));
     const last7 = mine.filter(e => parseISO(e.date) >= parseISO(addDays(today, -6)));
     const avgRpe = last7.length ? mean(last7.map(e => e.rpe)) : 0;
@@ -17834,6 +17862,10 @@ function playerMetrics(entries, player, today) {
     const latest = sorted[0] || null;
     const todayEntry = mineAll.find(e => e.date === today) || null;
     const injAll = mineAll.filter(isInjured).sort((a, b) => a.date < b.date ? 1 : -1);
+    const absAll = mineAll.filter(isAbsent).sort((a, b) => a.date < b.date ? 1 : -1);
+    const absLast7 = absAll.filter(e => parseISO(e.date) >= parseISO(addDays(today, -6)));
+    const absence = absAll[0] && absAll[0].date >= addDays(today, -10) ? absAll[0] : null;
+    const illNow = !!absence && absReason(absence) === "krank" && (!mineAll.length || isAbsent(mineAll.sort((a, b) => a.date < b.date ? 1 : -1)[0]));
     const injLast7 = injAll.filter(e => parseISO(e.date) >= parseISO(addDays(today, -6)));
     const injury = injAll[0] && injAll[0].date >= addDays(today, -10) ? injAll[0] : null;
     const injuredNow = !!injury && (!latest || isInjured(latest));
@@ -17858,6 +17890,8 @@ function playerMetrics(entries, player, today) {
         player, acute, chronic, acwr, monotony, strain, avgRpe, minutes,
         avgSleep, avgStress, badSleepDays, highStressDays,
         injury, injuredNow, missedSessions, injLast7: injLast7.length, injAll,
+        absence, absAll, absLast7: absLast7.length, absMissed: absAll.length,
+        illLast7: absLast7.filter(e => absReason(e) === "krank").length,
         latest, todayEntry, worstPain, painDays, tiredStreak, wowChange,
         sessions: last7.length, entriesAll: mineAll, daily: dailyLoads(entries, player.id, today, 28),
     };
@@ -17873,6 +17907,22 @@ function statusOf(m, today) {
         ];
         return { ...STATUS.injured, reasons: r, level: 3 };
     }
+    const lastAny = (m.entriesAll || []).slice().sort((a, b) => a.date < b.date ? 1 : -1)[0];
+    if (lastAny && isAbsent(lastAny) && lastAny.date >= addDays(today, -7)) {
+        const rsn = absReason(lastAny);
+        const st = rsn === "krank" ? STATUS.ill : STATUS.away;
+        return {
+            ...st, level: rsn === "krank" ? 2 : 0,
+            reasons: [
+                (rsn === "krank" ? "Krank gemeldet" : "Abgemeldet: " + labelOf(ABSENCE, rsn)) + " · " + fmtDate(lastAny.date),
+                m.absMissed + " Einheit" + (m.absMissed === 1 ? "" : "en") + " ohne Teilnahme"
+                    + (m.illLast7 ? " · " + m.illLast7 + "× krank diese Woche" : ""),
+                rsn === "krank"
+                    ? "Nach Infekt stufenweise einsteigen – erst belasten, wenn zwei Tage beschwerdefrei."
+                    : "Keine Belastungsfrage, nur Anwesenheit.",
+            ],
+        };
+    }
     const reasons = [];
     let level = 0; // 0 grün, 1 gelb, 2 rot
     const bump = (lv, txt) => { level = Math.max(level, lv); reasons.push(txt); };
@@ -17880,6 +17930,8 @@ function statusOf(m, today) {
         return { ...STATUS.none, reasons: ["Keine Einträge in den letzten 7 Tagen"], level: -1 };
     if (m.injLast7 > 0)
         bump(1, "War diese Woche " + m.injLast7 + "× verletzt raus – Wiedereinstieg beobachten");
+    if (m.illLast7 > 0)
+        bump(1, "War diese Woche " + m.illLast7 + "× krank – Belastung langsam aufbauen");
     if (m.worstPain) {
         if (m.worstPain.level === 3)
             bump(2, "Starker Schmerz: " + m.worstPain.region);
@@ -17972,13 +18024,17 @@ const rowToEntry = r => ({
     date: r.date, type: r.type, rpe: r.rpe, minutes: r.minutes,
     pains: Array.isArray(r.pains) ? r.pains : [], mood: r.mood,
     sleep: r.sleep || null, stress: r.stress || null,
-    status: r.status || "trained", injury: r.injury || null, ts: r.ts || 0,
+    status: r.status || "trained",
+    injury: r.status === "injured" ? (r.injury || null) : null,
+    absence: r.status === "absent" ? (r.injury || null) : null,
+    ts: r.ts || 0,
 });
 const entryToRow = (e, team) => ({
     id: team + "|" + e.id, team, player_id: e.playerId, session_id: e.sessionId,
     date: e.date, type: e.type, rpe: e.rpe, minutes: e.minutes,
     pains: e.pains || [], mood: e.mood, sleep: e.sleep || null, stress: e.stress || null,
-    status: e.status || "trained", injury: e.injury || null,
+    status: e.status || "trained",
+    injury: e.status === "absent" ? (e.absence || null) : (e.injury || null),
     ts: e.ts || Date.now(),
 });
 // Fehlt die Spaltenerweiterung in der Datenbank, darf das Eintragen nicht komplett scheitern
@@ -18271,6 +18327,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
     const [injOnset, setInjOnset] = useState(null);
     const [injActivity, setInjActivity] = useState(null);
     const [injMedical, setInjMedical] = useState(null);
+    const [absReasonSel, setAbsReason] = useState(null);
     const [sleep, setSleep] = useState(null);
     const [stress, setStress] = useState(null);
     const [pains, setPains] = useState({});
@@ -18279,14 +18336,19 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
     const player = squad.find(p => p.id === playerId);
     const session = calendar.find(s => s.id === sessionId);
     const regions = player && player.gk ? REGIONS_GK : REGIONS_FIELD;
-    const out = part === "out";
-    const needMinutes = !out && !!session && (session.type === "Spiel" || session.type === "Testspiel");
-    const seq = ["player", "session", "part"].concat(out ? ["injury", "rehab", "mood"] : [].concat(needMinutes ? ["minutes"] : [], ["rpe", "mood", "pain"]));
+    const out = part === "out"; // verletzt
+    const away = part === "away"; // anderer Grund
+    const ill = away && absReasonSel === "krank";
+    const needMinutes = !out && !away && !!session && (session.type === "Spiel" || session.type === "Testspiel");
+    const seq = ["player", "session", "part"].concat(out ? ["injury", "rehab", "mood"] :
+        away ? ["reason"].concat(ill ? ["mood"] : []) :
+            [].concat(needMinutes ? ["minutes"] : [], ["rpe", "mood", "pain"]));
     const cur = seq[Math.min(stepIdx, seq.length - 1)];
     const TITLES = {
         player: "Wer bist du?", session: "Welche Einheit?", minutes: "Wie viele Minuten gespielt?",
         rpe: "Wie hart war die Einheit?", mood: "Wie geht es dir?", pain: "Schmerz oder Spannung?",
         part: "Warst du dabei?", injury: "Was ist betroffen?", rehab: "Stand und Rückkehr",
+        reason: "Warum nicht dabei?",
     };
     const sid0 = options[0] ? options[0].id : "";
     const doneForSession = useMemo(() => new Set([
@@ -18311,35 +18373,43 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
         setInjOnset(null);
         setInjActivity(null);
         setInjMedical(null);
+        setAbsReason(null);
     };
     const next = () => setStepIdx(i => i + 1);
     const save = (override) => {
         const src = override || pains;
-        const list = out ? [] : Object.entries(src).filter(([, v]) => v > 0).map(([region, level]) => ({ region, level: Number(level) }));
-        const mins = out ? 0 : (minutes === null ? session.minutes : minutes);
+        const gone = out || away;
+        const list = gone ? [] : Object.entries(src).filter(([, v]) => v > 0).map(([region, level]) => ({ region, level: Number(level) }));
+        const mins = gone ? 0 : (minutes === null ? session.minutes : minutes);
         const rec = {
             id: playerId + "@" + sessionId, playerId, sessionId, date: session.date, type: session.type,
-            rpe: out ? 0 : rpe, minutes: mins, pains: list, mood, sleep, stress,
-            status: out ? "injured" : "trained",
+            rpe: gone ? 0 : rpe, minutes: mins, pains: list, mood, sleep, stress,
+            status: out ? "injured" : away ? "absent" : "trained",
             injury: out ? { region: injRegion, level: injLevel, onset: injOnset, activity: injActivity, medical: injMedical } : null,
+            absence: away ? { reason: absReasonSel } : null,
             ts: Date.now(),
         };
         onSave(rec);
-        setDone({ player, session, rpe, mood, pains: list, minutes: mins, out, injRegion });
+        setDone({ player, session, rpe, mood, pains: list, minutes: mins, out, away, injRegion, reason: absReasonSel });
         toast("Danke, " + player.name.split(" ")[0] + "! Eintrag gespeichert.");
     };
     if (done) {
         const worst = done.pains.reduce((m, p) => Math.max(m, p.level), 0);
         return (React.createElement("div", { className: "card", style: { textAlign: "center", padding: "34px 18px" } },
             React.createElement("div", { style: { width: 62, height: 62, borderRadius: "50%", display: "grid", placeItems: "center", margin: "0 auto 14px",
-                    background: done.out ? "rgba(208,59,59,0.16)" : "rgba(12,163,12,0.16)",
-                    color: done.out ? "var(--crit)" : "var(--good)" } },
-                React.createElement(Icon, { d: done.out ? I.cross : I.check, size: 30, stroke: 2.4 })),
-            React.createElement("h3", { style: { fontSize: 19 } }, done.out ? "Ausfall gemeldet" : "Gespeichert"),
+                    background: done.out ? "rgba(208,59,59,0.16)" : done.away ? "rgba(236,131,90,0.16)" : "rgba(12,163,12,0.16)",
+                    color: done.out ? "var(--crit)" : done.away ? "var(--serious)" : "var(--good)" } },
+                React.createElement(Icon, { d: done.out ? I.cross : done.away ? I.minus : I.check, size: 30, stroke: 2.4 })),
+            React.createElement("h3", { style: { fontSize: 19 } }, done.out ? "Ausfall gemeldet" : done.away ? "Abgemeldet" : "Gespeichert"),
             React.createElement("p", { style: { color: "var(--muted)", fontSize: 13, margin: "6px 0 18px" } }, done.out
                 ? done.player.name + " · " + done.session.label + " · verletzt nicht dabei" + (done.injRegion ? " (" + done.injRegion + ")" : "")
-                : done.player.name + " · " + done.session.label + " · RPE " + done.rpe + " · " + done.minutes + " Min"
-                    + (worst > 0 ? " · Beschwerden gemeldet" : "")),
+                : done.away
+                    ? done.player.name + " · " + done.session.label + " · " + labelOf(ABSENCE, done.reason)
+                    : done.player.name + " · " + done.session.label + " · RPE " + done.rpe + " · " + done.minutes + " Min"
+                        + (worst > 0 ? " · Beschwerden gemeldet" : "")),
+            done.away && (React.createElement("p", { style: { fontSize: 12.5, color: "var(--ink-2)", maxWidth: 420, margin: "-8px auto 18px", lineHeight: 1.6 } }, done.reason === "krank"
+                ? "Gute Besserung. Melde dich wieder, wenn du zurück bist – bei Fieber gilt: mindestens zwei Tage beschwerdefrei, bevor du wieder einsteigst."
+                : "Danke fürs Abmelden. Das Trainerteam weiß jetzt Bescheid und kann die Einheit planen.")),
             done.out && (React.createElement("p", { style: { fontSize: 12.5, color: "var(--ink-2)", maxWidth: 420, margin: "-8px auto 18px", lineHeight: 1.6 } }, "Das Trainerteam sieht deinen Ausfall im Dashboard. Trag dich bitte auch bei den n\u00E4chsten Einheiten weiter ein, solange du raus bist \u2013 so sieht man den Verlauf und den Wiedereinstieg.")),
             React.createElement("div", { style: { display: "flex", gap: 8, maxWidth: 400, margin: "0 auto", flexWrap: "wrap" } },
                 React.createElement("button", { className: "btn", onClick: () => { setDone(null); reset(); } }, "N\u00E4chster Spieler"),
@@ -18394,7 +18464,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
         cur === "session" && (React.createElement("div", { className: "card" },
             React.createElement("div", { className: "chips" }, options.map(s => {
                 const has = hasEntry(s.id, playerId);
-                return (React.createElement("button", { key: s.id, className: "chip", "aria-pressed": sessionId === s.id, style: { textAlign: "left", display: "flex", alignItems: "center", gap: 12 }, onClick: () => { setSessionId(s.id); setMinutes(null); setPart(null); next(); } },
+                return (React.createElement("button", { key: s.id, className: "chip", "aria-pressed": sessionId === s.id, style: { textAlign: "left", display: "flex", alignItems: "center", gap: 12 }, onClick: () => { setSessionId(s.id); setMinutes(null); setPart(null); setAbsReason(null); next(); } },
                     React.createElement("span", { style: { width: 42, textAlign: "center" } },
                         React.createElement("span", { style: { display: "block", fontSize: 11, color: "var(--muted)", fontWeight: 650 } }, fmtDay(s.date)),
                         React.createElement("span", { style: { display: "block", fontSize: 13, fontWeight: 700 } }, fmtDate(s.date).slice(0, 5))),
@@ -18424,8 +18494,29 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
                         React.createElement(Icon, { d: I.cross, size: 22 })),
                     React.createElement("span", { style: { flex: 1 } },
                         "Verletzt \u2013 nicht dabei",
-                        React.createElement("span", { className: "c-sub", style: { textAlign: "left" } }, "Kurze R\u00FCckfrage zur Verletzung, dauert 15 Sekunden")))),
-            React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "14px 0 0", lineHeight: 1.6 } }, "Aus anderen Gr\u00FCnden gefehlt \u2013 Arbeit, Urlaub, Krankheit? Dann trag f\u00FCr diese Einheit nichts ein. Verletzungen geh\u00F6ren dagegen unbedingt gemeldet, auch wenn du nur zugeschaut hast."))),
+                        React.createElement("span", { className: "c-sub", style: { textAlign: "left" } }, "Kurze R\u00FCckfrage zur Verletzung, dauert 15 Sekunden"))),
+                React.createElement("button", { className: "chip", style: { textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "16px 14px" }, onClick: () => { setPart("away"); next(); } },
+                    React.createElement("span", { style: { width: 44, height: 44, borderRadius: 12, background: "rgba(236,131,90,0.16)", color: "var(--serious)",
+                            display: "grid", placeItems: "center", flex: "0 0 auto" } },
+                        React.createElement(Icon, { d: I.minus, size: 22 })),
+                    React.createElement("span", { style: { flex: 1 } },
+                        "Aus anderem Grund nicht dabei",
+                        React.createElement("span", { className: "c-sub", style: { textAlign: "left" } }, "Krank, Arbeit, privat \u2013 ein Tap, dann fertig")))),
+            React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "14px 0 0", lineHeight: 1.6 } }, "Bitte immer etwas eintragen, auch wenn du nicht dabei warst. Nur so wei\u00DF das Trainerteam, ob jemand fehlt \u2013 oder nur vergessen hat einzutragen."))),
+        cur === "reason" && (React.createElement("div", { className: "card" },
+            React.createElement("p", { style: { margin: "0 0 12px", fontSize: 12.5, color: "var(--muted)" } }, "Kein Problem \u2013 trag einfach kurz ein, warum. Das dauert einen Tap."),
+            React.createElement("div", { className: "chips" }, ABSENCE.map(a => (React.createElement("button", { key: a.key, className: "chip", "aria-pressed": absReasonSel === a.key, style: { textAlign: "left", display: "flex", alignItems: "center", gap: 12 }, onClick: () => {
+                    setAbsReason(a.key);
+                    if (a.key === "krank")
+                        next();
+                    else
+                        setTimeout(() => save({}), 0);
+                } },
+                React.createElement("span", { style: { fontSize: 24, width: 32, textAlign: "center" } }, a.em),
+                React.createElement("span", { style: { flex: 1 } },
+                    a.label,
+                    a.sub && React.createElement("span", { className: "c-sub", style: { textAlign: "left" } }, a.sub)))))),
+            React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "14px 0 0", lineHeight: 1.6 } }, "Bei \u201EKrank\" fragen wir noch kurz Befinden, Schlaf und Stress ab \u2013 das hilft beim Wiedereinstieg. Alle anderen Gr\u00FCnde sind mit dem Tap gespeichert."))),
         cur === "injury" && (React.createElement("div", { className: "card" },
             React.createElement("div", { className: "qblock" },
                 React.createElement("div", { className: "qhead" }, "Welche Region?"),
@@ -18474,7 +18565,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
                 React.createElement("span", { className: "rl", style: rpe === v ? { color: "rgba(255,255,255,0.85)" } : {} }, RPE_LABEL[v]))))))),
         cur === "mood" && (React.createElement("div", { className: "card" },
             React.createElement("div", { className: "qblock" },
-                React.createElement("div", { className: "qhead" }, out ? "Befinden heute" : "Befinden nach der Einheit"),
+                React.createElement("div", { className: "qhead" }, out || away ? "Befinden heute" : "Befinden nach der Einheit"),
                 React.createElement("div", { className: "qsub" }, "Wie f\u00FChlst du dich k\u00F6rperlich?"),
                 React.createElement("div", { className: "moodgrid" }, MOODS.map(m => (React.createElement("button", { key: m.key, className: "mbtn", "aria-pressed": mood === m.key, style: mood === m.key ? { borderColor: m.color, background: m.color + "22" } : {}, onClick: () => { setMood(m.key); if (sleep && stress)
                         next(); } },
@@ -18494,7 +18585,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
                         next(); } },
                     React.createElement("span", { className: "se" }, o.em),
                     React.createElement("span", { className: "sl", style: stress === o.v ? { color: o.color } : {} }, o.label)))))),
-            React.createElement("button", { className: "btn", style: { marginTop: 18, ...(mood && sleep && stress ? {} : { opacity: 0.45 }) }, disabled: !(mood && sleep && stress), onClick: () => out ? save({}) : next() }, out ? "Ausfall speichern" : "Weiter"))),
+            React.createElement("button", { className: "btn", style: { marginTop: 18, ...(mood && sleep && stress ? {} : { opacity: 0.45 }) }, disabled: !(mood && sleep && stress), onClick: () => (out || away) ? save({}) : next() }, out ? "Ausfall speichern" : away ? "Abmeldung speichern" : "Weiter"))),
         cur === "pain" && (React.createElement("div", { className: "card" },
             React.createElement("p", { style: { margin: "0 0 12px", fontSize: 12.5, color: "var(--muted)" } }, player && player.gk ? "Torhüter-spezifische Regionen." : "Nur eintragen, wenn du etwas spürst."),
             React.createElement("div", { className: "rows" }, regions.map(r => (React.createElement("div", { className: "painrow", key: r },
@@ -18523,8 +18614,14 @@ function ResponseOverview({ squad, calendar, entries, submitted, today, shareLin
         entries.filter(isInjured).forEach(e => set.add(e.playerId + "|" + e.sessionId));
         return set;
     }, [entries]);
+    const gone = useMemo(() => {
+        const map = {};
+        entries.filter(isAbsent).forEach(e => { map[e.playerId + "|" + e.sessionId] = absReason(e); });
+        return map;
+    }, [entries]);
     const has = (pid, sid) => done.has(pid + "|" + sid);
     const injAt = (pid, sid) => hurt.has(pid + "|" + sid);
+    const awayAt = (pid, sid) => gone[pid + "|" + sid];
     if (!cols.length) {
         return (React.createElement("div", { className: "card" },
             React.createElement("div", { className: "card-head" },
@@ -18543,7 +18640,7 @@ function ResponseOverview({ squad, calendar, entries, submitted, today, shareLin
     const silent = recent.length >= 3
         ? squad.filter(p => recent.every(c => !has(p.id, c.id))).sort(byNr)
         : [];
-    const rank = p => !has(p.id, latest.id) ? 0 : injAt(p.id, latest.id) ? 1 : 2;
+    const rank = p => !has(p.id, latest.id) ? 0 : injAt(p.id, latest.id) ? 1 : awayAt(p.id, latest.id) ? 2 : 3;
     const rows = [...squad].sort((a, b) => (rank(a) - rank(b)) || byNr(a, b));
     const visible = showAll ? rows : rows.slice(0, 10);
     const reminder = "⚽ " + CLUB + " – kurze Erinnerung\n\n" +
@@ -18565,6 +18662,9 @@ function ResponseOverview({ squad, calendar, entries, submitted, today, shareLin
                 React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 6 } },
                     React.createElement("i", { className: "mk inj" }),
                     " verletzt raus"),
+                React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 6 } },
+                    React.createElement("i", { className: "mk away" }),
+                    " abgemeldet"),
                 React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 6 } },
                     React.createElement("i", { className: "mk no" }),
                     " fehlt"))),
@@ -18624,8 +18724,10 @@ function ResponseOverview({ squad, calendar, entries, submitted, today, shareLin
                             displayName(p),
                             p.gk ? " (TW)" : ""),
                         cols.map(c => (React.createElement("td", { key: c.id, className: "cell" },
-                            React.createElement("span", { className: "mk " + (injAt(p.id, c.id) ? "inj" : has(p.id, c.id) ? "yes" : "no"), title: displayName(p) + " · " + c.label + ": " +
-                                    (injAt(p.id, c.id) ? "verletzt nicht dabei" : has(p.id, c.id) ? "eingetragen" : "fehlt") }))))));
+                            React.createElement("span", { className: "mk " + (injAt(p.id, c.id) ? "inj" : awayAt(p.id, c.id) ? "away" : has(p.id, c.id) ? "yes" : "no"), title: displayName(p) + " · " + c.label + ": " +
+                                    (injAt(p.id, c.id) ? "verletzt nicht dabei"
+                                        : awayAt(p.id, c.id) ? "abgemeldet – " + labelOf(ABSENCE, awayAt(p.id, c.id))
+                                            : has(p.id, c.id) ? "eingetragen" : "fehlt") }))))));
                 })),
                 React.createElement("tfoot", null,
                     React.createElement("tr", null,
@@ -18653,6 +18755,7 @@ const SORTS = [
     { key: "count", label: "Rückmeldungen – wenigste zuerst" },
     { key: "pain", label: "Beschwerden zuerst" },
     { key: "injury", label: "Ausfälle zuerst" },
+    { key: "absent", label: "Abmeldungen zuerst" },
 ];
 function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, onCopy, onDownload }) {
     const [range, setRange] = useState("7");
@@ -18660,7 +18763,7 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
     const [who, setWho] = useState("all");
     const [kind, setKind] = useState("all");
     const [onlyPain, setOnlyPain] = useState(false);
-    const [onlyInj, setOnlyInj] = useState(false);
+    const [stat, setStat] = useState("all");
     const [sort, setSort] = useState("name");
     const [open, setOpen] = useState({});
     const [allOpen, setAllOpen] = useState(false);
@@ -18682,16 +18785,24 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             list = list.filter(e => e.type === kind);
         if (onlyPain)
             list = list.filter(e => (e.pains || []).length > 0);
-        if (onlyInj)
+        if (stat === "trained")
+            list = list.filter(e => !isOut(e));
+        else if (stat === "injured")
             list = list.filter(isInjured);
+        else if (stat === "ill")
+            list = list.filter(isIll);
+        else if (stat === "away")
+            list = list.filter(e => isAbsent(e) && !isIll(e));
+        else if (stat === "out")
+            list = list.filter(isOut);
         return list.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1
             : displayName(byId[a.playerId] || { name: "" }).localeCompare(displayName(byId[b.playerId] || { name: "" }), "de"));
-    }, [entries, peopleIds, range, kind, onlyPain, onlyInj, today, lastSession, byId]);
+    }, [entries, peopleIds, range, kind, onlyPain, stat, today, lastSession, byId]);
     const perPlayer = useMemo(() => {
-        const contentFilter = onlyPain || onlyInj;
+        const contentFilter = onlyPain || stat !== "all";
         const list = people.map(p => {
             const es = rows.filter(e => e.playerId === p.id);
-            const trained = es.filter(e => !isInjured(e));
+            const trained = es.filter(e => !isOut(e));
             const sv = es.filter(e => e.sleep > 0).map(e => e.sleep);
             const tv = es.filter(e => e.stress > 0).map(e => e.stress);
             return {
@@ -18702,6 +18813,8 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
                 stress: tv.length ? mean(tv) : null,
                 painCount: es.filter(e => (e.pains || []).length > 0).length,
                 inj: es.filter(isInjured).length,
+                abs: es.filter(isAbsent).length,
+                illC: es.filter(isIll).length,
             };
         }).filter(x => contentFilter ? x.n > 0 : true);
         const cmp = {
@@ -18713,9 +18826,10 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             count: (a, b) => a.n - b.n,
             pain: (a, b) => b.painCount - a.painCount,
             injury: (a, b) => b.inj - a.inj,
+            absent: (a, b) => b.abs - a.abs,
         }[sort] || ((a, b) => byNr(a.p, b.p));
         return [...list].sort((a, b) => cmp(a, b) || byNr(a.p, b.p));
-    }, [people, rows, sort, onlyPain, onlyInj]);
+    }, [people, rows, sort, onlyPain, stat]);
     const kinds = useMemo(() => [...new Set(calendar.map(c => c.type))], [calendar]);
     const painRows = rows.filter(e => (e.pains || []).length > 0);
     const sl = rows.filter(e => e.sleep > 0).map(e => e.sleep);
@@ -18728,11 +18842,14 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
         "Filter: " + (group === "all" ? "gesamter Kader" : group === "gk" ? "nur Torhüter" : "nur Feldspieler")
             + (who !== "all" && byId[who] ? " · " + byId[who].name : "")
             + (kind !== "all" ? " · nur " + kind : "")
-            + (onlyPain ? " · nur mit Beschwerden" : "") + (onlyInj ? " · nur Ausfälle" : ""),
-        rows.length + " Rückmeldungen · Ø RPE " + (rows.filter(e => !isInjured(e)).length ? nf1(mean(rows.filter(e => !isInjured(e)).map(e => e.rpe))) : "–")
+            + (onlyPain ? " · nur mit Beschwerden" : "")
+            + (stat !== "all" ? " · Status: " + ({ trained: "mitgemacht", out: "alle Ausfälle", injured: "verletzt", ill: "krank", away: "abgemeldet" }[stat]) : ""),
+        rows.length + " Rückmeldungen · Ø RPE " + (rows.filter(e => !isOut(e)).length ? nf1(mean(rows.filter(e => !isOut(e)).map(e => e.rpe))) : "–")
             + " · Ø Schlaf " + (sl.length ? nf1(mean(sl)) : "–") + "/5"
             + " · Ø Stress " + (st.length ? nf1(mean(st)) : "–") + "/5"
-            + " · mit Beschwerden: " + painRows.length + " · Ausfälle: " + rows.filter(isInjured).length,
+            + " · mit Beschwerden: " + painRows.length
+            + " · Ausfälle: " + rows.filter(isInjured).length + " verletzt / " + rows.filter(isIll).length + " krank / "
+            + rows.filter(e => isAbsent(e) && !isIll(e)).length + " abgemeldet",
     ];
     const painText = e => (e.pains || []).map(x => x.region + " (" + PAIN_LVL[x.level] + ")").join(", ");
     const moodText = e => (MOODS.find(m => m.key === e.mood) || { label: "–" }).label;
@@ -18747,7 +18864,11 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             L.push("── " + fmtDay(c.date) + " " + fmtDate(c.date) + " · " + c.label + " (" + groups[sid].length + ") ──");
             groups[sid].forEach(e => {
                 const p = byId[e.playerId] || { name: "?" };
-                if (isInjured(e)) {
+                if (isAbsent(e)) {
+                    L.push("• " + displayName(p) + " · " + (isIll(e) ? "KRANK" : "ABGEMELDET") + " · " + labelOf(ABSENCE, absReason(e))
+                        + (e.sleep ? " · Schlaf " + e.sleep + "/5" : "") + (e.stress ? " · Stress " + e.stress + "/5" : ""));
+                }
+                else if (isInjured(e)) {
                     const inj = e.injury || {};
                     L.push("• " + displayName(p) + " · VERLETZT RAUS · " + (inj.region || "Region offen")
                         + (inj.level ? " (" + PAIN_LVL[inj.level] + ")" : "") + " · " + labelOf(INJ_ACTIVITY, inj.activity)
@@ -18769,7 +18890,7 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
     const buildCsv = () => {
         const cols = ["Datum", "Wochentag", "Einheit", "Art", "Dauer_Min", "Spieler", "Nummer", "Position", "Status",
             "RPE", "Minuten", "Last_AU", "Schlaf_1_5", "Stress_1_5", "Befinden", "Beschwerden",
-            "Verletzung_Region", "Verletzung_Staerke", "Verletzung_Seit", "Verletzung_Aktivitaet", "Verletzung_Arzt"];
+            "Verletzung_Region", "Verletzung_Staerke", "Verletzung_Seit", "Verletzung_Aktivitaet", "Verletzung_Arzt", "Abwesenheitsgrund"];
         const esc = v => { const t = String(v == null ? "" : v); return /[";\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
         const lines = [cols.join(";")];
         rows.forEach(e => {
@@ -18779,13 +18900,14 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             lines.push([
                 e.date, fmtDay(e.date), c.label || "", e.type || "", c.minutes || "",
                 p.name || "", p.nr || "", p.gk ? "TW" : (p.pos || ""),
-                inj ? "verletzt raus" : "mitgemacht",
-                inj ? "" : e.rpe, inj ? 0 : e.minutes, inj ? 0 : e.rpe * e.minutes,
+                inj ? "verletzt raus" : isAbsent(e) ? (isIll(e) ? "krank" : "abgemeldet") : "mitgemacht",
+                isOut(e) ? "" : e.rpe, isOut(e) ? 0 : e.minutes, isOut(e) ? 0 : e.rpe * e.minutes,
                 e.sleep || "", e.stress || "", moodText(e), painText(e),
                 inj ? (inj.region || "") : "", inj && inj.level ? PAIN_LVL[inj.level] : "",
                 inj ? labelOf(INJ_ONSET, inj.onset) : "",
                 inj ? labelOf(INJ_ACTIVITY, inj.activity) : "",
                 inj ? labelOf(INJ_MEDICAL, inj.medical) : "",
+                isAbsent(e) ? labelOf(ABSENCE, absReason(e)) : "",
             ].map(esc).join(";"));
         });
         return "﻿" + lines.join("\r\n");
@@ -18809,9 +18931,13 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             React.createElement("button", { className: "togglechip", "aria-pressed": onlyPain, onClick: () => setOnlyPain(v => !v) },
                 React.createElement(Icon, { d: I.alert, size: 14 }),
                 " Nur mit Beschwerden"),
-            React.createElement("button", { className: "togglechip", "aria-pressed": onlyInj, onClick: () => setOnlyInj(v => !v) },
-                React.createElement(Icon, { d: I.cross, size: 14 }),
-                " Nur Ausf\u00E4lle")),
+            React.createElement("select", { className: "sel", value: stat, onChange: e => setStat(e.target.value), "aria-label": "Status" },
+                React.createElement("option", { value: "all" }, "Jeder Status"),
+                React.createElement("option", { value: "trained" }, "Nur mitgemacht"),
+                React.createElement("option", { value: "out" }, "Alle Ausf\u00E4lle"),
+                React.createElement("option", { value: "injured" }, "Nur verletzt"),
+                React.createElement("option", { value: "ill" }, "Nur krank"),
+                React.createElement("option", { value: "away" }, "Nur abgemeldet"))),
         React.createElement(ResponseOverview, { squad: people, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: shareLink, onCopy: onCopy }),
         React.createElement("div", { className: "tiles four", style: { marginTop: 12 } },
             React.createElement("div", { className: "tile" },
@@ -18822,12 +18948,18 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
                     " Spieler im Filter")),
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "\u00D8 RPE"),
-                React.createElement("span", { className: "v" }, rows.filter(e => !isInjured(e)).length ? nf1(mean(rows.filter(e => !isInjured(e)).map(e => e.rpe))) : "–"),
+                React.createElement("span", { className: "v" }, rows.filter(e => !isOut(e)).length ? nf1(mean(rows.filter(e => !isOut(e)).map(e => e.rpe))) : "–"),
                 React.createElement("span", { className: "d" }, "von 10 \u00B7 ohne Ausf\u00E4lle")),
             React.createElement("div", { className: "tile" },
-                React.createElement("span", { className: "lab" }, "Verletzt raus"),
-                React.createElement("span", { className: "v", style: { color: rows.filter(isInjured).length ? "var(--crit)" : "var(--good)" } }, rows.filter(isInjured).length),
-                React.createElement("span", { className: "d" }, "Einheiten verpasst")),
+                React.createElement("span", { className: "lab" }, "Ausf\u00E4lle"),
+                React.createElement("span", { className: "v", style: { color: rows.filter(isOut).length ? "var(--crit)" : "var(--good)" } }, rows.filter(isOut).length),
+                React.createElement("span", { className: "d" },
+                    rows.filter(isInjured).length,
+                    " verletzt \u00B7 ",
+                    rows.filter(isIll).length,
+                    " krank \u00B7 ",
+                    rows.filter(e => isAbsent(e) && !isIll(e)).length,
+                    " abgemeldet")),
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "Mit Beschwerden"),
                 React.createElement("span", { className: "v", style: { color: painRows.length ? "var(--warn)" : "var(--good)" } }, painRows.length),
@@ -18868,7 +19000,7 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             perPlayer.length ? (React.createElement("div", { className: "rows" }, perPlayer.map(x => {
                 const isOpen = open[x.p.id] !== undefined ? open[x.p.id] : allOpen;
                 return (React.createElement("div", { key: x.p.id },
-                    React.createElement("button", { className: "prow", onClick: () => setOpen(o => ({ ...o, [x.p.id]: !isOpen })), style: { borderColor: x.inj ? "rgba(208,59,59,0.3)" : undefined } },
+                    React.createElement("button", { className: "prow", onClick: () => setOpen(o => ({ ...o, [x.p.id]: !isOpen })), style: { borderColor: x.inj ? "rgba(208,59,59,0.3)" : x.abs ? "rgba(236,131,90,0.25)" : undefined } },
                         React.createElement("span", { style: { color: "var(--muted)", display: "inline-flex", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform .15s" } },
                             React.createElement(Icon, { d: I.right, size: 15 })),
                         x.p.nr > 0 && React.createElement("span", { className: "nr" }, x.p.nr),
@@ -18885,6 +19017,14 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
                                     "\u00B7 ",
                                     x.inj,
                                     "\u00D7 verletzt raus"),
+                                x.illC > 0 && React.createElement("span", { style: { color: "var(--serious)" } },
+                                    "\u00B7 ",
+                                    x.illC,
+                                    "\u00D7 krank"),
+                                x.abs - x.illC > 0 && React.createElement("span", { style: { color: "var(--muted)" } },
+                                    "\u00B7 ",
+                                    x.abs - x.illC,
+                                    "\u00D7 abgemeldet"),
                                 x.painCount > 0 && React.createElement("span", { style: { color: "var(--serious)" } },
                                     "\u00B7 ",
                                     x.painCount,
@@ -18919,22 +19059,25 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
                             React.createElement("tbody", null, x.es.map(e => {
                                 const c = sessById[e.sessionId] || {};
                                 const inj = isInjured(e) ? (e.injury || {}) : null;
+                                const abs = isAbsent(e);
+                                const gone2 = inj || abs;
                                 return (React.createElement("tr", { key: e.id },
                                     React.createElement("td", null,
                                         fmtDay(e.date),
                                         " ",
                                         fmtDate(e.date)),
                                     React.createElement("td", null, c.label || e.type || "–"),
-                                    React.createElement("td", { style: { color: inj ? "var(--crit)" : "var(--good)" } }, inj ? "verletzt raus" : "mitgemacht"),
-                                    React.createElement("td", { className: "num", style: { color: inj ? "var(--muted)" : rpeColor(e.rpe) } }, inj ? "–" : e.rpe),
-                                    React.createElement("td", { className: "num" }, inj ? "–" : e.minutes),
-                                    React.createElement("td", { className: "num" }, inj ? "–" : nf(e.rpe * e.minutes)),
+                                    React.createElement("td", { style: { color: inj ? "var(--crit)" : abs ? (isIll(e) ? "var(--serious)" : "var(--muted)") : "var(--good)" } }, inj ? "verletzt raus" : abs ? (isIll(e) ? "krank" : "abgemeldet") : "mitgemacht"),
+                                    React.createElement("td", { className: "num", style: { color: gone2 ? "var(--muted)" : rpeColor(e.rpe) } }, gone2 ? "–" : e.rpe),
+                                    React.createElement("td", { className: "num" }, gone2 ? "–" : e.minutes),
+                                    React.createElement("td", { className: "num" }, gone2 ? "–" : nf(e.rpe * e.minutes)),
                                     React.createElement("td", { className: "num", style: { color: e.sleep ? (e.sleep <= 2 ? "var(--crit)" : e.sleep === 3 ? "var(--warn)" : "var(--good)") : "var(--muted)" } }, e.sleep || "–"),
                                     React.createElement("td", { className: "num", style: { color: e.stress ? (e.stress >= 4 ? "var(--crit)" : e.stress === 3 ? "var(--warn)" : "var(--good)") : "var(--muted)" } }, e.stress || "–"),
                                     React.createElement("td", null, moodText(e)),
-                                    React.createElement("td", { style: { color: inj ? "var(--crit)" : (e.pains || []).length ? "var(--serious)" : "var(--muted)" } }, inj
+                                    React.createElement("td", { style: { color: inj ? "var(--crit)" : abs ? "var(--serious)" : (e.pains || []).length ? "var(--serious)" : "var(--muted)" } }, inj
                                         ? (inj.region || "Region offen") + (inj.level ? " (" + PAIN_LVL[inj.level] + ")" : "") + " · " + labelOf(INJ_ACTIVITY, inj.activity)
-                                        : ((e.pains || []).length ? painText(e) : "keine"))));
+                                        : abs ? labelOf(ABSENCE, absReason(e))
+                                            : ((e.pains || []).length ? painText(e) : "keine"))));
                             }))))) : (React.createElement("p", { style: { fontSize: 12.5, color: "var(--muted)", margin: "4px 0 12px 40px" } },
                         "Im gew\u00E4hlten Zeitraum keine R\u00FCckmeldung von ",
                         displayName(x.p),
@@ -18966,7 +19109,7 @@ function Dashboard({ squad, entries, today, metrics, calendar, onOpenPlayer }) {
     const last7Entries = scopedEntries.filter(e => parseISO(e.date) >= parseISO(addDays(today, -6)));
     const avgRpe = last7Entries.length ? mean(last7Entries.map(e => e.rpe)) : 0;
     const scopedMetrics = metrics.filter(m => scopeIds.has(m.player.id));
-    const counts = { green: 0, amber: 0, red: 0, none: 0, injured: 0 };
+    const counts = { green: 0, amber: 0, red: 0, none: 0, injured: 0, ill: 0, away: 0 };
     scopedMetrics.forEach(m => { counts[m.status.key]++; });
     const todaySessions = calendar.filter(s => s.date === today);
     const respondedToday = new Set(scopedEntries.filter(e => e.date === today).map(e => e.playerId)).size;
@@ -18991,6 +19134,10 @@ function Dashboard({ squad, entries, today, metrics, calendar, onOpenPlayer }) {
     const teamAcwr = lastPoint.chronic > 0 ? lastPoint.acute / lastPoint.chronic : 0;
     const injured = scopedMetrics.filter(m => m.status.key === "injured")
         .sort((a, b) => (b.injury ? b.injury.date : "") < (a.injury ? a.injury.date : "") ? -1 : 1);
+    const ill = scopedMetrics.filter(m => m.status.key === "ill");
+    const away = scopedMetrics.filter(m => m.status.key === "away");
+    const outList = [...injured, ...ill, ...away];
+    const fit = scoped.length - injured.length - ill.length;
     const groups = [
         { title: "Torhüter", icon: true, list: scopedMetrics.filter(m => m.player.gk).sort(byNrM) },
         { title: "Feldspieler", icon: false, list: scopedMetrics.filter(m => !m.player.gk).sort((a, b) => (b.status.level - a.status.level) || (b.acute - a.acute)) },
@@ -19050,9 +19197,18 @@ function Dashboard({ squad, entries, today, metrics, calendar, onOpenPlayer }) {
                     React.createElement("span", { style: { color: "var(--crit)" } }, counts.red)),
                 React.createElement("span", { className: "d" }, "fit \u00B7 beobachten \u00B7 senken")),
             React.createElement("div", { className: "tile" },
-                React.createElement("span", { className: "lab" }, "Verletzt gemeldet"),
-                React.createElement("span", { className: "v", style: { color: injured.length ? "var(--crit)" : "var(--good)" } }, injured.length),
-                React.createElement("span", { className: "d" }, injured.length ? injured.slice(0, 3).map(m => displayName(m.player)).join(", ") + (injured.length > 3 ? " +" + (injured.length - 3) : "") : "keine Ausfälle")),
+                React.createElement("span", { className: "lab" }, "Einsatzf\u00E4hig"),
+                React.createElement("span", { className: "v", style: { color: fit < scoped.length * 0.8 ? "var(--warn)" : "var(--good)" } },
+                    fit,
+                    React.createElement("span", { style: { fontSize: 14, color: "var(--muted)", fontWeight: 600 } },
+                        " / ",
+                        scoped.length)),
+                React.createElement("span", { className: "d" },
+                    injured.length ? injured.length + " verletzt" : "",
+                    injured.length && ill.length ? " · " : "",
+                    ill.length ? ill.length + " krank" : "",
+                    !injured.length && !ill.length ? "keine Ausfälle" : "",
+                    away.length ? " · " + away.length + " abgemeldet" : "")),
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "R\u00FCckmeldung heute"),
                 React.createElement("span", { className: "v", style: { color: quote >= 80 ? "var(--good)" : quote >= 50 ? "var(--warn)" : "var(--crit)" } },
@@ -19064,39 +19220,63 @@ function Dashboard({ squad, entries, today, metrics, calendar, onOpenPlayer }) {
                     scoped.length,
                     " ",
                     todaySessions.length ? "· " + todaySessions[0].label : "· kein Training"))),
-        injured.length > 0 && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(208,59,59,0.35)" } },
+        outList.length > 0 && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(208,59,59,0.35)" } },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
                     React.createElement("h3", { style: { display: "flex", alignItems: "center", gap: 8 } },
                         React.createElement("span", { style: { color: "var(--crit)", display: "inline-flex" } },
                             React.createElement(Icon, { d: I.cross, size: 16 })),
-                        "Ausf\u00E4lle & Wiedereinstieg"),
-                    React.createElement("p", null, "Wer ist verletzt raus, wie weit ist die R\u00FCckkehr?"))),
-            React.createElement("div", { className: "rows" }, injured.map(m => {
-                const inj = (m.injury && m.injury.injury) || {};
-                return (React.createElement("button", { className: "prow", key: m.player.id, onClick: () => onOpenPlayer(m) },
-                    React.createElement("span", { className: "statusbar", style: { background: "var(--crit)" } }),
-                    m.player.nr > 0 && React.createElement("span", { className: "nr" }, m.player.nr),
-                    React.createElement("span", { className: "grow" },
-                        React.createElement("span", { className: "nm" }, m.player.name),
-                        React.createElement("span", { className: "sub" },
-                            React.createElement("span", { style: { color: PAIN_COLOR[inj.level] || "var(--crit)" } },
-                                inj.region || "Region offen",
-                                inj.level ? " · " + PAIN_LVL[inj.level] : ""),
-                            React.createElement("span", null, "\u00B7"),
-                            React.createElement("span", null, labelOf(INJ_ACTIVITY, inj.activity)),
-                            React.createElement("span", null, "\u00B7"),
-                            React.createElement("span", null,
-                                "Arzt: ",
-                                labelOf(INJ_MEDICAL, inj.medical).toLowerCase()))),
-                    React.createElement("span", { className: "num" },
-                        m.missedSessions,
-                        React.createElement("small", null, "verpasst")),
-                    React.createElement("span", { className: "num", style: { minWidth: 60 } },
-                        m.injury ? fmtDate(m.injury.date) : "–",
-                        React.createElement("small", null, "zuletzt"))));
-            })),
-            React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: "12px 0 0" } }, "Verletzte z\u00E4hlen nicht in Last, \u00D8 RPE und ACWR \u2013 sonst w\u00FCrde die Teamlast k\u00FCnstlich sinken."))),
+                        "Ausf\u00E4lle & Abmeldungen"),
+                    React.createElement("p", null, "Wer ist raus \u2013 und aus welchem Grund?"))),
+            React.createElement("div", { className: "rows" },
+                [...ill, ...away].map(m => {
+                    const a = m.absence || {};
+                    const rsn = absReason(m.absence);
+                    const info = ABSENCE.find(x => x.key === rsn) || ABSENCE[4];
+                    return (React.createElement("button", { className: "prow", key: m.player.id, onClick: () => onOpenPlayer(m) },
+                        React.createElement("span", { className: "statusbar", style: { background: m.status.color } }),
+                        m.player.nr > 0 && React.createElement("span", { className: "nr" }, m.player.nr),
+                        React.createElement("span", { className: "grow" },
+                            React.createElement("span", { className: "nm" }, m.player.name),
+                            React.createElement("span", { className: "sub" },
+                                React.createElement("span", { style: { color: m.status.color } },
+                                    info.em,
+                                    " ",
+                                    info.label),
+                                React.createElement("span", null, "\u00B7"),
+                                React.createElement("span", null,
+                                    "zuletzt ",
+                                    m.absence ? fmtDate(m.absence.date) : "–"))),
+                        React.createElement("span", { className: "num" },
+                            m.absMissed,
+                            React.createElement("small", null, "verpasst")),
+                        React.createElement(StatusPill, { st: m.status })));
+                }),
+                injured.map(m => {
+                    const inj = (m.injury && m.injury.injury) || {};
+                    return (React.createElement("button", { className: "prow", key: m.player.id, onClick: () => onOpenPlayer(m) },
+                        React.createElement("span", { className: "statusbar", style: { background: "var(--crit)" } }),
+                        m.player.nr > 0 && React.createElement("span", { className: "nr" }, m.player.nr),
+                        React.createElement("span", { className: "grow" },
+                            React.createElement("span", { className: "nm" }, m.player.name),
+                            React.createElement("span", { className: "sub" },
+                                React.createElement("span", { style: { color: PAIN_COLOR[inj.level] || "var(--crit)" } },
+                                    inj.region || "Region offen",
+                                    inj.level ? " · " + PAIN_LVL[inj.level] : ""),
+                                React.createElement("span", null, "\u00B7"),
+                                React.createElement("span", null, labelOf(INJ_ACTIVITY, inj.activity)),
+                                React.createElement("span", null, "\u00B7"),
+                                React.createElement("span", null,
+                                    "Arzt: ",
+                                    labelOf(INJ_MEDICAL, inj.medical).toLowerCase()))),
+                        React.createElement("span", { className: "num" },
+                            m.missedSessions,
+                            React.createElement("small", null, "verpasst")),
+                        React.createElement("span", { className: "num", style: { minWidth: 60 } },
+                            m.injury ? fmtDate(m.injury.date) : "–",
+                            React.createElement("small", null, "zuletzt"))));
+                })),
+            React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: "12px 0 0" } }, "Ausf\u00E4lle und Abmeldungen z\u00E4hlen nicht in Last, \u00D8 RPE und ACWR \u2013 sonst w\u00FCrde die Teamlast k\u00FCnstlich sinken. Als R\u00FCckmeldung z\u00E4hlen sie trotzdem: Wer sich abmeldet, gilt nicht als vergesslich."))),
         React.createElement("div", { className: "card", style: { marginTop: 12 } },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
@@ -19120,7 +19300,7 @@ function Dashboard({ squad, entries, today, metrics, calendar, onOpenPlayer }) {
                     React.createElement("h3", null, "Tagesstatus des Kaders"),
                     React.createElement("p", null, "Wer ist fit f\u00FCr die n\u00E4chste Einheit? Tippen f\u00FCr Details.")),
                 React.createElement("div", { className: "spacer" }),
-                React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" } }, [STATUS.green, STATUS.amber, STATUS.red, STATUS.injured].map(s => React.createElement(StatusPill, { key: s.key, st: s })))),
+                React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" } }, [STATUS.green, STATUS.amber, STATUS.red, STATUS.injured, STATUS.ill, STATUS.away].map(s => React.createElement(StatusPill, { key: s.key, st: s })))),
             groups.map(g => g.list.length ? (React.createElement("div", { key: g.title, style: { marginBottom: 16 } },
                 React.createElement("div", { className: "eyebrow", style: { marginBottom: 8, display: "flex", alignItems: "center", gap: 6 } },
                     g.icon && React.createElement("span", { style: { color: "var(--s2)", display: "inline-flex" } },
@@ -19184,7 +19364,7 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
     const teamChronic = sum(dailyLoads(entries, null, today, 28).map(d => d.load)) / 4;
     const teamAcwr = teamChronic > 0 ? teamAcute / teamChronic : 0;
     const teamMono = (() => { const v = days7.map(d => d.load); const s = sd(v); return s > 0 ? mean(v) / s : 0; })();
-    const counts = { green: 0, amber: 0, red: 0, none: 0, injured: 0 };
+    const counts = { green: 0, amber: 0, red: 0, none: 0, injured: 0, ill: 0, away: 0 };
     metrics.forEach(m => counts[m.status.key]++);
     const respondQuote = (() => {
         let expected = 0, got = 0;
@@ -19214,12 +19394,16 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
     L.push("Team-ACWR: " + nf2(teamAcwr) + " (Zielkorridor 0,80–1,30) · Monotonie: " + nf1(teamMono));
     L.push("Ampel: " + counts.green + " fit · " + counts.amber + " beobachten · " + counts.red + " Belastung senken"
         + (counts.injured ? " · " + counts.injured + " verletzt" : "")
+        + (counts.ill ? " · " + counts.ill + " krank" : "")
+        + (counts.away ? " · " + counts.away + " abgemeldet" : "")
         + (counts.none ? " · " + counts.none + " ohne Rückmeldung" : ""));
     L.push("");
     // --- Ausfälle ---
     const outNow = metrics.filter(m => m.status.key === "injured");
-    if (outNow.length) {
-        rule("🚑 AUSFÄLLE");
+    const illNow = metrics.filter(m => m.status.key === "ill");
+    const awayNow = metrics.filter(m => m.status.key === "away");
+    if (outNow.length || illNow.length || awayNow.length) {
+        rule("🚑 AUSFÄLLE & ABMELDUNGEN");
         outNow.forEach(m => {
             const inj = (m.injury && m.injury.injury) || {};
             L.push("• " + ref(m.player) + " — " + (inj.region || "Region offen") + (inj.level ? " (" + PAIN_LVL[inj.level] + ")" : ""));
@@ -19232,13 +19416,24 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
             else
                 L.push("   → Läuft bereits Alternativprogramm. Rückkehr über Teilintegration ohne Zweikampf planen.");
         });
-        L.push("Kadergröße einsatzfähig: " + (squad.length - outNow.length) + " von " + squad.length + ".");
+        illNow.forEach(m => {
+            L.push("• " + ref(m.player) + " — krank gemeldet, zuletzt " + (m.absence ? fmtDate(m.absence.date) : "–")
+                + " · " + m.absMissed + " Einheit" + (m.absMissed === 1 ? "" : "en") + " ohne Teilnahme");
+            L.push("   → Nach Infekt stufenweise aufbauen: erst belasten, wenn zwei Tage beschwerdefrei. Keine Intensitätsspitze in der ersten Einheit.");
+        });
+        if (awayNow.length) {
+            const byReason = {};
+            awayNow.forEach(m => { const r = absReason(m.absence); (byReason[r] = byReason[r] || []).push(shortRef(m.player)); });
+            L.push("Abgemeldet: " + Object.keys(byReason).map(r => labelOf(ABSENCE, r) + " – " + byReason[r].join(", ")).join(" | "));
+        }
+        L.push("Kadergröße einsatzfähig: " + (squad.length - outNow.length - illNow.length) + " von " + squad.length
+            + (awayNow.length ? " (zusätzlich " + awayNow.length + " abgemeldet)" : "") + ".");
         L.push("");
     }
     // --- Top-Belastete ---
     rule("⚠️ TOP-BELASTETE SPIELER");
     const risky = metrics
-        .filter(m => m.status.key !== "none" && m.status.key !== "injured")
+        .filter(m => m.status.key !== "none" && m.status.key !== "injured" && m.status.key !== "ill" && m.status.key !== "away")
         .map(m => {
         let score = m.acute / 1000;
         if (m.chronic > 0 && m.acwr > 1.3)
@@ -19297,9 +19492,9 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
                 : gkGreen + " von " + gks.length + " uneingeschränkt einsatzfähig. Hohe Wurf-/Sprungvolumen auf die fitten Keeper verteilen."));
     L.push("");
     // --- Erholung ---
-    const sleepFlag = metrics.filter(m => m.status.key !== "none" && m.status.key !== "injured" && (m.badSleepDays >= 2 || (m.avgSleep !== null && m.avgSleep <= 2.5)))
+    const sleepFlag = metrics.filter(m => m.status.key !== "none" && m.status.key !== "injured" && m.status.key !== "ill" && m.status.key !== "away" && (m.badSleepDays >= 2 || (m.avgSleep !== null && m.avgSleep <= 2.5)))
         .sort((a, b) => (a.avgSleep || 9) - (b.avgSleep || 9));
-    const stressFlag = metrics.filter(m => m.status.key !== "none" && m.status.key !== "injured" && (m.highStressDays >= 2 || (m.avgStress !== null && m.avgStress >= 4)))
+    const stressFlag = metrics.filter(m => m.status.key !== "none" && m.status.key !== "injured" && m.status.key !== "ill" && m.status.key !== "away" && (m.highStressDays >= 2 || (m.avgStress !== null && m.avgStress >= 4)))
         .sort((a, b) => (b.avgStress || 0) - (a.avgStress || 0));
     if (sleepFlag.length || stressFlag.length) {
         rule("😴 SCHLAF & STRESS");
@@ -19363,6 +19558,12 @@ function buildReport({ squad, entries, metrics, today, calendar }) {
     const inj = metrics.filter(m => m.status.key === "injured");
     if (inj.length)
         L.push("Verletzt raus (" + inj.length + "): " + inj.map(m => shortRef(m.player)).join(", "));
+    const illList = metrics.filter(m => m.status.key === "ill");
+    if (illList.length)
+        L.push("Krank (" + illList.length + "): " + illList.map(m => shortRef(m.player)).join(", "));
+    const awayList = metrics.filter(m => m.status.key === "away");
+    if (awayList.length)
+        L.push("Abgemeldet (" + awayList.length + "): " + awayList.map(m => shortRef(m.player)).join(", "));
     const none = metrics.filter(m => m.status.key === "none");
     if (none.length)
         L.push("Ohne Rückmeldung (" + none.length + "): " + none.map(m => shortRef(m.player)).join(", "));
