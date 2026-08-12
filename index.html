@@ -18179,6 +18179,17 @@ const entryToRow = (e, team) => ({
 });
 // Fehlt die Spaltenerweiterung in der Datenbank, darf das Eintragen nicht komplett scheitern
 const stripExtras = rows => rows.map(r => { const { sleep, stress, status, injury, ...rest } = r; return rest; });
+// Fehlen der Datenbank Spalten, liefert PostgREST die Schlüssel gar nicht erst mit
+const schemaCheck = rows => {
+    if (!rows || !rows.length)
+        return null;
+    const r = rows[0];
+    return ("status" in r) && ("injury" in r) && ("sleep" in r) && ("stress" in r);
+};
+const MIGRATION_SQL = "alter table load_entries add column if not exists sleep  int;\n"
+    + "alter table load_entries add column if not exists stress int;\n"
+    + "alter table load_entries add column if not exists status text;\n"
+    + "alter table load_entries add column if not exists injury jsonb;";
 const isMissingColumn = err => /PGRST204|sleep|stress|status|injury|column/i.test(String((err && err.message) || err));
 const api = {
     meta: cfg => sbFetch(cfg, "load_meta?team=eq." + encodeURIComponent(cfg.team) + "&select=squad,sessions"),
@@ -20760,6 +20771,8 @@ function SyncSheet({ cfg, setCfg, sync, squad, sessions, entryCount, onPushAll, 
                     React.createElement("span", { className: "dot", style: { background: sync.state === "ok" ? "var(--good)" : sync.state === "error" ? "var(--crit)" : sync.state === "busy" ? "var(--s1)" : "var(--muted)" } }),
                     cfg ? (sync.state === "ok" ? "Verbunden" : sync.state === "error" ? "Verbindungsfehler" : sync.state === "busy" ? "Gleicht ab …" : "Verbunden") : "Nur lokal auf diesem Gerät"),
                 sync.msg && React.createElement("span", { className: "d", style: { color: "var(--crit)", wordBreak: "break-word" } }, sync.msg),
+                cfg && sync.schema === false && (React.createElement("span", { className: "d", style: { color: "var(--crit)" } }, "Tabelle unvollst\u00E4ndig \u2013 SQL aus Teil B2 der Anleitung fehlt.")),
+                cfg && sync.schema === true && React.createElement("span", { className: "d", style: { color: "var(--good)" } }, "Tabellen vollst\u00E4ndig."),
                 cfg && sync.at && !sync.msg && React.createElement("span", { className: "d" },
                     "Zuletzt abgeglichen: ",
                     new Date(sync.at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }),
@@ -20822,7 +20835,7 @@ function App() {
     const [syncSheet, setSyncSheet] = useState(false);
     const [msg, setMsg] = useState(null);
     const [cfg, setCfg] = useState(() => readCfgFromHash() || store.get("cfg", null));
-    const [sync, setSync] = useState({ state: "off", msg: "", at: null });
+    const [sync, setSync] = useState({ state: "off", msg: "", at: null, schema: null });
     const calendar = useMemo(() => [...sessions].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0), [sessions]);
     const toast = useCallback(t => { setMsg(t); setTimeout(() => setMsg(null), 2800); }, []);
     useEffect(() => { if (cfg)
@@ -20850,10 +20863,41 @@ function App() {
     const entriesRef = useRef(entries);
     useEffect(() => { entriesRef.current = entries; }, [entries]);
     /* ---------- Synchronisation ---------- */
-    const mergePending = (prev, incoming) => {
-        const map = new Map(incoming.map(e => [e.id, e]));
-        prev.filter(e => e._pending).forEach(e => map.set(e.id, e));
-        return [...map.values()];
+    // Ein Abgleich darf niemals Angaben löschen, die lokal vorhanden sind.
+    // Genau das ist passiert, solange der Datenbank Spalten fehlten: Der Server
+    // lieferte die Zeile ohne Verletzung zurück und die Ampel sprang von Rot auf Grün.
+    const mergeEntries = (prev, incoming, schemaOk) => {
+        const byId = new Map(prev.map(e => [e.id, e]));
+        const out = incoming.map(inc => {
+            const loc = byId.get(inc.id);
+            if (!loc)
+                return inc;
+            if (loc._pending)
+                return loc; // lokale Änderung hat Vorrang
+            // Eine echte Korrektur von einem anderen Gerät hat einen neueren Zeitstempel
+            // und gewinnt vollständig. Nur bei gleichem Stand wird nichts weggeworfen.
+            if ((inc.ts || 0) > (loc.ts || 0))
+                return inc;
+            let keptSomething = false;
+            const merged = { ...inc };
+            const keep = (k) => {
+                const a = inc[k], b = loc[k];
+                const incEmpty = a === undefined || a === null || a === "" || (k === "status" && a === "trained");
+                const locFilled = b !== undefined && b !== null && b !== "" && !(k === "status" && b === "trained");
+                if (incEmpty && locFilled) {
+                    merged[k] = b;
+                    keptSomething = true;
+                }
+            };
+            ["status", "injury", "absence", "sleep", "stress"].forEach(keep);
+            if (keptSomething && schemaOk === true)
+                merged._pending = true; // Datenbank kann es – also reparieren
+            return merged;
+        });
+        const seen = new Set(incoming.map(e => e.id));
+        prev.forEach(e => { if (!seen.has(e.id))
+            out.push(e); }); // lokale Einträge nicht verwerfen
+        return out;
     };
     const pull = useCallback(async () => {
         const c = cfgRef.current;
@@ -20869,9 +20913,11 @@ function App() {
                 if (Array.isArray(row.sessions))
                     setSessions(row.sessions);
             }
+            let schemaOk = null;
             if (modeRef.current === "coach") {
                 const rows = (await api.allEntries(c)) || [];
-                setEntries(prev => mergePending(prev, rows.map(rowToEntry)));
+                schemaOk = schemaCheck(rows);
+                setEntries(prev => mergeEntries(prev, rows.map(rowToEntry), schemaOk));
                 setSubmitted(rows.map(r => ({ playerId: r.player_id, sessionId: r.session_id })));
             }
             else {
@@ -20880,13 +20926,14 @@ function App() {
                 const pid = meRef.current;
                 if (pid) {
                     const rows = (await api.playerEntries(c, pid)) || [];
-                    setEntries(prev => mergePending(prev, rows.map(rowToEntry)));
+                    schemaOk = schemaCheck(rows);
+                    setEntries(prev => mergeEntries(prev, rows.map(rowToEntry), schemaOk));
                 }
             }
-            setSync({ state: "ok", msg: "", at: Date.now() });
+            setSync(s => ({ state: "ok", msg: "", at: Date.now(), schema: schemaOk === null ? s.schema : schemaOk }));
         }
         catch (e) {
-            setSync({ state: "error", msg: String((e && e.message) || e), at: Date.now() });
+            setSync(s => ({ ...s, state: "error", msg: String((e && e.message) || e), at: Date.now() }));
         }
     }, []);
     const flush = useCallback(async () => {
@@ -20902,8 +20949,10 @@ function App() {
                 await api.putEntries(c, pend.map(e => entryToRow(e, c.team)));
             }
             catch (err) {
-                if (err && err.partial)
+                if (err && err.partial) {
                     warn = err.message;
+                    setSync(s => ({ ...s, schema: false }));
+                }
                 else
                     throw err;
             }
@@ -20915,10 +20964,10 @@ function App() {
                     .map(e => ({ playerId: e.playerId, sessionId: e.sessionId }));
                 return add.length ? [...list, ...add] : list;
             });
-            setSync({ state: warn ? "error" : "ok", msg: warn || "", at: Date.now() });
+            setSync(s => ({ ...s, state: warn ? "error" : "ok", msg: warn || "", at: Date.now() }));
         }
         catch (e) {
-            setSync({ state: "error", msg: String((e && e.message) || e), at: Date.now() });
+            setSync(s => ({ ...s, state: "error", msg: String((e && e.message) || e), at: Date.now() }));
         }
     }, []);
     // Wer wochenlang lokal gearbeitet hat, verliert beim Verbinden nichts
@@ -20932,16 +20981,16 @@ function App() {
             return;
         try {
             await api.putMeta(c, nextSquad, nextSessions);
-            setSync({ state: "ok", msg: "", at: Date.now() });
+            setSync(s => ({ ...s, state: "ok", msg: "", at: Date.now() }));
         }
         catch (e) {
-            setSync({ state: "error", msg: String((e && e.message) || e), at: Date.now() });
+            setSync(s => ({ ...s, state: "error", msg: String((e && e.message) || e), at: Date.now() }));
         }
     }, []);
     // Erstabgleich + regelmäßiges Nachladen, solange die App sichtbar ist
     useEffect(() => {
         if (!cfg) {
-            setSync({ state: "off", msg: "", at: null });
+            setSync({ state: "off", msg: "", at: null, schema: null });
             return;
         }
         let alive = true;
@@ -21105,6 +21154,26 @@ function App() {
                 React.createElement(Icon, { d: I.users, size: 17 })),
             React.createElement("button", { className: "icon-btn", onClick: leaveMode, "aria-label": "Bereich verlassen" },
                 React.createElement(Icon, { d: I.exit, size: 17 }))),
+        !isPlayer && sync.schema === false && (React.createElement("div", { className: "card", style: { marginBottom: 12, borderColor: "rgba(208,59,59,0.5)", background: "rgba(208,59,59,0.08)" } },
+            React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
+                React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(208,59,59,0.18)", color: "var(--crit)",
+                        display: "grid", placeItems: "center", flex: "0 0 auto" } },
+                    React.createElement(Icon, { d: I.alert, size: 19 })),
+                React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                    React.createElement("h3", { style: { fontSize: 14.5, marginBottom: 4, color: "var(--crit)" } }, "Datenbank unvollst\u00E4ndig"),
+                    React.createElement("p", { style: { margin: "0 0 10px", fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.6 } },
+                        "In Supabase fehlen vier Spalten. Verletzungen, Abmeldungen, Schlaf und Stress werden deshalb ",
+                        React.createElement("strong", null, "nicht gespeichert"),
+                        " \u2013 auf anderen Ger\u00E4ten fehlen sie, und eine rote Ampel kann dort wieder auf Gr\u00FCn springen. Diese Zeilen einmal im SQL-Editor ausf\u00FChren:"),
+                    React.createElement("div", { style: { background: "#0b0d11", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "10px 12px",
+                            fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 11, lineHeight: 1.7,
+                            color: "var(--ink-2)", whiteSpace: "pre-wrap", overflowX: "auto" } }, MIGRATION_SQL),
+                    React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 } },
+                        React.createElement("button", { className: "btn sm", onClick: () => copyText(MIGRATION_SQL, "SQL kopiert – in Supabase einfügen und ausführen.") },
+                            React.createElement(Icon, { d: I.copy, size: 15 }),
+                            " SQL kopieren"),
+                        React.createElement("button", { className: "btn sm ghost", onClick: () => { flush().then(pull); toast("Wird geprüft …"); } }, "Erneut pr\u00FCfen")),
+                    React.createElement("p", { style: { margin: "10px 0 0", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.55 } }, "Bis dahin bleiben die Angaben auf diesem Ger\u00E4t erhalten \u2013 sie werden beim Abgleich nicht mehr \u00FCberschrieben."))))),
         React.createElement("div", { className: "tabs", role: "tablist" }, TABS.map(t => (React.createElement("button", { key: t.key, role: "tab", "aria-selected": tab === t.key, onClick: () => setTab(t.key) },
             React.createElement(Icon, { d: t.icon, size: 17 }),
             React.createElement("span", { className: "lbl-long" }, t.label),
