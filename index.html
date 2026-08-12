@@ -17606,23 +17606,82 @@ const stressOf = v => STRESS.find(x => x.v === v) || null;
 const PAIN_LVL = { 0: "kein", 1: "leicht", 2: "deutlich", 3: "stark" };
 const PAIN_COLOR = { 1: "var(--warn)", 2: "var(--serious)", 3: "var(--crit)" };
 const SESSION_TYPES = [
-    { type: "Training", minutes: 90, label: "Training" },
-    { type: "Spiel", minutes: 90, label: "Punktspiel" },
-    { type: "Testspiel", minutes: 70, label: "Testspiel" },
-    { type: "Athletik", minutes: 45, label: "Athletik / Regeneration" },
-    { type: "Individuell", minutes: 30, label: "Individualtraining" },
+    { type: "Training", minutes: 90, label: "Training", plan: 6 },
+    { type: "Spiel", minutes: 90, label: "Punktspiel", plan: 9 },
+    { type: "Testspiel", minutes: 70, label: "Testspiel", plan: 7 },
+    { type: "Athletik", minutes: 45, label: "Athletik / Regeneration", plan: 4 },
+    { type: "Individuell", minutes: 30, label: "Individualtraining", plan: 5 },
 ];
+// Geplante Intensität – bewusst grob, drei Stufen reichen für die Steuerung
+const PLAN_LEVELS = [
+    { v: 3, label: "Locker", sub: "Regeneration, Technik" },
+    { v: 6, label: "Mittel", sub: "normales Training" },
+    { v: 8, label: "Hart", sub: "Intensität, Zweikampf" },
+];
+const planLabel = v => !v ? "–" : v <= 4 ? "locker" : v <= 7 ? "mittel" : "hart";
 const minutePresets = max => Array.from(new Set([max, 75, 60, 45, 30, 15, 0].filter(v => v <= max))).sort((a, b) => b - a);
 const INJ_ONSET = [
     { key: "neu", label: "Neu aufgetreten", sub: "seit heute oder gestern" },
     { key: "bekannt", label: "Bekanntes Problem", sub: "schleppt sich schon länger" },
 ];
 const INJ_ACTIVITY = [
-    { key: "pause", em: "🛑", label: "Komplett pausiert" },
-    { key: "reha", em: "🩹", label: "Reha / Physio" },
-    { key: "alt", em: "🚴", label: "Alternativ (Rad, Schwimmen)" },
-    { key: "lauf", em: "🏃", label: "Individuelles Laufen" },
+    { key: "pause", em: "🛑", label: "Komplett pausiert", stage: 1, short: "Pause" },
+    { key: "reha", em: "🩹", label: "Reha / Physio", stage: 2, short: "Reha" },
+    { key: "alt", em: "🚴", label: "Alternativ (Rad, Schwimmen)", stage: 3, short: "Alternativ" },
+    { key: "lauf", em: "🏃", label: "Individuelles Laufen", stage: 4, short: "Laufen" },
+    { key: "teil", em: "🎽", label: "Teilweise mitgemacht", stage: 5, short: "Teilintegration" },
 ];
+const stageOf = key => (INJ_ACTIVITY.find(a => a.key === key) || {}).stage || 0;
+// Zusammenhängende Meldungen zu einer Verletzungsakte bündeln
+function injuryCases(entries, playerId) {
+    const list = entries.filter(e => e.playerId === playerId && isInjured(e))
+        .sort((a, b) => a.date < b.date ? -1 : 1);
+    const cases = [];
+    list.forEach(e => {
+        const inj = e.injury || {};
+        const last = cases[cases.length - 1];
+        const gap = last ? Math.round((parseISO(e.date) - parseISO(last.to)) / 864e5) : 999;
+        if (last && last.region === (inj.region || "?") && gap <= 21) {
+            last.to = e.date;
+            last.entries.push(e);
+        }
+        else {
+            cases.push({ region: inj.region || "?", from: e.date, to: e.date, entries: [e] });
+        }
+    });
+    return cases.map(c => {
+        const last = c.entries[c.entries.length - 1];
+        const inj = last.injury || {};
+        const first = c.entries[0].injury || {};
+        return {
+            ...c,
+            days: Math.round((parseISO(c.to) - parseISO(c.from)) / 864e5) + 1,
+            missed: c.entries.length,
+            level: inj.level || 0,
+            levelStart: first.level || 0,
+            trend: (first.level || 0) - (inj.level || 0), // positiv = besser geworden
+            activity: inj.activity, stage: stageOf(inj.activity),
+            medical: inj.medical, onset: first.onset,
+            painFree: c.entries.slice(-2).every(x => ((x.injury || {}).level || 0) <= 1),
+        };
+    }).reverse(); // neueste Akte zuerst
+}
+// Nächster sinnvoller Schritt – bewusst konservativ
+function nextStep(c) {
+    if (c.level >= 3)
+        return { t: "Weiter pausieren", d: "Starker Schmerz. Erst belasten, wenn in Ruhe schmerzfrei. Ohne ärztliche Abklärung keine Freigabe." };
+    if (c.stage <= 1)
+        return { t: "Reha beginnen", d: "Schmerz nicht mehr stark – mit Physio oder geführten Übungen starten, noch ohne Laufbelastung." };
+    if (c.stage === 2)
+        return { t: "Alternativtraining", d: "Rad oder Schwimmen, um die Grundlage zu halten. Belastung ohne Stoß." };
+    if (c.stage === 3)
+        return { t: "Individuelles Laufen", d: "Geradeauslauf ohne Richtungswechsel, Umfang langsam steigern." };
+    if (c.stage === 4)
+        return { t: "Teilintegration", d: "Mit der Mannschaft, aber ohne Zweikampf und Sprintserien." };
+    if (c.stage === 5 && c.painFree)
+        return { t: "Volle Freigabe möglich", d: "Zwei Teil-Einheiten ohne nennenswerten Schmerz. Erste volle Einheit ohne Spielbelastung danach." };
+    return { t: "Teilintegration fortsetzen", d: "Noch nicht zwei Einheiten in Folge schmerzarm – nicht beschleunigen." };
+}
 const INJ_MEDICAL = [
     { key: "nein", label: "Noch nicht" },
     { key: "termin", label: "Termin steht" },
@@ -17686,13 +17745,13 @@ function mulberry(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79
 function sessionsForDate(dateStr) {
     const w = dow(dateStr);
     if (w === 2)
-        return [{ type: "Training", label: "Training Di", minutes: 90 }];
+        return [{ type: "Training", label: "Training Di", minutes: 90, planRpe: 6 }];
     if (w === 4)
-        return [{ type: "Training", label: "Training Do", minutes: 90 }];
+        return [{ type: "Training", label: "Training Do", minutes: 90, planRpe: 8 }];
     if (w === 6)
-        return [{ type: "Spiel", label: "Punktspiel", minutes: 90 }];
+        return [{ type: "Spiel", label: "Punktspiel", minutes: 90, planRpe: 9 }];
     if (w === 1)
-        return [{ type: "Athletik", label: "Athletik / Regeneration", minutes: 45 }];
+        return [{ type: "Athletik", label: "Athletik / Regeneration", minutes: 45, planRpe: 3 }];
     return [];
 }
 function buildCalendar(today, daysBack) {
@@ -17860,7 +17919,7 @@ function playerMetrics(entries, player, today, hist) {
     const dHist = dailyLoads(entries, player.id, today, H.window).map(x => x.load);
     const chronic = H.weeks > 0 ? sum(dHist) / H.weeks : 0;
     const acwr = chronic > 0 ? acute / chronic : 0;
-    const acwrUsable = H.usable && chronic > 0;
+    const acwrUsable = H.usable && chronic > 0 && acute > 0;
     const m = mean(week), s = sd(week);
     const monotony = s > 0 ? m / s : (m > 0 ? 2.6 : 0);
     const strain = acute * monotony;
@@ -17870,12 +17929,13 @@ function playerMetrics(entries, player, today, hist) {
     const last7 = mine.filter(e => parseISO(e.date) >= parseISO(addDays(today, -6)));
     const avgRpe = last7.length ? mean(last7.map(e => e.rpe)) : 0;
     const minutes = sum(last7.map(e => e.minutes));
-    const sleepVals = last7.filter(e => e.sleep > 0).map(e => e.sleep);
-    const stressVals = last7.filter(e => e.stress > 0).map(e => e.stress);
+    const all7 = mineAll.filter(e => parseISO(e.date) >= parseISO(addDays(today, -6)));
+    const sleepVals = all7.filter(e => e.sleep > 0).map(e => e.sleep);
+    const stressVals = all7.filter(e => e.stress > 0).map(e => e.stress);
     const avgSleep = sleepVals.length ? mean(sleepVals) : null;
     const avgStress = stressVals.length ? mean(stressVals) : null;
-    const badSleepDays = new Set(last7.filter(e => e.sleep > 0 && e.sleep <= 2).map(e => e.date)).size;
-    const highStressDays = new Set(last7.filter(e => e.stress >= 4).map(e => e.date)).size;
+    const badSleepDays = new Set(all7.filter(e => e.sleep > 0 && e.sleep <= 2).map(e => e.date)).size;
+    const highStressDays = new Set(all7.filter(e => e.stress >= 4).map(e => e.date)).size;
     // Aktuellster Eintrag
     const sorted = [...mineAll].sort((a, b) => a.date < b.date ? 1 : -1);
     const latest = sorted[0] || null;
@@ -18004,6 +18064,36 @@ const b64url = {
     dec: str => JSON.parse(decodeURIComponent(escape(atob(str.replace(/-/g, "+").replace(/_/g, "/")))))
 };
 const CFG_KEY = "fcs";
+// Geräte-Speicher – defensiv, falls der Browser ihn sperrt (Inkognito, iOS-Einstellungen)
+const store = {
+    ok: (() => { try {
+        const k = "fcs.__t";
+        localStorage.setItem(k, "1");
+        localStorage.removeItem(k);
+        return true;
+    }
+    catch (e) {
+        return false;
+    } })(),
+    get(k, d) { try {
+        const v = localStorage.getItem("fcs." + k);
+        return v === null ? d : JSON.parse(v);
+    }
+    catch (e) {
+        return d;
+    } },
+    set(k, v) { try {
+        localStorage.setItem("fcs." + k, JSON.stringify(v));
+        return true;
+    }
+    catch (e) {
+        return false;
+    } },
+    del(k) { try {
+        localStorage.removeItem("fcs." + k);
+    }
+    catch (e) { } },
+};
 function readCfgFromHash() {
     try {
         const h = (location.hash || "").replace(/^#/, "");
@@ -18337,9 +18427,10 @@ function TableToggle({ children, rows, cols }) {
    7) ANSICHT 1 — SPIELER-EINGABE
    ============================================================ */
 const rpeColor = v => v <= 3 ? "#256abf" : v <= 6 ? "var(--s1)" : v <= 8 ? "var(--warn)" : "var(--crit)";
-function InputView({ squad, calendar, entries, today, submitted, onSave, toast, onManage, onShowMine }) {
-    const [stepIdx, setStepIdx] = useState(0);
-    const [playerId, setPlayerId] = useState(null);
+function InputView({ squad, calendar, entries, today, submitted, onSave, toast, onManage, onShowMine, meId, setMeId }) {
+    const known = meId && squad.some(p => p.id === meId) ? meId : null;
+    const [stepIdx, setStepIdx] = useState(known ? 1 : 0);
+    const [playerId, setPlayerId] = useState(known);
     const [sessionId, setSessionId] = useState(null);
     const [minutes, setMinutes] = useState(null);
     const [rpe, setRpe] = useState(null);
@@ -18380,9 +18471,12 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
     ]), [entries, submitted, sid0]);
     const hasEntry = (sessId, pid) => entries.some(e => e.sessionId === sessId && e.playerId === pid)
         || (submitted || []).some(x => x.sessionId === sessId && x.playerId === pid);
-    const reset = () => {
-        setStepIdx(0);
-        setPlayerId(null);
+    const pick = id => { setPlayerId(id); if (setMeId)
+        setMeId(id); next(); };
+    const reset = (keepPlayer) => {
+        const keep = keepPlayer && playerId ? playerId : null;
+        setStepIdx(keep ? 1 : 0);
+        setPlayerId(keep);
         setSessionId(null);
         setPart(null);
         setMinutes(null);
@@ -18398,6 +18492,8 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
         setInjMedical(null);
         setAbsReason(null);
     };
+    const forget = () => { if (setMeId)
+        setMeId(null); setPlayerId(null); setStepIdx(0); };
     const next = () => setStepIdx(i => i + 1);
     const save = (override) => {
         const src = override || pains;
@@ -18434,9 +18530,11 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
                 ? "Gute Besserung. Melde dich wieder, wenn du zurück bist – bei Fieber gilt: mindestens zwei Tage beschwerdefrei, bevor du wieder einsteigst."
                 : "Danke fürs Abmelden. Das Trainerteam weiß jetzt Bescheid und kann die Einheit planen.")),
             done.out && (React.createElement("p", { style: { fontSize: 12.5, color: "var(--ink-2)", maxWidth: 420, margin: "-8px auto 18px", lineHeight: 1.6 } }, "Das Trainerteam sieht deinen Ausfall im Dashboard. Trag dich bitte auch bei den n\u00E4chsten Einheiten weiter ein, solange du raus bist \u2013 so sieht man den Verlauf und den Wiedereinstieg.")),
-            React.createElement("div", { style: { display: "flex", gap: 8, maxWidth: 400, margin: "0 auto", flexWrap: "wrap" } },
-                React.createElement("button", { className: "btn", onClick: () => { setDone(null); reset(); } }, "N\u00E4chster Spieler"),
-                onShowMine && React.createElement("button", { className: "btn ghost", onClick: () => onShowMine(done.player.id) }, "Meine Werte"))));
+            React.createElement("div", { style: { display: "flex", gap: 8, maxWidth: 440, margin: "0 auto", flexWrap: "wrap" } },
+                onShowMine && React.createElement("button", { className: "btn", onClick: () => onShowMine(done.player.id) }, "Meine Werte"),
+                React.createElement("button", { className: "btn ghost", onClick: () => { setDone(null); reset(true); } }, "Weitere Einheit"),
+                React.createElement("button", { className: "btn ghost", onClick: () => { setDone(null); if (setMeId)
+                        setMeId(null); reset(false); } }, "Anderer Spieler"))));
     }
     if (!calendar.length) {
         return (React.createElement("div", { className: "card", style: { textAlign: "center", padding: "38px 20px" } },
@@ -18463,12 +18561,14 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
                     seq.length),
                 React.createElement("h3", { style: { fontSize: 17, marginTop: 2 } }, TITLES[cur])),
             React.createElement("div", { style: { flex: 1 } }),
-            player && stepIdx > 0 && React.createElement("span", { className: "pill" },
-                React.createElement("span", { className: "dot", style: { background: player.gk ? "var(--s2)" : "var(--s1)" } }),
-                displayName(player))),
+            player && stepIdx > 0 && (React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" } },
+                React.createElement("span", { className: "pill" },
+                    React.createElement("span", { className: "dot", style: { background: player.gk ? "var(--s2)" : "var(--s1)" } }),
+                    displayName(player)),
+                known === player.id && React.createElement("button", { className: "linkbtn", onClick: forget }, "nicht ich?")))),
         cur === "player" && (React.createElement("div", { className: "card" },
             React.createElement("div", { className: "eyebrow", style: { marginBottom: 9 } }, "Feldspieler"),
-            React.createElement("div", { className: "squadgrid" }, squad.filter(p => !p.gk).sort(byNr).map(p => (React.createElement("button", { key: p.id, className: "pbtn" + (doneForSession.has(p.id) ? " done" : ""), onClick: () => { setPlayerId(p.id); next(); } },
+            React.createElement("div", { className: "squadgrid" }, squad.filter(p => !p.gk).sort(byNr).map(p => (React.createElement("button", { key: p.id, className: "pbtn" + (doneForSession.has(p.id) ? " done" : ""), onClick: () => pick(p.id) },
                 p.nr > 0 && React.createElement("span", { className: "pn" }, p.nr),
                 React.createElement("span", { className: "pl" }, displayName(p)),
                 React.createElement("span", { className: "pp" }, p.pos || "Feldspieler"))))),
@@ -18477,7 +18577,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
                     React.createElement("span", { style: { color: "var(--s2)", display: "inline-flex" } },
                         React.createElement(Icon, { d: I.glove, size: 13 })),
                     " Torh\u00FCter"),
-                React.createElement("div", { className: "squadgrid" }, squad.filter(p => p.gk).sort(byNr).map(p => (React.createElement("button", { key: p.id, className: "pbtn gk" + (doneForSession.has(p.id) ? " done" : ""), onClick: () => { setPlayerId(p.id); next(); } },
+                React.createElement("div", { className: "squadgrid" }, squad.filter(p => p.gk).sort(byNr).map(p => (React.createElement("button", { key: p.id, className: "pbtn gk" + (doneForSession.has(p.id) ? " done" : ""), onClick: () => pick(p.id) },
                     p.nr > 0 && React.createElement("span", { className: "pn" }, p.nr),
                     React.createElement("span", { className: "pl" }, displayName(p)),
                     React.createElement("span", { className: "pp" }, "Torh\u00FCter")))))),
@@ -19108,6 +19208,132 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             }))) : (React.createElement("p", { style: { fontSize: 13, color: "var(--muted)", margin: "14px 0 0" } }, "Keine R\u00FCckmeldungen im gew\u00E4hlten Filter. Zeitraum erweitern oder Filter zur\u00FCcksetzen.")))));
 }
 /* ============================================================
+   7d) GEPLANT GEGEN EMPFUNDEN + SPIELWOCHE
+   ============================================================ */
+function PlanVsActual({ calendar, entries, today }) {
+    const rows = calendar.filter(c => c.date <= today).slice(-6).reverse().map(c => {
+        const es = entries.filter(e => e.sessionId === c.id && !isOut(e));
+        return { c, n: es.length, actual: es.length ? mean(es.map(e => e.rpe)) : null };
+    }).filter(r => r.c.planRpe);
+    if (!rows.length) {
+        return (React.createElement("div", { className: "card" },
+            React.createElement("div", { className: "card-head" },
+                React.createElement("div", null,
+                    React.createElement("h3", null, "Geplant gegen empfunden"),
+                    React.createElement("p", null, "Sobald Einheiten mit geplanter Intensit\u00E4t angelegt sind, steht hier der Abgleich.")))));
+    }
+    const W = 120; // halbe Breite der Abweichungsskala (±3 RPE)
+    return (React.createElement("div", { className: "card" },
+        React.createElement("div", { className: "card-head" },
+            React.createElement("div", null,
+                React.createElement("h3", null, "Geplant gegen empfunden"),
+                React.createElement("p", null, "Kam die Einheit so an, wie sie gedacht war? Ausschlag nach rechts = h\u00E4rter empfunden."))),
+        React.createElement("div", { className: "rows" }, rows.map(({ c, n, actual }) => {
+            const d = actual === null ? null : actual - c.planRpe;
+            const col = d === null ? "var(--muted)" : Math.abs(d) < 1 ? "var(--good)" : d > 0 ? "var(--s2)" : "var(--s1)";
+            const w = d === null ? 0 : Math.min(W, Math.abs(d) / 3 * W);
+            return (React.createElement("div", { className: "prow", key: c.id, style: { cursor: "default" } },
+                React.createElement("span", { className: "nr", style: { width: 44, fontSize: 11, lineHeight: 1.1, flexDirection: "column", display: "flex", justifyContent: "center" } },
+                    React.createElement("span", { style: { color: "var(--muted)" } }, fmtDay(c.date)),
+                    React.createElement("span", { style: { fontSize: 12, fontWeight: 700 } }, fmtShort(c.date))),
+                React.createElement("span", { className: "grow" },
+                    React.createElement("span", { className: "nm" }, c.label),
+                    React.createElement("span", { className: "sub" },
+                        "geplant ",
+                        planLabel(c.planRpe),
+                        " (RPE ",
+                        c.planRpe,
+                        ") \u00B7 ",
+                        n,
+                        " R\u00FCckmeldung",
+                        n === 1 ? "" : "en")),
+                React.createElement("span", { style: { display: "flex", alignItems: "center", width: 2 * W + 2, flex: "0 0 auto" } },
+                    React.createElement("span", { style: { width: W, display: "flex", justifyContent: "flex-end" } }, d !== null && d < 0 && React.createElement("span", { style: { height: 8, width: w, background: col, borderRadius: "4px 0 0 4px" } })),
+                    React.createElement("span", { style: { width: 2, height: 16, background: "var(--line)" } }),
+                    React.createElement("span", { style: { width: W } }, d !== null && d > 0 && React.createElement("span", { style: { height: 8, width: w, background: col, borderRadius: "0 4px 4px 0", display: "block" } }))),
+                React.createElement("span", { className: "num", style: { minWidth: 52, color: col } },
+                    actual === null ? "–" : nf1(actual),
+                    React.createElement("small", null, "empfunden"))));
+        })),
+        React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: "12px 0 0", lineHeight: 1.6 } }, "Bis 1,0 Abweichung ist alles im Rahmen. Landet euer \u201Elocker\" regelm\u00E4\u00DFig bei 6 und mehr, fehlt der Mannschaft der echte Erholungstag \u2013 das ist die h\u00E4ufigste Ursache f\u00FCr hohe Monotonie.")));
+}
+const MD_PLAN = {
+    0: { plan: 9, text: "Spieltag." },
+    1: { plan: 4, text: "Kurz und spritzig, maximal 60 Minuten, keine Zweikämpfe." },
+    2: { plan: 6, text: "Moderat, Volumen runter, Technik und Standards." },
+    3: { plan: 8, text: "Letzte harte Einheit – Intensität hier, nicht später." },
+    4: { plan: 7, text: "Höchstes Volumen der Woche, Intensität mittel." },
+    5: { plan: 6, text: "Freier Aufbau, Grundlagen." },
+};
+const mdInfo = d => MD_PLAN[Math.min(5, d)] || MD_PLAN[5];
+function MatchWeek({ calendar, today }) {
+    const next = calendar.filter(c => (c.type === "Spiel" || c.type === "Testspiel") && c.date >= today)
+        .sort((a, b) => a.date < b.date ? -1 : 1)[0];
+    if (!next)
+        return null;
+    const daysTo = Math.round((parseISO(next.date) - parseISO(today)) / 864e5);
+    const start = Math.min(5, daysTo);
+    const days = [];
+    for (let d = start; d >= 0; d--) {
+        const date = addDays(next.date, -d);
+        if (date < today)
+            continue;
+        const sess = calendar.filter(c => c.date === date);
+        days.push({ d, date, sess, info: mdInfo(d) });
+    }
+    if (!days.length)
+        return null;
+    return (React.createElement("div", { className: "card", style: { marginTop: 12 } },
+        React.createElement("div", { className: "card-head" },
+            React.createElement("div", null,
+                React.createElement("h3", null,
+                    "Spielwoche bis ",
+                    fmtDay(next.date),
+                    " ",
+                    fmtDate(next.date)),
+                React.createElement("p", null,
+                    next.label,
+                    " \u00B7 noch ",
+                    daysTo,
+                    " ",
+                    daysTo === 1 ? "Tag" : "Tage",
+                    ". Faustregel f\u00FCr die Verteilung, kein Gesetz."))),
+        React.createElement("div", { className: "rows" }, days.map(({ d, date, sess, info }) => {
+            const s0 = sess[0];
+            const tooHard = s0 && s0.planRpe && s0.planRpe > info.plan + 1;
+            const isMatch = d === 0;
+            return (React.createElement("div", { className: "prow", key: date, style: { cursor: "default",
+                    borderColor: tooHard ? "rgba(250,178,25,0.4)" : undefined } },
+                React.createElement("span", { className: "nr", style: { width: 52, fontSize: 11, lineHeight: 1.15, flexDirection: "column", display: "flex", justifyContent: "center",
+                        background: isMatch ? "rgba(217,89,38,0.18)" : undefined,
+                        color: isMatch ? "var(--s2)" : undefined } },
+                    React.createElement("span", { style: { fontWeight: 700, fontSize: 12 } }, isMatch ? "Spiel" : "MD-" + d),
+                    React.createElement("span", { style: { opacity: 0.75 } },
+                        fmtDay(date),
+                        " ",
+                        fmtShort(date))),
+                React.createElement("span", { className: "grow" },
+                    React.createElement("span", { className: "nm" },
+                        s0 ? s0.label : React.createElement("span", { style: { color: "var(--muted)", fontWeight: 500 } }, "keine Einheit geplant"),
+                        sess.length > 1 ? " +" + (sess.length - 1) : ""),
+                    React.createElement("span", { className: "sub" },
+                        React.createElement("span", null, info.text),
+                        s0 && s0.planRpe ? React.createElement("span", null,
+                            "\u00B7 geplant ",
+                            planLabel(s0.planRpe),
+                            " (RPE ",
+                            s0.planRpe,
+                            ")") : null)),
+                tooHard && (React.createElement("span", { className: "pill", style: { color: "var(--warn)", borderColor: "rgba(250,178,25,0.45)", background: "rgba(250,178,25,0.14)" } },
+                    React.createElement(Icon, { d: I.alert, size: 12 }),
+                    " zu hart f\u00FCr MD-",
+                    d)),
+                React.createElement("span", { className: "num", style: { minWidth: 44, color: "var(--muted)" } },
+                    info.plan,
+                    React.createElement("small", null, "Ziel-RPE"))));
+        }))));
+}
+/* ============================================================
    8) ANSICHT 2 — TRAINER-DASHBOARD
    ============================================================ */
 function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlayer }) {
@@ -19306,7 +19532,11 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                                     inj.region || "Region offen",
                                     inj.level ? " · " + PAIN_LVL[inj.level] : ""),
                                 React.createElement("span", null, "\u00B7"),
-                                React.createElement("span", null, labelOf(INJ_ACTIVITY, inj.activity)),
+                                React.createElement("span", null,
+                                    "Stufe ",
+                                    stageOf(inj.activity),
+                                    "/5 \u00B7 ",
+                                    (INJ_ACTIVITY.find(a => a.key === inj.activity) || {}).short || "–"),
                                 React.createElement("span", null, "\u00B7"),
                                 React.createElement("span", null,
                                     "Arzt: ",
@@ -19319,6 +19549,9 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                             React.createElement("small", null, "zuletzt"))));
                 })),
             React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: "12px 0 0" } }, "Ausf\u00E4lle und Abmeldungen z\u00E4hlen nicht in Last, \u00D8 RPE und ACWR \u2013 sonst w\u00FCrde die Teamlast k\u00FCnstlich sinken. Als R\u00FCckmeldung z\u00E4hlen sie trotzdem: Wer sich abmeldet, gilt nicht als vergesslich."))),
+        React.createElement(MatchWeek, { calendar: calendar, today: today }),
+        React.createElement("div", { style: { marginTop: 12 } },
+            React.createElement(PlanVsActual, { calendar: calendar, entries: scopedEntries, today: today })),
         React.createElement("div", { className: "card", style: { marginTop: 12 } },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
@@ -19458,14 +19691,16 @@ function buildReport({ squad, entries, metrics, today, calendar, hist }) {
         outNow.forEach(m => {
             const inj = (m.injury && m.injury.injury) || {};
             L.push("• " + ref(m.player) + " — " + (inj.region || "Region offen") + (inj.level ? " (" + PAIN_LVL[inj.level] + ")" : ""));
-            L.push("   " + m.missedSessions + " Einheit" + (m.missedSessions === 1 ? "" : "en") + " verpasst · zuletzt gemeldet " + (m.injury ? fmtDate(m.injury.date) : "–")
-                + " · " + labelOf(INJ_ACTIVITY, inj.activity) + " · ärztlich: " + labelOf(INJ_MEDICAL, inj.medical).toLowerCase());
+            const cs = injuryCases(entries, m.player.id)[0];
+            L.push("   " + (cs ? cs.days + " Tage · " + cs.missed : m.missedSessions) + " Einheiten verpasst · Stufe "
+                + (cs ? cs.stage : stageOf(inj.activity)) + "/5 (" + ((INJ_ACTIVITY.find(a => a.key === inj.activity) || {}).short || "–") + ")"
+                + " · ärztlich: " + labelOf(INJ_MEDICAL, inj.medical).toLowerCase()
+                + (cs && cs.trend > 0 ? " · Schmerz rückläufig" : cs && cs.trend < 0 ? " · Schmerz nimmt zu" : ""));
+            const st = cs ? nextStep(cs) : null;
+            if (st)
+                L.push("   → Nächster Schritt: " + st.t + ". " + st.d);
             if (inj.medical === "nein")
-                L.push("   → Noch nicht abgeklärt. Bei " + (inj.level === 3 ? "starken" : "anhaltenden") + " Beschwerden Arzttermin einfordern.");
-            else if (inj.activity === "pause")
-                L.push("   → Komplett raus. Sobald schmerzfrei: Rad/Schwimmen vor Laufbelastung, dann Teilintegration.");
-            else
-                L.push("   → Läuft bereits Alternativprogramm. Rückkehr über Teilintegration ohne Zweikampf planen.");
+                L.push("   → Noch nicht ärztlich abgeklärt – bei " + (inj.level === 3 ? "starken" : "anhaltenden") + " Beschwerden Termin einfordern.");
         });
         illNow.forEach(m => {
             L.push("• " + ref(m.player) + " — krank gemeldet, zuletzt " + (m.absence ? fmtDate(m.absence.date) : "–")
@@ -19542,6 +19777,26 @@ function buildReport({ squad, entries, metrics, today, calendar, hist }) {
                 ? "Kein Keeper vollständig im grünen Bereich – TW-Einheit deutlich entlasten, Fangserien statt Hechtsprüngen."
                 : gkGreen + " von " + gks.length + " uneingeschränkt einsatzfähig. Hohe Wurf-/Sprungvolumen auf die fitten Keeper verteilen."));
     L.push("");
+    // --- Geplant gegen empfunden ---
+    const planRows = sessions.filter(c => c.planRpe).map(c => {
+        const es = week.filter(e => e.sessionId === c.id && !isOut(e));
+        return { c, n: es.length, actual: es.length ? mean(es.map(e => e.rpe)) : null };
+    }).filter(r => r.actual !== null);
+    if (planRows.length) {
+        rule("🎯 GEPLANT GEGEN EMPFUNDEN");
+        planRows.forEach(({ c, n, actual }) => {
+            const d = actual - c.planRpe;
+            L.push("• " + fmtDay(c.date) + " " + fmtDate(c.date) + " " + c.label
+                + ": geplant " + planLabel(c.planRpe) + " (RPE " + c.planRpe + "), empfunden " + nf1(actual)
+                + " (" + (d > 0 ? "+" : "") + nf1(d) + ", " + n + " Rückmeldungen)");
+        });
+        const worst = planRows.slice().sort((a, b) => Math.abs(b.actual - b.c.planRpe) - Math.abs(a.actual - a.c.planRpe))[0];
+        const wd = worst.actual - worst.c.planRpe;
+        if (Math.abs(wd) >= 1.5)
+            L.push("→ Größte Abweichung: " + worst.c.label + " kam " + (wd > 0 ? "deutlich härter" : "deutlich leichter")
+                + " an als geplant. " + (wd > 0 ? "Inhalte oder Umfang dieser Einheit anpassen." : "Reiz war zu klein – Intensität nachschärfen."));
+        L.push("");
+    }
     // --- Erholung ---
     const sleepFlag = metrics.filter(m => m.status.key !== "none" && m.status.key !== "injured" && m.status.key !== "ill" && m.status.key !== "away" && (m.badSleepDays >= 2 || (m.avgSleep !== null && m.avgSleep <= 2.5)))
         .sort((a, b) => (a.avgSleep || 9) - (b.avgSleep || 9));
@@ -19650,6 +19905,7 @@ function ReportView({ report, onCopy, onDownload }) {
    ============================================================ */
 function PlayerDetail({ m, entries, today }) {
     const p = m.player;
+    const cases = injuryCases(entries, p.id);
     const d14 = dailyLoads(entries, p.id, today, 14);
     const data = d14.map(d => ({ label: fmtDay(d.date), sub: fmtDate(d.date).slice(0, 5), value: d.load,
         full: fmtDay(d.date) + ", " + fmtDate(d.date), color: "var(--s1)" }));
@@ -19663,11 +19919,12 @@ function PlayerDetail({ m, entries, today }) {
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "ACWR"),
                 React.createElement("span", { className: "v", style: { color: !m.acwrUsable ? "var(--muted)" : m.acwr > 1.5 ? "var(--crit)" : m.acwr > 1.3 ? "var(--warn)" : "var(--good)" } }, m.acwrUsable ? nf2(m.acwr) : "–"),
-                React.createElement("span", { className: "d" }, m.acwrUsable ? (m.hist && !m.hist.mature ? "vorläufig · Ziel 0,80–1,30" : "Ziel 0,80–1,30") : "ab 14 Tagen Daten")),
+                React.createElement("span", { className: "d" }, m.acwrUsable ? (m.hist && !m.hist.mature ? "vorläufig · Ziel 0,80–1,30" : "Ziel 0,80–1,30")
+                    : m.acute === 0 ? "keine Trainingslast" : "ab 14 Tagen Daten")),
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "Monotonie"),
-                React.createElement("span", { className: "v", style: { color: m.monotony >= 2.2 ? "var(--warn)" : "var(--ink)" } }, nf1(m.monotony)),
-                React.createElement("span", { className: "d" }, "Ziel < 2,0"))),
+                React.createElement("span", { className: "v", style: { color: m.acute === 0 ? "var(--muted)" : m.monotony >= 2.2 ? "var(--warn)" : "var(--ink)" } }, m.acute === 0 ? "–" : nf1(m.monotony)),
+                React.createElement("span", { className: "d" }, m.acute === 0 ? "keine Trainingslast" : "Ziel < 2,0"))),
         React.createElement("div", { className: "tiles" },
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "\u00D8 Schlafqualit\u00E4t"),
@@ -19683,6 +19940,44 @@ function PlayerDetail({ m, entries, today }) {
                 React.createElement("span", { className: "d" },
                     nf(m.minutes),
                     " Minuten"))),
+        cases.length > 0 && (() => {
+            const c = cases[0];
+            const step = nextStep(c);
+            return (React.createElement("div", { style: { marginTop: 16, border: "1px solid rgba(208,59,59,0.35)", borderRadius: "var(--r-sm)", padding: "13px 14px", background: "rgba(208,59,59,0.06)" } },
+                React.createElement("div", { className: "eyebrow", style: { color: "var(--crit)", marginBottom: 8 } }, "Verletzungsakte"),
+                React.createElement("div", { style: { fontSize: 14.5, fontWeight: 650, marginBottom: 2 } },
+                    c.region,
+                    " \u00B7 ",
+                    PAIN_LVL[c.level] || "–"),
+                React.createElement("div", { style: { fontSize: 12, color: "var(--muted)", marginBottom: 12 } },
+                    "seit ",
+                    fmtDate(c.from),
+                    " \u00B7 ",
+                    c.days,
+                    " Tage \u00B7 ",
+                    c.missed,
+                    " Einheit",
+                    c.missed === 1 ? "" : "en",
+                    " verpasst \u00B7",
+                    " ",
+                    "\u00E4rztlich ",
+                    labelOf(INJ_MEDICAL, c.medical).toLowerCase(),
+                    c.trend > 0 ? " · Schmerz rückläufig" : c.trend < 0 ? " · Schmerz nimmt zu" : ""),
+                React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 8 } }, INJ_ACTIVITY.map(a => (React.createElement("div", { key: a.key, style: { flex: 1, textAlign: "center" } },
+                    React.createElement("div", { style: { height: 6, borderRadius: 3, background: a.stage <= c.stage ? "var(--crit)" : "var(--surface-3)" } }),
+                    React.createElement("div", { style: { fontSize: 9.5, marginTop: 5, color: a.stage === c.stage ? "var(--ink)" : "var(--muted)",
+                            fontWeight: a.stage === c.stage ? 700 : 600, lineHeight: 1.2 } }, a.short))))),
+                React.createElement("div", { style: { marginTop: 12, fontSize: 13, fontWeight: 650 } },
+                    "N\u00E4chster Schritt: ",
+                    step.t),
+                React.createElement("div", { style: { fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55, marginTop: 3 } }, step.d),
+                React.createElement("div", { style: { marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" } }, c.entries.slice(-8).map(e => (React.createElement("span", { key: e.id, className: "pill", style: { fontSize: 10.5,
+                        color: PAIN_COLOR[(e.injury || {}).level] || "var(--muted)",
+                        borderColor: (PAIN_COLOR[(e.injury || {}).level] || "var(--line)") + "55" } },
+                    fmtShort(e.date),
+                    " \u00B7 ",
+                    PAIN_LVL[(e.injury || {}).level] || "–"))))));
+        })(),
         React.createElement("div", { style: { margin: "16px 0 6px" }, className: "eyebrow" }, "Bewertung"),
         React.createElement("ul", { style: { margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 } }, m.status.reasons.map((r, i) => React.createElement("li", { key: i }, r))),
         React.createElement("div", { style: { margin: "18px 0 8px" }, className: "eyebrow" }, "Tagesbelastung \u00B7 14 Tage"),
@@ -19778,7 +20073,7 @@ function PlayerSheet({ m, entries, today, onClose }) {
    10b) EINHEITEN-VERWALTUNG (Trainer)
    ============================================================ */
 function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose }) {
-    const [form, setForm] = useState({ date: today, type: "Training", minutes: 90, label: "Training" });
+    const [form, setForm] = useState({ date: today, type: "Training", minutes: 90, label: "Training", planRpe: 6 });
     const [editId, setEditId] = useState(null);
     const set = (k, v) => setForm(f => {
         const n = { ...f, [k]: v };
@@ -19786,6 +20081,7 @@ function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose }) {
             const t = SESSION_TYPES.find(x => x.type === v);
             if (t) {
                 n.minutes = t.minutes;
+                n.planRpe = t.plan;
                 if (!editId)
                     n.label = t.label;
             }
@@ -19796,11 +20092,12 @@ function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose }) {
         const mins = Math.max(1, Math.min(300, parseInt(form.minutes) || 0));
         onSave({ id: editId || "s" + Date.now() + Math.floor(Math.random() * 1000),
             date: form.date, type: form.type, minutes: mins,
+            planRpe: form.planRpe || null,
             label: (form.label || "").trim() || form.type });
         setEditId(null);
-        setForm({ date: today, type: "Training", minutes: 90, label: "Training" });
+        setForm({ date: today, type: "Training", minutes: 90, label: "Training", planRpe: 6 });
     };
-    const edit = x => { setEditId(x.id); setForm({ date: x.date, type: x.type, minutes: x.minutes, label: x.label }); };
+    const edit = x => { setEditId(x.id); setForm({ date: x.date, type: x.type, minutes: x.minutes, label: x.label, planRpe: x.planRpe || 6 }); };
     const list = [...sessions].sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
     const count = id => entries.filter(e => e.sessionId === id).length;
     return (React.createElement("div", { className: "ov", onClick: onClose },
@@ -19822,6 +20119,15 @@ function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose }) {
                         React.createElement("input", { className: "sel", type: "number", min: "1", max: "300", value: form.minutes, onChange: e => set("minutes", e.target.value), style: { width: "100%", marginTop: 4, backgroundImage: "none" } }))),
                 React.createElement("div", { className: "eyebrow", style: { margin: "12px 0 8px" } }, "Art"),
                 React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, SESSION_TYPES.map(t => (React.createElement("button", { key: t.type, className: "chip", "aria-pressed": form.type === t.type, style: { padding: "8px 12px", fontSize: 13 }, onClick: () => set("type", t.type) }, t.type)))),
+                React.createElement("div", { className: "eyebrow", style: { margin: "12px 0 8px" } }, "Geplante Intensit\u00E4t"),
+                React.createElement("div", { className: "scale5", style: { gridTemplateColumns: "repeat(3,1fr)" } }, PLAN_LEVELS.map(l => (React.createElement("button", { key: l.v, className: "sbtn", "aria-pressed": form.planRpe === l.v, style: form.planRpe === l.v ? { borderColor: rpeColor(l.v), background: rpeColor(l.v) + "26" } : {}, onClick: () => set("planRpe", l.v) },
+                    React.createElement("span", { className: "se", style: { fontSize: 17, fontWeight: 700, color: form.planRpe === l.v ? rpeColor(l.v) : "var(--ink)" } }, l.label),
+                    React.createElement("span", { className: "sl" },
+                        "RPE ",
+                        l.v,
+                        " \u00B7 ",
+                        l.sub))))),
+                React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "8px 0 0", lineHeight: 1.5 } }, "Wie hart die Einheit gedacht ist. Sp\u00E4ter vergleicht das Dashboard das mit dem, was die Mannschaft tats\u00E4chlich empfunden hat."),
                 React.createElement("label", { style: { display: "block", marginTop: 12 } },
                     React.createElement("span", { style: { fontSize: 11, color: "var(--muted)", fontWeight: 650 } }, "Bezeichnung (optional)"),
                     React.createElement("input", { className: "sel", value: form.label, placeholder: "z. B. Punktspiel gegen TuS", onChange: e => set("label", e.target.value), style: { width: "100%", marginTop: 4, backgroundImage: "none" } })),
@@ -19846,7 +20152,9 @@ function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose }) {
                         x.type,
                         " \u00B7 ",
                         x.minutes,
-                        " Min \u00B7 ",
+                        " Min \u00B7 geplant ",
+                        x.planRpe ? planLabel(x.planRpe) + " (RPE " + x.planRpe + ")" : "–",
+                        " \u00B7 ",
                         count(x.id),
                         " R\u00FCckmeldung",
                         count(x.id) === 1 ? "" : "en",
@@ -20002,12 +20310,12 @@ function MyStats({ squad, metrics, entries, today, meId, setMeId }) {
 function PlayerArea({ squad, calendar, entries, today, metrics, submitted, onSave, toast, sub, setSub, meId, setMeId }) {
     if (sub === "mine")
         return React.createElement(MyStats, { squad: squad, metrics: metrics, entries: entries, today: today, meId: meId, setMeId: setMeId });
-    return React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: onSave, toast: toast, onManage: () => toast("Einheiten legt das Trainerteam an."), onShowMine: id => { setMeId(id); setSub("mine"); } });
+    return React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: onSave, toast: toast, meId: meId, setMeId: setMeId, onManage: () => toast("Einheiten legt das Trainerteam an."), onShowMine: id => { setMeId(id); setSub("mine"); } });
 }
 /* ============================================================
    11c) SYNCHRONISATION EINRICHTEN (Trainer)
    ============================================================ */
-function SyncSheet({ cfg, setCfg, sync, squad, sessions, onPull, onPushMeta, onCopy, onClose, toast }) {
+function SyncSheet({ cfg, setCfg, sync, squad, sessions, entryCount, onPushAll, onPull, onPushMeta, onCopy, onClose, toast }) {
     const [url, setUrl] = useState(cfg ? cfg.url : "");
     const [key, setKey] = useState(cfg ? cfg.key : "");
     const [team, setTeam] = useState(cfg ? cfg.team : "fcs-liga");
@@ -20049,8 +20357,10 @@ function SyncSheet({ cfg, setCfg, sync, squad, sessions, onPull, onPushMeta, onC
             history.replaceState(null, "", cfgToLink(draft));
         }
         catch (e) { }
-        toast("Verbunden. Kader und Einheiten werden hochgeladen.");
+        toast("Verbunden. Kader, Einheiten" + (entryCount ? " und " + entryCount + " Rückmeldungen" : "") + " werden hochgeladen.");
         setTimeout(onPushMeta, 200);
+        if (entryCount)
+            setTimeout(onPushAll, 600);
     };
     const disconnect = () => {
         setCfg(null);
@@ -20099,7 +20409,8 @@ function SyncSheet({ cfg, setCfg, sync, squad, sessions, onPull, onPushMeta, onC
             cfg && (React.createElement(React.Fragment, null,
                 React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 } },
                     React.createElement("button", { className: "btn sm ghost", onClick: onPull }, "Jetzt abgleichen"),
-                    React.createElement("button", { className: "btn sm ghost", onClick: () => { onPushMeta(); toast("Kader und Einheiten hochgeladen."); } }, "Kader & Einheiten hochladen")),
+                    React.createElement("button", { className: "btn sm ghost", onClick: () => { onPushMeta(); toast("Kader und Einheiten hochgeladen."); } }, "Kader & Einheiten hochladen"),
+                    React.createElement("button", { className: "btn sm ghost", onClick: () => { onPushAll(); toast("Alle lokalen Rückmeldungen werden hochgeladen."); } }, "Alle R\u00FCckmeldungen hochladen")),
                 React.createElement("div", { className: "eyebrow", style: { marginBottom: 8 } }, "Team-Link zum Teilen"),
                 React.createElement("div", { style: { background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)",
                         padding: "10px 12px", fontSize: 11.5, wordBreak: "break-all", color: "var(--ink-2)",
@@ -20121,23 +20432,39 @@ function SyncSheet({ cfg, setCfg, sync, squad, sessions, onPull, onPushMeta, onC
    ============================================================ */
 function App() {
     const today = useMemo(() => iso(new Date()), []);
-    const [mode, setMode] = useState(null);
-    const [pin, setPin] = useState("1234");
-    const [tab, setTab] = useState("input");
-    const [meId, setMeId] = useState(null);
-    const [squad, setSquad] = useState(DEFAULT_SQUAD);
-    const [sessions, setSessions] = useState([]);
-    const [entries, setEntries] = useState([]);
+    const [mode, setMode] = useState(() => store.get("mode", null) === "player" ? "player" : null);
+    const [pin, setPin] = useState(() => String(store.get("pin", "1234")));
+    const [tab, setTab] = useState(() => store.get("mode", null) === "player" ? "input" : "input");
+    const [meId, setMeId] = useState(() => store.get("me", null));
+    const [squad, setSquad] = useState(() => store.get("squad", DEFAULT_SQUAD));
+    const [sessions, setSessions] = useState(() => store.get("sessions", []));
+    const [entries, setEntries] = useState(() => store.get("entries", []));
     const [submitted, setSubmitted] = useState([]);
     const [openPlayer, setOpenPlayer] = useState(null);
     const [settings, setSettings] = useState(false);
     const [planner, setPlanner] = useState(false);
     const [syncSheet, setSyncSheet] = useState(false);
     const [msg, setMsg] = useState(null);
-    const [cfg, setCfg] = useState(() => readCfgFromHash());
+    const [cfg, setCfg] = useState(() => readCfgFromHash() || store.get("cfg", null));
     const [sync, setSync] = useState({ state: "off", msg: "", at: null });
     const calendar = useMemo(() => [...sessions].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0), [sessions]);
     const toast = useCallback(t => { setMsg(t); setTimeout(() => setMsg(null), 2800); }, []);
+    useEffect(() => { if (cfg)
+        store.set("cfg", cfg);
+    else
+        store.del("cfg"); }, [cfg]);
+    useEffect(() => { store.set("pin", pin); }, [pin]);
+    useEffect(() => { if (meId)
+        store.set("me", meId);
+    else
+        store.del("me"); }, [meId]);
+    useEffect(() => { if (mode === "player")
+        store.set("mode", "player");
+    else
+        store.del("mode"); }, [mode]);
+    useEffect(() => { store.set("squad", squad); }, [squad]);
+    useEffect(() => { store.set("sessions", sessions); }, [sessions]);
+    useEffect(() => { store.set("entries", entries); }, [entries]);
     const cfgRef = useRef(cfg);
     useEffect(() => { cfgRef.current = cfg; }, [cfg]);
     const modeRef = useRef(mode);
@@ -20218,6 +20545,11 @@ function App() {
             setSync({ state: "error", msg: String((e && e.message) || e), at: Date.now() });
         }
     }, []);
+    // Wer wochenlang lokal gearbeitet hat, verliert beim Verbinden nichts
+    const pushAll = useCallback(() => {
+        setEntries(list => list.map(e => ({ ...e, _pending: true })));
+        setTimeout(() => flush(), 80);
+    }, [flush]);
     const pushMeta = useCallback(async (nextSquad, nextSessions) => {
         const c = cfgRef.current;
         if (!c)
@@ -20344,7 +20676,13 @@ function App() {
         setEntries(buildDemoEntries(squad, cal, today));
         toast("Demo-Einheiten und -Rückmeldungen erzeugt.");
     };
-    const clearAll = () => { setEntries([]); setSessions([]); toast("Alle Einheiten und Eingaben gelöscht."); };
+    const clearAll = () => {
+        setEntries([]);
+        setSessions([]);
+        store.del("entries");
+        store.del("sessions");
+        toast("Alle Einheiten und Eingaben gelöscht.");
+    };
     const COACH_TABS = [
         { key: "input", label: "Eingabe", short: "Eingabe", icon: I.edit2 },
         { key: "dash", label: "Dashboard", short: "Dashboard", icon: I.chart },
@@ -20358,7 +20696,7 @@ function App() {
     const isPlayer = mode === "player";
     const TABS = isPlayer ? PLAYER_TABS : COACH_TABS;
     const pickMode = m => { setMode(m); setTab(m === "player" ? "input" : "dash"); };
-    const leaveMode = () => { setMode(null); setMeId(null); setTab("input"); };
+    const leaveMode = () => { setMode(null); store.del("mode"); setTab("input"); };
     const redCount = metrics.filter(m => m.status.key === "red").length;
     if (!mode)
         return React.createElement(RoleGate, { pin: pin, onPick: pickMode });
@@ -20402,7 +20740,7 @@ function App() {
         openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: entries, today: today, onClose: () => setOpenPlayer(null) }),
         planner && React.createElement(SessionSheet, { sessions: sessions, entries: entries, today: today, onSave: saveSession, onDelete: deleteSession, onClose: () => setPlanner(false) }),
         settings && React.createElement(SettingsSheet, { squad: squad, setSquad: applySquad, pin: pin, setPin: setPin, onClose: () => setSettings(false), onExport: exportJson, onImport: importJson, onDemo: makeDemo, onClear: clearAll, toast: toast }),
-        syncSheet && React.createElement(SyncSheet, { cfg: cfg, setCfg: setCfg, sync: sync, squad: squad, sessions: sessions, onPull: pull, onPushMeta: () => pushMeta(squad, sessions), onCopy: copyText, onClose: () => setSyncSheet(false), toast: toast }),
+        syncSheet && React.createElement(SyncSheet, { cfg: cfg, setCfg: setCfg, sync: sync, squad: squad, sessions: sessions, entryCount: entries.length, onPushAll: pushAll, onPull: pull, onPushMeta: () => pushMeta(squad, sessions), onCopy: copyText, onClose: () => setSyncSheet(false), toast: toast }),
         msg && React.createElement("div", { className: "toast" },
             React.createElement(Icon, { d: I.check, size: 15 }),
             " ",
