@@ -17717,6 +17717,7 @@ const TINT = {
     "var(--crit)": "rgba(208,59,59,0.16)",
     "var(--serious)": "rgba(236,131,90,0.16)",
     "var(--s1)": "rgba(57,135,229,0.16)",
+    "var(--s2)": "rgba(217,89,38,0.16)",
     "var(--muted)": "rgba(134,142,158,0.16)",
 };
 const tint = c => TINT[c] || "rgba(255,255,255,0.08)";
@@ -17920,6 +17921,74 @@ const sum = a => a.reduce((x, y) => x + y, 0);
 const mean = a => a.length ? sum(a) / a.length : 0;
 function sd(a) { if (a.length < 2)
     return 0; const m = mean(a); return Math.sqrt(sum(a.map(x => (x - m) ** 2)) / (a.length - 1)); }
+/* ------------------------------------------------------------
+   Planung gegen Rückmeldung
+   Der Mittelwert allein täuscht: 4 und 9 ergeben ebenfalls 6,5.
+   Deshalb liefern diese Helfer immer auch die Einzelwerte mit.
+   ------------------------------------------------------------ */
+const PLAN_TOL = 1; // bis 1 RPE Abweichung gilt eine Rückmeldung als "wie geplant"
+function planRows(calendar, entries, today, back) {
+    const from = back ? addDays(today, -(back - 1)) : null;
+    return calendar
+        .filter(c => c.planRpe && c.date <= today && (!from || c.date >= from))
+        .map(c => {
+        const es = entries.filter(e => e.sessionId === c.id && !isOut(e) && e.rpe > 0);
+        const vals = es.map(e => e.rpe);
+        const over = vals.filter(v => v - c.planRpe > PLAN_TOL).length;
+        const under = vals.filter(v => v - c.planRpe < -PLAN_TOL).length;
+        const actual = vals.length ? mean(vals) : null;
+        const planPts = c.planRpe * (c.minutes || 0);
+        const actPts = es.length ? mean(es.map(e => e.rpe * (e.minutes || 0))) : null;
+        return { c, es, vals, n: vals.length, actual,
+            d: actual === null ? null : actual - c.planRpe,
+            over, under, on: vals.length - over - under,
+            spread: sd(vals),
+            planPts, actPts,
+            dPts: (actPts === null || !planPts) ? null : (actPts - planPts) / planPts };
+    })
+        .sort((a, b) => a.c.date < b.c.date ? 1 : a.c.date > b.c.date ? -1 : 0);
+}
+// Trifft die eigene Einschätzung? Je Planstufe der tatsächliche Schnitt.
+function planCalibration(rows) {
+    const defs = [
+        { key: "locker", label: "Locker geplant", hit: v => v <= 4 },
+        { key: "mittel", label: "Mittel geplant", hit: v => v > 4 && v <= 7 },
+        { key: "hart", label: "Hart geplant", hit: v => v > 7 },
+    ];
+    return defs.map(b => {
+        const rs = rows.filter(r => b.hit(r.c.planRpe) && r.actual !== null);
+        let vals = [];
+        rs.forEach(r => { vals = vals.concat(r.vals); });
+        const plan = rs.length ? mean(rs.map(r => r.c.planRpe)) : null;
+        const actual = vals.length ? mean(vals) : null;
+        return { key: b.key, label: b.label, n: rs.length, k: vals.length, plan, actual,
+            d: actual === null ? null : actual - plan };
+    }).filter(b => b.n > 0);
+}
+// Wer empfindet dauerhaft anders als geplant? Erst ab 4 Rückmeldungen aussagekräftig.
+function planPlayerDev(rows, squad, minN) {
+    const acc = {};
+    rows.forEach(r => r.es.forEach(e => {
+        if (!acc[e.playerId])
+            acc[e.playerId] = [];
+        acc[e.playerId].push(e.rpe - r.c.planRpe);
+    }));
+    return squad.map(p => {
+        const v = acc[p.id] || [];
+        return { player: p, n: v.length, dev: v.length ? mean(v) : null };
+    }).filter(x => x.n >= (minN || 4) && Math.abs(x.dev) >= 1)
+        .sort((a, b) => b.dev - a.dev);
+}
+// CSV im deutschen Excel-Format: Semikolon, BOM, CRLF
+const csvEsc = v => { const t = String(v == null ? "" : v); return /[";\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+const csvFile = (cols, rows) => "\uFEFF" + [cols.join(";")].concat(rows.map(r => r.map(csvEsc).join(";"))).join("\r\n");
+const de = (n, dec) => n === null || n === undefined || isNaN(n) ? "" : n.toFixed(dec === undefined ? 2 : dec).replace(".", ",");
+const planDevWord = d => d === null ? "keine Rückmeldung"
+    : Math.abs(d) <= PLAN_TOL ? "wie geplant"
+        : d > 0 ? "härter als geplant" : "lockerer als geplant";
+const planDevColor = d => d === null ? "var(--muted)"
+    : Math.abs(d) <= PLAN_TOL ? "var(--good)"
+        : d > 0 ? "var(--s2)" : "var(--s1)";
 // Wie lange wird überhaupt schon erfasst? Ohne Historie ist der ACWR wertlos.
 function historyInfo(entries, today) {
     const dates = entries.map(e => e.date).filter(Boolean).sort();
@@ -19269,52 +19338,217 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
 /* ============================================================
    7d) GEPLANT GEGEN EMPFUNDEN + SPIELWOCHE
    ============================================================ */
-function PlanVsActual({ calendar, entries, today }) {
-    const rows = calendar.filter(c => c.date <= today).slice(-6).reverse().map(c => {
-        const es = entries.filter(e => e.sessionId === c.id && !isOut(e));
-        return { c, n: es.length, actual: es.length ? mean(es.map(e => e.rpe)) : null };
-    }).filter(r => r.c.planRpe);
+// Skala 1-10 mit 6 % Rand, damit Punkte an den Enden nicht abgeschnitten werden
+const stripPos = v => 6 + ((Math.max(1, Math.min(10, v)) - 1) / 9) * 88;
+function DotStrip({ vals, plan }) {
+    const seen = {};
+    return (React.createElement("div", { style: { position: "relative", height: 30, margin: "7px 0 4px",
+            background: "var(--surface-2)", borderRadius: 8 } },
+        React.createElement("div", { style: { position: "absolute", left: stripPos(plan) + "%", top: 2, bottom: 2, width: 2,
+                background: "var(--ink)", transform: "translateX(-1px)", borderRadius: 1, opacity: 0.85 } }),
+        vals.map((v, i) => {
+            const k = Math.round(v);
+            seen[k] = (seen[k] || 0) + 1;
+            const row = (seen[k] - 1) % 3; // leichter Versatz, damit nichts deckt
+            const d = v - plan;
+            return (React.createElement("span", { key: i, style: { position: "absolute", left: stripPos(v) + "%",
+                    top: 5 + row * 7, width: 9, height: 9, borderRadius: "50%",
+                    background: planDevColor(d),
+                    boxShadow: "0 0 0 2px var(--surface)",
+                    transform: "translateX(-4.5px)" } }));
+        })));
+}
+function StripScale() {
+    return (React.createElement("div", { style: { position: "relative", height: 14, fontSize: 10, color: "var(--muted)", marginBottom: 2 } }, [[1, "1 locker"], [5, "5"], [10, "10 maximal"]].map(([v, t]) => (React.createElement("span", { key: v, style: { position: "absolute", left: stripPos(v) + "%",
+            transform: v === 1 ? "translateX(-2px)" : v === 10 ? "translateX(-100%)" : "translateX(-50%)" } }, t)))));
+}
+function PlanVsActual({ calendar, entries, squad, today, detail, onDownload, onToast }) {
+    const rows = planRows(calendar, entries, today, 0).filter(r => r.n > 0);
+    const shown = rows.slice(0, detail ? 8 : 4);
+    const cal = planCalibration(rows);
+    const devs = planPlayerDev(rows, squad || [], 4);
+    const byId = {};
+    (squad || []).forEach(p => { byId[p.id] = p; });
+    const csvSessions = () => csvFile(["Datum", "Wochentag", "Einheit", "Art", "Dauer_Min", "Plan_Stufe", "Plan_RPE",
+        "Empfunden_Mittel", "Abweichung_RPE", "Bewertung", "Ueber_Plan", "Wie_geplant", "Unter_Plan",
+        "Rueckmeldungen", "Streuung", "Punkte_geplant", "Punkte_tatsaechlich_Mittel", "Punkte_Abweichung_Prozent"], rows.map(r => [
+        r.c.date, fmtDay(r.c.date), r.c.label, r.c.type, r.c.minutes,
+        planLabel(r.c.planRpe), r.c.planRpe,
+        de(r.actual, 1), de(r.d, 1), planDevWord(r.d),
+        r.over, r.on, r.under, r.n, de(r.spread, 2),
+        r.planPts || "", r.actPts === null ? "" : Math.round(r.actPts),
+        r.dPts === null ? "" : de(r.dPts * 100, 0),
+    ]));
+    const csvPlayers = () => {
+        const out = [];
+        rows.forEach(r => r.es.forEach(e => {
+            const p = byId[e.playerId] || {};
+            out.push([r.c.date, fmtDay(r.c.date), r.c.label, r.c.type,
+                p.name || e.playerId, p.nr || "", p.gk ? "TW" : (p.pos || ""),
+                r.c.planRpe, planLabel(r.c.planRpe), e.rpe, de(e.rpe - r.c.planRpe, 1),
+                planDevWord(e.rpe - r.c.planRpe),
+                e.minutes, e.rpe * (e.minutes || 0), r.c.minutes * r.c.planRpe,
+                e.sleep || "", e.stress || ""]);
+        }));
+        return csvFile(["Datum", "Wochentag", "Einheit", "Art", "Spieler", "Nummer", "Position",
+            "Plan_RPE", "Plan_Stufe", "RPE_empfunden", "Abweichung_RPE", "Bewertung",
+            "Minuten", "Punkte_Spieler", "Punkte_geplant", "Schlaf_1_5", "Stress_1_5"], out);
+    };
+    // Eine Datei mit drei Abschnitten – Excel stellt sie untereinander dar
+    const csvAnalyse = () => {
+        const L = [];
+        L.push("EINHEITEN");
+        L.push(csvSessions());
+        L.push("");
+        L.push("EIGENE EINSCHAETZUNG JE PLANSTUFE");
+        L.push(csvFile(["Planstufe", "Einheiten", "Rueckmeldungen", "Plan_RPE_Mittel", "Empfunden_Mittel", "Abweichung", "Bewertung"], cal.map(b => [b.label, b.n, b.k, de(b.plan, 1), de(b.actual, 1), de(b.d, 1), planDevWord(b.d)])));
+        L.push("");
+        L.push("ABWEICHUNG JE SPIELER");
+        L.push(csvFile(["Spieler", "Nummer", "Position", "Rueckmeldungen", "Abweichung_RPE_Mittel", "Bewertung"], planPlayerDev(rows, squad || [], 1).map(x => [x.player.name, x.player.nr || "", x.player.gk ? "TW" : (x.player.pos || ""),
+            x.n, de(x.dev, 2), x.dev > 0 ? "empfindet härter" : "empfindet lockerer"])));
+        return L.join("\r\n").replace(/\uFEFF/g, "");
+    };
+    const save = (maker, name) => {
+        if (!onDownload)
+            return;
+        onDownload(maker(), name + "_" + today + ".csv", "text/csv;charset=utf-8");
+        if (onToast)
+            onToast("Tabelle gesichert.");
+    };
     if (!rows.length) {
-        return (React.createElement("div", { className: "card" },
+        return (React.createElement("div", { className: "card", style: { marginTop: 12 } },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
                     React.createElement("h3", null, "Geplant gegen empfunden"),
-                    React.createElement("p", null, "Sobald Einheiten mit geplanter Intensit\u00E4t angelegt sind, steht hier der Abgleich.")))));
+                    React.createElement("p", null, "Sobald Einheiten mit geplanter Intensit\u00E4t angelegt und zur\u00FCckgemeldet sind, steht hier der Abgleich.")))));
     }
-    const W = 120; // halbe Breite der Abweichungsskala (±3 RPE)
-    return (React.createElement("div", { className: "card" },
+    const loose = cal.find(b => b.key === "locker");
+    const hint = loose && loose.actual !== null && loose.actual > 5
+        ? "Dein „locker“ kommt bei der Mannschaft als " + planLabel(Math.round(loose.actual))
+            + " an (Ø " + nf1(loose.actual) + "). Damit fehlt der echte Erholungstag – die häufigste Ursache für eine zu gleichförmige Woche."
+        : null;
+    return (React.createElement("div", { className: "card", style: { marginTop: 12 } },
         React.createElement("div", { className: "card-head" },
             React.createElement("div", null,
                 React.createElement("h3", null, "Geplant gegen empfunden"),
-                React.createElement("p", null, "Kam die Einheit so an, wie sie gedacht war? Ausschlag nach rechts = h\u00E4rter empfunden."))),
-        React.createElement("div", { className: "rows" }, rows.map(({ c, n, actual }) => {
-            const d = actual === null ? null : actual - c.planRpe;
-            const col = d === null ? "var(--muted)" : Math.abs(d) < 1 ? "var(--good)" : d > 0 ? "var(--s2)" : "var(--s1)";
-            const w = d === null ? 0 : Math.min(W, Math.abs(d) / 3 * W);
-            return (React.createElement("div", { className: "prow", key: c.id, style: { cursor: "default" } },
-                React.createElement("span", { className: "nr", style: { width: 44, fontSize: 11, lineHeight: 1.1, flexDirection: "column", display: "flex", justifyContent: "center" } },
-                    React.createElement("span", { style: { color: "var(--muted)" } }, fmtDay(c.date)),
-                    React.createElement("span", { style: { fontSize: 12, fontWeight: 700 } }, fmtShort(c.date))),
-                React.createElement("span", { className: "grow" },
-                    React.createElement("span", { className: "nm" }, c.label),
-                    React.createElement("span", { className: "sub" },
-                        "geplant ",
-                        planLabel(c.planRpe),
+                React.createElement("p", null, "Jeder Punkt ist ein Spieler, der Strich deine Planung. Punkte rechts davon = h\u00E4rter empfunden."))),
+        onDownload && (React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 12 } },
+            React.createElement("button", { className: "btn sm ghost", onClick: () => save(() => "\uFEFF" + csvAnalyse(), "auswertung_plan_gegen_empfunden") },
+                React.createElement(Icon, { d: I.down, size: 14 }),
+                " Auswertung"),
+            React.createElement("button", { className: "btn sm ghost", onClick: () => save(csvPlayers, "auswertung_je_spieler") },
+                React.createElement(Icon, { d: I.down, size: 14 }),
+                " Je Spieler"),
+            React.createElement("span", { style: { fontSize: 11, color: "var(--muted)" } }, "als Tabelle f\u00FCr Excel"))),
+        React.createElement("div", { style: { display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center",
+                fontSize: 11.5, color: "var(--muted)", marginBottom: 10 } },
+            [["var(--s1)", "unter Plan"], ["var(--good)", "wie geplant"], ["var(--s2)", "über Plan"]].map(([c, t]) => (React.createElement("span", { key: t, style: { display: "inline-flex", alignItems: "center", gap: 6 } },
+                React.createElement("span", { style: { width: 9, height: 9, borderRadius: "50%", background: c } }),
+                t))),
+            React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6 } },
+                React.createElement("span", { style: { width: 2, height: 11, background: "var(--ink-2)" } }),
+                "deine Planung")),
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
+            shown.map(r => (React.createElement("div", { key: r.c.id },
+                React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" } },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 700 } }, r.c.label),
+                    React.createElement("span", { style: { fontSize: 11.5, color: "var(--muted)" } },
+                        fmtDay(r.c.date),
+                        " ",
+                        fmtDate(r.c.date),
+                        " \u00B7 geplant ",
+                        planLabel(r.c.planRpe),
                         " (RPE ",
-                        c.planRpe,
-                        ") \u00B7 ",
-                        n,
+                        r.c.planRpe,
+                        ")"),
+                    React.createElement("span", { style: { flex: 1 } }),
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: planDevColor(r.d) } }, planDevWord(r.d))),
+                React.createElement(DotStrip, { vals: r.vals, plan: r.c.planRpe }),
+                React.createElement("div", { style: { fontSize: 11.5, color: "var(--muted)", lineHeight: 1.5 } },
+                    "\u00D8 ",
+                    nf1(r.actual),
+                    " von 10 (",
+                    r.d > 0 ? "+" : "",
+                    nf1(r.d),
+                    ") \u00B7",
+                    " ",
+                    React.createElement("span", { style: { color: "var(--s2)" } },
+                        r.over,
+                        " \u00FCber"),
+                    " \u00B7",
+                    " ",
+                    React.createElement("span", { style: { color: "var(--good)" } },
+                        r.on,
+                        " wie geplant"),
+                    " \u00B7",
+                    " ",
+                    React.createElement("span", { style: { color: "var(--s1)" } },
+                        r.under,
+                        " darunter"),
+                    " \u00B7 ",
+                    r.n,
+                    " R\u00FCckmeldung",
+                    r.n === 1 ? "" : "en",
+                    r.spread >= 2 ? React.createElement("span", { style: { color: "var(--warn)" } }, " \u00B7 die Einheit hat die Mannschaft geteilt") : null),
+                r.actPts !== null && r.planPts > 0 && (React.createElement("div", { style: { fontSize: 11.5, color: "var(--muted)", lineHeight: 1.5 } },
+                    "Belastungspunkte: ",
+                    nf(r.planPts),
+                    " geplant (",
+                    r.c.minutes,
+                    " Min \u00D7 RPE ",
+                    r.c.planRpe,
+                    ") \u2192",
+                    " ",
+                    React.createElement("span", { style: { color: Math.abs(r.dPts) <= 0.15 ? "var(--good)" : r.dPts > 0 ? "var(--s2)" : "var(--s1)" } },
+                        "\u00D8 ",
+                        nf(r.actPts),
+                        " tats\u00E4chlich (",
+                        r.dPts > 0 ? "+" : "",
+                        nf(r.dPts * 100),
+                        " %)"),
+                    (r.c.type === "Spiel" || r.c.type === "Testspiel")
+                        ? React.createElement("span", null, " \u2013 bei Spielen z\u00E4hlt die eigene Einsatzzeit, Einwechselspieler dr\u00FCcken den Schnitt.")
+                        : null))))),
+            React.createElement(StripScale, null)),
+        cal.length > 0 && (React.createElement("div", { style: { marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--line)" } },
+            React.createElement("div", { className: "eyebrow", style: { marginBottom: 8 } }, "Deine Einsch\u00E4tzung im Schnitt"),
+            React.createElement("div", { className: "rows" }, cal.map(b => (React.createElement("div", { className: "prow", key: b.key, style: { cursor: "default" } },
+                React.createElement("span", { className: "grow" },
+                    React.createElement("span", { className: "nm" }, b.label),
+                    React.createElement("span", { className: "sub" },
+                        b.n,
+                        " Einheit",
+                        b.n === 1 ? "" : "en",
+                        " \u00B7 ",
+                        b.k,
                         " R\u00FCckmeldung",
-                        n === 1 ? "" : "en")),
-                React.createElement("span", { style: { display: "flex", alignItems: "center", width: 2 * W + 2, flex: "0 0 auto" } },
-                    React.createElement("span", { style: { width: W, display: "flex", justifyContent: "flex-end" } }, d !== null && d < 0 && React.createElement("span", { style: { height: 8, width: w, background: col, borderRadius: "4px 0 0 4px" } })),
-                    React.createElement("span", { style: { width: 2, height: 16, background: "var(--line)" } }),
-                    React.createElement("span", { style: { width: W } }, d !== null && d > 0 && React.createElement("span", { style: { height: 8, width: w, background: col, borderRadius: "0 4px 4px 0", display: "block" } }))),
-                React.createElement("span", { className: "num", style: { minWidth: 52, color: col } },
-                    actual === null ? "–" : nf1(actual),
-                    React.createElement("small", null, "empfunden"))));
-        })),
-        React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: "12px 0 0", lineHeight: 1.6 } }, "Bis 1,0 Abweichung ist alles im Rahmen. Landet euer \u201Elocker\" regelm\u00E4\u00DFig bei 6 und mehr, fehlt der Mannschaft der echte Erholungstag \u2013 das ist die h\u00E4ufigste Ursache f\u00FCr hohe Monotonie.")));
+                        b.k === 1 ? "" : "en",
+                        " \u00B7 geplant \u00D8 RPE ",
+                        nf1(b.plan))),
+                React.createElement("span", { className: "num", style: { minWidth: 64 } },
+                    nf1(b.actual),
+                    React.createElement("small", null, "empfunden")),
+                React.createElement("span", { className: "num", style: { minWidth: 104, color: planDevColor(b.d) } },
+                    planDevWord(b.d),
+                    React.createElement("small", null,
+                        b.d > 0 ? "+" : "",
+                        nf1(b.d))))))),
+            hint && (React.createElement("p", { style: { fontSize: 12, color: "var(--warn)", margin: "10px 0 0", lineHeight: 1.6 } }, hint)))),
+        devs.length > 0 && (React.createElement("div", { style: { marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--line)" } },
+            React.createElement("div", { className: "eyebrow", style: { marginBottom: 4 } }, "Spieler, die dauerhaft anders empfinden"),
+            React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "0 0 8px", lineHeight: 1.6 } }, "Mindestens 4 R\u00FCckmeldungen, Abweichung ab 1,0. Dauerhaft \u201Eh\u00E4rter\u201C hei\u00DFt Fitnessr\u00FCckstand oder beginnende \u00DCberlastung \u2013 dauerhaft \u201Elockerer\u201C hei\u00DFt unterfordert."),
+            React.createElement("div", { className: "rows" }, devs.map(x => (React.createElement("div", { className: "prow", key: x.player.id, style: { cursor: "default" } },
+                x.player.nr > 0 && React.createElement("span", { className: "nr" }, x.player.nr),
+                React.createElement("span", { className: "grow" },
+                    React.createElement("span", { className: "nm" }, x.player.name),
+                    React.createElement("span", { className: "sub" },
+                        x.n,
+                        " R\u00FCckmeldungen im Vergleich")),
+                React.createElement("span", { className: "num", style: { minWidth: 104, color: planDevColor(x.dev) } },
+                    x.dev > 0 ? "+" : "",
+                    nf1(x.dev),
+                    React.createElement("small", null, x.dev > 0 ? "empfindet härter" : "empfindet lockerer")))))))),
+        React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: "14px 0 0", lineHeight: 1.6 } }, "Bis 1,0 Abweichung ist alles im Rahmen. Wichtiger als der Schnitt ist die Streuung: Liegen die Punkte weit auseinander, war die Einheit f\u00FCr einen Teil der Mannschaft zu hart und f\u00FCr den anderen zu leicht \u2013 dann hilft Differenzierung mehr als eine andere Gesamtintensit\u00E4t.")));
 }
 const MD_PLAN = {
     0: { plan: 9, text: "Spieltag." },
@@ -19395,7 +19629,7 @@ function MatchWeek({ calendar, today }) {
 /* ============================================================
    7e) DIE LAGE IN KLARTEXT
    ============================================================ */
-function Situation({ scoped, metrics, counts, fit, weekLoad, delta, quote, respondedToday, nextMatch, hist, teamAcwr, avgSleep, todaySessions }) {
+function Situation({ scoped, metrics, counts, fit, weekLoad, delta, quote, respondedToday, nextMatch, hist, teamAcwr, avgSleep, todaySessions, lastPlan }) {
     const red = metrics.filter(m => m.status.key === "red");
     const lines = [];
     lines.push({
@@ -19463,6 +19697,30 @@ function Situation({ scoped, metrics, counts, fit, weekLoad, delta, quote, respo
                 d >= 3 ? " Letzte harte Einheit spätestens " + fmtDay(addDays(nextMatch.date, -3)) + " " + fmtDate(addDays(nextMatch.date, -3)) : d >= 1 ? " Ab jetzt nur noch kurz und spritzig." : ""),
         });
     }
+    if (lastPlan) {
+        const r = lastPlan;
+        lines.push({
+            c: planDevColor(r.d), icon: I.gauge,
+            t: React.createElement(React.Fragment, null,
+                React.createElement("b", null, r.c.label),
+                " am ",
+                fmtDay(r.c.date),
+                " ",
+                fmtDate(r.c.date),
+                ": ",
+                planLabel(r.c.planRpe),
+                " geplant, von ",
+                r.n,
+                " ",
+                r.n === 1 ? "Spieler" : "Spielern",
+                " ",
+                React.createElement("b", null, planDevWord(r.d)),
+                " empfunden (\u00D8 ",
+                nf1(r.actual),
+                " von 10).",
+                r.over && r.under ? " " + r.over + " über, " + r.under + " unter Plan – die Einheit ist unterschiedlich angekommen." : ""),
+        });
+    }
     if (quote < 75 && todaySessions.length) {
         lines.push({ c: "var(--warn)", icon: I.eye,
             t: React.createElement(React.Fragment, null,
@@ -19496,7 +19754,7 @@ function Situation({ scoped, metrics, counts, fit, weekLoad, delta, quote, respo
 /* ============================================================
    8) ANSICHT 2 — TRAINER-DASHBOARD
    ============================================================ */
-function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlayer }) {
+function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlayer, onDownload, onToast }) {
     const [scope, setScope] = useState("all");
     const scoped = useMemo(() => {
         if (scope === "all")
@@ -19528,6 +19786,7 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
     const teamMono = (() => { const v = days7.map(d => d.load); const sd7 = sd(v); return sd7 > 0 ? mean(v) / sd7 : 0; })();
     const slTeam = last7Entries.filter(e => e.sleep > 0).map(e => e.sleep);
     const avgSleepTeam = slTeam.length ? mean(slTeam) : null;
+    const lastPlan = planRows(calendar, scopedEntries, today, 0).filter(r => r.n > 0)[0] || null;
     const respondedToday = new Set(scopedEntries.filter(e => e.date === today).map(e => e.playerId)).size;
     const quote = scoped.length ? Math.round(respondedToday / scoped.length * 100) : 0;
     const colData = days7.map(d => {
@@ -19560,6 +19819,30 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
         { title: "Torhüter", icon: true, list: scopedMetrics.filter(m => m.player.gk).sort(byNrM) },
         { title: "Feldspieler", icon: false, list: scopedMetrics.filter(m => !m.player.gk).sort((a, b) => (b.status.level - a.status.level) || (b.acute - a.acute)) },
     ];
+    const exportKader = () => {
+        if (!onDownload)
+            return;
+        const csv = csvFile(["Spieler", "Nummer", "Position", "Status", "Begruendung",
+            "Belastungspunkte_7T", "Belastung_gegen_Gewoehnung", "Anstrengung_Mittel",
+            "Schlaf_Mittel_1_5", "Stress_Mittel_1_5", "Rueckmeldungen_7T", "Minuten_7T",
+            "Groesste_Beschwerde", "Beschwerde_Staerke", "Verpasste_Einheiten"], scopedMetrics.slice().sort((a, b) => (b.status.level - a.status.level) || (b.acute - a.acute)).map(m => [
+            m.player.name, m.player.nr || "", m.player.gk ? "TW" : (m.player.pos || ""),
+            m.status.label, (m.status.reasons || [])[0] || "",
+            Math.round(m.acute || 0),
+            m.acwrUsable ? de(m.acwr, 2) : "",
+            m.avgRpe ? de(m.avgRpe, 1) : "",
+            m.avgSleep === null || m.avgSleep === undefined ? "" : de(m.avgSleep, 1),
+            m.avgStress === null || m.avgStress === undefined ? "" : de(m.avgStress, 1),
+            m.sessions === undefined ? "" : m.sessions,
+            m.minutes === undefined ? "" : m.minutes,
+            m.worstPain ? m.worstPain.region : "",
+            m.worstPain ? PAIN_LVL[m.worstPain.level] : "",
+            m.missedSessions === undefined ? "" : m.missedSessions,
+        ]));
+        onDownload(csv, "kader_auswertung_" + today + ".csv", "text/csv;charset=utf-8");
+        if (onToast)
+            onToast("Tabelle gesichert.");
+    };
     if (!entries.length) {
         return (React.createElement("div", { className: "card", style: { textAlign: "center", padding: "38px 20px" } },
             React.createElement("div", { style: { width: 56, height: 56, borderRadius: 16, background: "rgba(57,135,229,0.14)", display: "grid", placeItems: "center", margin: "0 auto 14px", color: "var(--s1)" } },
@@ -19579,10 +19862,13 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                 " \u2013 ",
                 fmtDate(today)),
             React.createElement("div", { style: { flex: 1 } }),
+            onDownload && (React.createElement("button", { className: "btn sm ghost", onClick: exportKader },
+                React.createElement(Icon, { d: I.down, size: 14 }),
+                " Kader als Tabelle")),
             React.createElement("div", { className: "viewswitch" },
                 React.createElement("button", { "aria-pressed": !detail, onClick: () => setDetail(false) }, "Einfach"),
                 React.createElement("button", { "aria-pressed": detail, onClick: () => setDetail(true) }, "Alle Details"))),
-        React.createElement(Situation, { scoped: scoped, metrics: scopedMetrics, counts: counts, fit: fit, weekLoad: weekLoad, delta: delta, quote: quote, respondedToday: respondedToday, nextMatch: nextMatch, hist: H, teamAcwr: teamAcwr, avgSleep: avgSleepTeam, todaySessions: todaySessions }),
+        React.createElement(Situation, { scoped: scoped, metrics: scopedMetrics, counts: counts, fit: fit, weekLoad: weekLoad, delta: delta, quote: quote, respondedToday: respondedToday, nextMatch: nextMatch, hist: H, teamAcwr: teamAcwr, avgSleep: avgSleepTeam, todaySessions: todaySessions, lastPlan: lastPlan }),
         !H.mature && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(57,135,229,0.35)", background: "rgba(57,135,229,0.06)" } },
             React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
                 React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(57,135,229,0.16)", color: "var(--s1)",
@@ -19684,6 +19970,7 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
             React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: 0 } },
                 "Belastungspunkte = Anstrengung \u00D7 Minuten der letzten 7 Tage.",
                 detail ? " „Belastung“ vergleicht diese Woche mit der Gewöhnung der letzten vier Wochen." : "")),
+        React.createElement(PlanVsActual, { calendar: calendar, entries: scopedEntries, squad: scoped, today: today, detail: detail, onDownload: onDownload, onToast: onToast }),
         React.createElement(MatchWeek, { calendar: calendar, today: today }),
         outList.length > 0 && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(208,59,59,0.35)" } },
             React.createElement("div", { className: "card-head" },
@@ -19759,8 +20046,6 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                         React.createElement(Help, { text: HELP.gleich })),
                     React.createElement("span", { className: "v", style: { fontSize: 19, color: H.days < 7 ? "var(--muted)" : teamMono >= 2.2 ? "var(--warn)" : "var(--good)" } }, H.days < 7 ? "–" : teamMono >= 2.2 ? "zu gleichförmig" : "gut verteilt"),
                     React.createElement("span", { className: "d" }, H.days < 7 ? "ab einer vollen Woche" : "Wert " + nf1(teamMono) + " · gut ist unter 2,0"))),
-            React.createElement("div", { style: { marginTop: 12 } },
-                React.createElement(PlanVsActual, { calendar: calendar, entries: scopedEntries, today: today })),
             React.createElement("div", { className: "card", style: { marginTop: 12 } },
                 React.createElement("div", { className: "card-head" },
                     React.createElement("div", null,
@@ -19952,23 +20237,36 @@ function buildReport({ squad, entries, metrics, today, calendar, hist }) {
                 : gkGreen + " von " + gks.length + " uneingeschränkt einsatzfähig. Hohe Wurf-/Sprungvolumen auf die fitten Keeper verteilen."));
     L.push("");
     // --- Geplant gegen empfunden ---
-    const planRows = sessions.filter(c => c.planRpe).map(c => {
-        const es = week.filter(e => e.sessionId === c.id && !isOut(e));
-        return { c, n: es.length, actual: es.length ? mean(es.map(e => e.rpe)) : null };
-    }).filter(r => r.actual !== null);
-    if (planRows.length) {
+    const pRows = planRows(sessions, week, today, 0).filter(r => r.n > 0);
+    if (pRows.length) {
         rule("🎯 GEPLANT GEGEN EMPFUNDEN");
-        planRows.forEach(({ c, n, actual }) => {
-            const d = actual - c.planRpe;
-            L.push("• " + fmtDay(c.date) + " " + fmtDate(c.date) + " " + c.label
-                + ": geplant " + planLabel(c.planRpe) + " (RPE " + c.planRpe + "), empfunden " + nf1(actual)
-                + " (" + (d > 0 ? "+" : "") + nf1(d) + ", " + n + " Rückmeldungen)");
+        pRows.forEach(r => {
+            L.push("• " + fmtDay(r.c.date) + " " + fmtDate(r.c.date) + " " + r.c.label
+                + ": " + planLabel(r.c.planRpe) + " geplant (RPE " + r.c.planRpe + "), empfunden Ø " + nf1(r.actual)
+                + " (" + (r.d > 0 ? "+" : "") + nf1(r.d) + ")");
+            L.push("   " + r.over + " über Plan · " + r.on + " wie geplant · " + r.under + " darunter"
+                + " · " + r.n + " Rückmeldung" + (r.n === 1 ? "" : "en")
+                + (r.spread >= 2 ? " → die Einheit hat die Mannschaft geteilt" : ""));
         });
-        const worst = planRows.slice().sort((a, b) => Math.abs(b.actual - b.c.planRpe) - Math.abs(a.actual - a.c.planRpe))[0];
-        const wd = worst.actual - worst.c.planRpe;
-        if (Math.abs(wd) >= 1.5)
-            L.push("→ Größte Abweichung: " + worst.c.label + " kam " + (wd > 0 ? "deutlich härter" : "deutlich leichter")
-                + " an als geplant. " + (wd > 0 ? "Inhalte oder Umfang dieser Einheit anpassen." : "Reiz war zu klein – Intensität nachschärfen."));
+        const worst = pRows.slice().sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
+        if (Math.abs(worst.d) >= 1.5)
+            L.push("→ Größte Abweichung: " + worst.c.label + " kam " + (worst.d > 0 ? "deutlich härter" : "deutlich leichter")
+                + " an als geplant. " + (worst.d > 0 ? "Inhalte oder Umfang dieser Einheit anpassen." : "Reiz war zu klein – Intensität nachschärfen."));
+        const allRows = planRows(calendar, entries, today, 0).filter(r => r.n > 0);
+        const cal = planCalibration(allRows);
+        if (cal.length) {
+            L.push("Eigene Einschätzung über alle Einheiten:");
+            cal.forEach(b => L.push("   " + b.label + " (" + b.n + "): empfunden Ø " + nf1(b.actual)
+                + " → " + planDevWord(b.d) + " (" + (b.d > 0 ? "+" : "") + nf1(b.d) + ")"));
+        }
+        const devs = planPlayerDev(allRows, squad, 4);
+        if (devs.length) {
+            const hoch = devs.filter(x => x.dev > 0), tief = devs.filter(x => x.dev < 0);
+            if (hoch.length)
+                L.push("Empfinden dauerhaft härter: " + hoch.slice(0, 5).map(x => shortRef(x.player) + " (+" + nf1(x.dev) + ")").join(", "));
+            if (tief.length)
+                L.push("Empfinden dauerhaft lockerer: " + tief.slice(0, 5).map(x => shortRef(x.player) + " (" + nf1(x.dev) + ")").join(", "));
+        }
         L.push("");
     }
     // --- Erholung ---
@@ -20514,7 +20812,28 @@ function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose }) {
                         l.v,
                         " \u00B7 ",
                         l.sub))))),
-                React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "8px 0 0", lineHeight: 1.5 } }, "Wie hart die Einheit gedacht ist. Sp\u00E4ter vergleicht das Dashboard das mit dem, was die Mannschaft tats\u00E4chlich empfunden hat."),
+                (() => {
+                    // Rückblick: wie kamen die letzten Einheiten dieser Art an?
+                    const past = planRows(sessions.filter(x => x.type === form.type && x.id !== editId), entries, today, 0)
+                        .filter(r => r.n > 0).slice(0, 3);
+                    if (!past.length) {
+                        return (React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "8px 0 0", lineHeight: 1.5 } }, "Wie hart die Einheit gedacht ist. Sp\u00E4ter vergleicht das Dashboard das mit dem, was die Mannschaft tats\u00E4chlich empfunden hat."));
+                    }
+                    const d = mean(past.map(r => r.d));
+                    const col = planDevColor(d);
+                    return (React.createElement("div", { style: { marginTop: 10, padding: "10px 12px", borderRadius: 10,
+                            background: tint(col), border: "1px solid var(--line)" } },
+                        React.createElement("div", { style: { fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55 } },
+                            "Deine letzten ",
+                            past.length,
+                            " Einheiten der Art ",
+                            React.createElement("b", null, form.type),
+                            " kamen im Schnitt",
+                            " ",
+                            React.createElement("b", { style: { color: col } }, Math.abs(d) <= PLAN_TOL ? "wie geplant" : (d > 0 ? "+" : "") + nf1(d) + " " + (d > 0 ? "härter" : "lockerer")),
+                            " an."),
+                        React.createElement("div", { style: { fontSize: 11, color: "var(--muted)", marginTop: 5, lineHeight: 1.5 } }, past.map(r => fmtShort(r.c.date) + ": " + planLabel(r.c.planRpe) + " geplant \u2192 " + nf1(r.actual)).join(" · "))));
+                })(),
                 React.createElement("label", { style: { display: "block", marginTop: 12 } },
                     React.createElement("span", { style: { fontSize: 11, color: "var(--muted)", fontWeight: 650 } }, "Bezeichnung (optional)"),
                     React.createElement("input", { className: "sel", value: form.label, placeholder: "z. B. Punktspiel gegen TuS", onChange: e => set("label", e.target.value), style: { width: "100%", marginTop: 4, backgroundImage: "none" } })),
@@ -20603,7 +20922,7 @@ function SettingsSheet({ squad, setSquad, pin, setPin, onClose, onExport, onImpo
 /* ============================================================
    11b) ROLLENWAHL + SPIELERBEREICH
    ============================================================ */
-function RoleGate({ pin, onPick }) {
+function RoleGate({ pin, onPick, connected }) {
     const [asking, setAsking] = useState(false);
     const [code, setCode] = useState("");
     const [err, setErr] = useState(false);
@@ -20642,7 +20961,14 @@ function RoleGate({ pin, onPick }) {
                             React.createElement("span", { style: { color: "var(--muted)", display: "inline-flex", verticalAlign: "-2px", marginLeft: 4 } },
                                 React.createElement(Icon, { d: I.lock, size: 13 }))),
                         React.createElement("span", { className: "rd" }, "Dashboard, Wochenbericht, Einheiten und Kader. Mit PIN gesch\u00FCtzt."))),
-                React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", textAlign: "center", margin: "20px 0 0", lineHeight: 1.6 } }, "Das Kabinen-Handy bleibt im Spielerbereich \u2013 dort sind fremde Werte nicht einsehbar."))) : (React.createElement("div", null,
+                connected ? (React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", textAlign: "center", margin: "20px 0 0", lineHeight: 1.6 } }, "Mit dem Team verbunden. Das Kabinen-Handy bleibt im Spielerbereich \u2013 dort sind fremde Werte nicht einsehbar.")) : (React.createElement("p", { style: { fontSize: 12, color: "var(--crit)", textAlign: "center", margin: "20px 0 0", lineHeight: 1.6,
+                        background: "rgba(208,59,59,0.10)", border: "1px solid rgba(208,59,59,0.35)",
+                        borderRadius: "var(--r-sm)", padding: "10px 12px" } },
+                    React.createElement("strong", null, "Nicht mit dem Team verbunden."),
+                    React.createElement("br", null),
+                    "Eintragungen bleiben nur auf diesem Handy. Bitte den langen Team-Link aus der Mannschaftsgruppe \u00F6ffnen \u2013 erkennbar am ",
+                    React.createElement("code", null, "#"),
+                    " in der Adresse.")))) : (React.createElement("div", null,
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 } },
                     React.createElement("button", { className: "icon-btn", onClick: () => { setAsking(false); setCode(""); }, "aria-label": "Zur\u00FCck" },
                         React.createElement(Icon, { d: I.back, size: 17 })),
@@ -20694,10 +21020,34 @@ function MyStats({ squad, metrics, entries, today, meId, setMeId }) {
                 borderRadius: "var(--r-sm)", padding: "11px 13px", margin: "0 0 16px", lineHeight: 1.55 } }, advice),
         React.createElement(PlayerDetail, { m: m, entries: entries, today: today })));
 }
-function PlayerArea({ squad, calendar, entries, today, metrics, submitted, onSave, toast, sub, setSub, meId, setMeId }) {
+function NotConnected() {
+    return (React.createElement("div", { className: "card", style: { borderColor: "rgba(208,59,59,0.5)", background: "rgba(208,59,59,0.08)", marginBottom: 12 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
+            React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(208,59,59,0.18)", color: "var(--crit)",
+                    display: "grid", placeItems: "center", flex: "0 0 auto" } },
+                React.createElement(Icon, { d: I.alert, size: 19 })),
+            React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                React.createElement("h3", { style: { fontSize: 14.5, marginBottom: 4, color: "var(--crit)" } }, "Nicht mit dem Team verbunden"),
+                React.createElement("p", { style: { margin: "0 0 8px", fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.6 } },
+                    "Was du hier eintr\u00E4gst, bleibt ",
+                    React.createElement("strong", null, "nur auf diesem Handy"),
+                    " und kommt beim Trainerteam nicht an."),
+                React.createElement("p", { style: { margin: 0, fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.6 } },
+                    React.createElement("strong", null, "So geht's:"),
+                    " \u00D6ffne den Team-Link aus der Mannschaftsgruppe noch einmal \u2013 den langen, mit dem Zusatz hinter dem ",
+                    React.createElement("code", { style: { fontSize: 11.5 } }, "#"),
+                    ". Danach ist es dauerhaft eingerichtet. Lege dir ",
+                    React.createElement("em", null, "diese"),
+                    " Seite auf den Startbildschirm, nicht die kurze Adresse.")))));
+}
+function PlayerArea({ squad, calendar, entries, today, metrics, submitted, onSave, toast, sub, setSub, meId, setMeId, connected }) {
     if (sub === "mine")
-        return React.createElement(MyStats, { squad: squad, metrics: metrics, entries: entries, today: today, meId: meId, setMeId: setMeId });
-    return React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: onSave, toast: toast, meId: meId, setMeId: setMeId, onManage: () => toast("Einheiten legt das Trainerteam an."), onShowMine: id => { setMeId(id); setSub("mine"); } });
+        return (React.createElement(React.Fragment, null,
+            !connected && React.createElement(NotConnected, null),
+            React.createElement(MyStats, { squad: squad, metrics: metrics, entries: entries, today: today, meId: meId, setMeId: setMeId })));
+    return React.createElement(React.Fragment, null,
+        !connected && React.createElement(NotConnected, null),
+        React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: onSave, toast: toast, meId: meId, setMeId: setMeId, onManage: () => toast("Einheiten legt das Trainerteam an."), onShowMine: id => { setMeId(id); setSub("mine"); } }));
 }
 /* ============================================================
    11c) SYNCHRONISATION EINRICHTEN (Trainer)
@@ -21125,11 +21475,12 @@ function App() {
     const leaveMode = () => { setMode(null); store.del("mode"); setTab("input"); };
     const redCount = metrics.filter(m => m.status.key === "red").length;
     if (!mode)
-        return React.createElement(RoleGate, { pin: pin, onPick: pickMode });
+        return React.createElement(RoleGate, { pin: pin, onPick: pickMode, connected: !!cfg });
     const syncLook = sync.state === "ok" ? { c: "var(--good)", t: "Sync" }
         : sync.state === "busy" ? { c: "var(--s1)", t: "Sync …" }
             : sync.state === "error" ? { c: "var(--crit)", t: "Offline" }
-                : { c: "var(--muted)", t: "Lokal" };
+                : cfg ? { c: "var(--muted)", t: "Lokal" }
+                    : { c: "var(--crit)", t: "Nicht verbunden" };
     const pendingCount = entries.filter(e => e._pending).length;
     return (React.createElement("div", { className: "app" },
         React.createElement("div", { className: "topbar" },
@@ -21138,7 +21489,10 @@ function App() {
                 CLUB,
                 React.createElement("small", null, LEAGUE)),
             React.createElement("div", { className: "spacer" }),
-            React.createElement("button", { className: "syncchip" + (sync.state === "busy" ? " busy" : ""), onClick: () => isPlayer ? (cfg ? (flush().then(pull), toast("Wird abgeglichen …")) : toast("Diese Kopie speichert nur lokal.")) : setSyncSheet(true), title: sync.msg || (cfg ? "Verbunden mit dem Team-Server" : "Nur lokal auf diesem Gerät") },
+            React.createElement("button", { className: "syncchip" + (sync.state === "busy" ? " busy" : ""), onClick: () => isPlayer
+                    ? (cfg ? (flush().then(pull), toast("Wird abgeglichen …"))
+                        : toast("Nicht verbunden – bitte den Team-Link aus der Mannschaftsgruppe öffnen."))
+                    : setSyncSheet(true), title: sync.msg || (cfg ? "Verbunden mit dem Team-Server" : "Nur lokal auf diesem Gerät") },
                 React.createElement("span", { className: "sd", style: { background: syncLook.c } }),
                 syncLook.t,
                 pendingCount ? " ·" + pendingCount : ""),
@@ -21178,9 +21532,9 @@ function App() {
             React.createElement(Icon, { d: t.icon, size: 17 }),
             React.createElement("span", { className: "lbl-long" }, t.label),
             React.createElement("span", { className: "lbl-short" }, t.short))))),
-        isPlayer && React.createElement(PlayerArea, { squad: squad, calendar: calendar, entries: entries, today: today, metrics: metrics, submitted: submitted, onSave: saveEntry, toast: toast, sub: tab, setSub: setTab, meId: meId, setMeId: setMeId }),
+        isPlayer && React.createElement(PlayerArea, { squad: squad, calendar: calendar, entries: entries, today: today, metrics: metrics, submitted: submitted, onSave: saveEntry, toast: toast, sub: tab, setSub: setTab, meId: meId, setMeId: setMeId, connected: !!cfg }),
         !isPlayer && tab === "input" && React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: saveEntry, toast: toast, onManage: () => setPlanner(true) }),
-        !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: entries, today: today, metrics: metrics, calendar: calendar, hist: hist, onOpenPlayer: setOpenPlayer }),
+        !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: entries, today: today, metrics: metrics, calendar: calendar, hist: hist, onOpenPlayer: setOpenPlayer, onDownload: download, onToast: toast }),
         !isPlayer && tab === "resp" && React.createElement(ResponsesView, { squad: squad, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: cfg ? cfgToLink(cfg) : "", onCopy: copyText, onDownload: download }),
         !isPlayer && tab === "report" && React.createElement(ReportView, { report: report, shortReport: shortReport, allReports: m => buildAllPlayerReports({ squad, entries, metrics, calendar, today, mode: m }), onCopy: copyReport, onDownload: (t, v) => { download(t, "bericht_KW" + isoWeek(today) + "_" + v + ".txt", "text/plain;charset=utf-8"); toast("Bericht gesichert."); } }),
         openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: entries, calendar: calendar, today: today, onCopy: copyText, onClose: () => setOpenPlayer(null) }),
