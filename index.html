@@ -466,6 +466,18 @@ button:focus-visible,.og-name:focus-visible{outline:2px solid var(--s1);outline-
   .filterrow .og-chips{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:4px;scrollbar-width:none}
   .filterrow .og-chips .togglechip{flex:0 0 auto;white-space:nowrap}
 }
+
+.og-late{border-color:rgba(208,59,59,0.55);background:rgba(208,59,59,0.08)}
+.og-latebadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;font-size:10px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:#fff;background:var(--crit);border-radius:5px;padding:1px 6px}
+.og-latecount{margin-top:8px;font-size:12.5px;font-weight:650;color:var(--crit)}
+.og-n-late{color:var(--crit);font-weight:700}
+.og-by{color:var(--good);font-weight:600}
+.og-pl-late .og-pt{color:var(--crit)}
+.og-prompt{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;border-color:rgba(57,135,229,0.45);background:rgba(57,135,229,0.07)}
+.og-prev{margin-bottom:12px;border-color:rgba(208,59,59,0.4)}
+.og-prevhead{display:flex;gap:10px;align-items:center;width:100%;font-size:14px}
+.og-share{font-family:inherit;font-size:13px;line-height:1.55;white-space:pre-wrap;min-height:220px}
+.og-wa{background:#1f9d55;text-decoration:none}
 </style>
 </head>
 <body>
@@ -21362,7 +21374,7 @@ const orgaApi = {
     del: (cfg, id) => sbFetch(cfg, "orga_items?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: { Prefer: "return=minimal" } }),
 };
 const orgaMissingTable = err => /PGRST205|42P01|orga_items|HTTP 404/i.test(String((err && err.message) || err));
-function useOrga(cfg) {
+function useOrga(cfg, enabled = true) {
     const [items, setItems] = useState(() => store.get("orga", null) || {});
     const [st, setSt] = useState({ state: cfg ? "busy" : "off", schema: null, msg: "" });
     const itemsRef = useRef(items);
@@ -21372,12 +21384,12 @@ function useOrga(cfg) {
     const busy = useRef(false);
     // Ohne Server und ohne lokale Daten: Startbestand anlegen, als "ausstehend" markiert
     useEffect(() => {
-        if (Object.keys(itemsRef.current).length || cfg)
+        if (!enabled || Object.keys(itemsRef.current).length || cfg)
             return;
         const seeded = {};
         Object.entries(ORGA_SEED).forEach(([k, v]) => { seeded[k] = { ...v, _p: true, _seed: true }; });
         setItems(seeded);
-    }, [cfg]);
+    }, [cfg, enabled]);
     const flush = useCallback(async () => {
         const c = cfgRef.current;
         if (!c)
@@ -21574,26 +21586,75 @@ function mdTag(date, fixtures) {
     }
     return null;
 }
+const localIso = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+const nowHM = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+const fixSessionId = f => "fx-" + f.id;
+const fixSessionLabel = f => (f.comp === "Liga" || !f.comp ? (f.st ? f.st + ". Spieltag" : "Punktspiel") : f.comp) + " · " + (f.home ? "vs. " : "bei ") + f.opp;
+// Spielplan -> Einheiten: legt für kommende Spiele eine Einheit an und hält Datum/Gegner aktuell.
+// Vergangene Spiele bekommen keine neue Einheit (sonst sinkt die Rücklaufquote rückwirkend).
+function planFixtureSessions(sessions, fixtures, entries, today, allowRemove) {
+    let out = sessions.slice();
+    let changed = false;
+    const byId = new Map(out.map(s => [s.id, s]));
+    fixtures.forEach(f => {
+        const id = fixSessionId(f);
+        const type = f.comp === "Testspiel" ? "Testspiel" : "Spiel";
+        const label = fixSessionLabel(f);
+        const ex = byId.get(id);
+        if (ex) {
+            if (ex.date !== f.date || ex.type !== type || ex.label !== label) {
+                out = out.map(x => x.id === id ? { ...x, date: f.date, type, label } : x);
+                changed = true;
+            }
+            return;
+        }
+        if (f.date < today)
+            return;
+        if (out.some(x => x.date === f.date && (x.type === "Spiel" || x.type === "Testspiel")))
+            return; // schon von Hand angelegt
+        out.push({ id, date: f.date, type, label, minutes: type === "Spiel" ? 90 : 70, planRpe: type === "Spiel" ? 9 : 7 });
+        changed = true;
+    });
+    if (allowRemove) {
+        const fids = new Set(fixtures.map(fixSessionId));
+        const used = new Set((entries || []).map(e => e.sessionId));
+        const kept = out.filter(x => !(String(x.id).startsWith("fx-") && !fids.has(x.id) && !used.has(x.id) && x.date >= today));
+        if (kept.length !== out.length) {
+            out = kept;
+            changed = true;
+        }
+    }
+    return changed ? out : null;
+}
+function trainingSessionsFor(dates, fixtures) {
+    return dates.map(d => {
+        const md = mdTag(d, fixtures);
+        const plan = md && md.d > 0 && typeof MD_PLAN !== "undefined" ? MD_PLAN[Math.min(5, md.d)].plan : 6;
+        return { id: "tr-" + d, date: d, type: "Training", minutes: 90, planRpe: plan, label: "Training " + ORGA_DAYS[odx(d)] };
+    });
+}
 const whenLabel = t => t.anchor === "wd" ? ORGA_DAYS_LONG[t.off || 0]
     : t.anchor === "tr" ? "Jedes Training"
         : t.anchor === "lt" ? "Abschlusstraining"
             : (t.off === 0 ? "Spieltag" : "MD" + (t.off > 0 ? "+" : "") + t.off);
 const parseRes = r => { const m = String(r || "").match(/(\d+)\s*[:\-]\s*(\d+)/); return m ? [Number(m[1]), Number(m[2])] : null; };
 /* ---------- Bausteine ---------- */
-function OrgaTask({ inst, done, owner, multiFix, onToggle, onEdit, onLink, showDay }) {
+function OrgaTask({ inst, done, owner, multiFix, onToggle, onEdit, onLink, showDay, late, doneBy }) {
     const t = inst.task;
     const c = ORGA_CATS[t.cat] || ORGA_CATS.intern;
-    return oh("div", { className: "og-task" + (done ? " og-done" : ""), style: { "--cat": c.color } },
+    return oh("div", { className: "og-task" + (done ? " og-done" : "") + (late ? " og-late" : ""), style: { "--cat": c.color } },
         oh("button", { className: "og-check", role: "checkbox", "aria-checked": done, "aria-label": "Erledigt: " + t.title, onClick: onToggle },
             done && oh(Icon, { d: I.check, size: 14, stroke: 3 })),
         oh("div", { style: { minWidth: 0, flex: 1 } },
             oh("button", { className: "og-tt", onClick: onEdit }, t.title),
             oh("div", { className: "og-meta" },
+                late && oh("span", { className: "og-latebadge" }, "überfällig"),
                 showDay && oh("span", { className: "og-mono" }, ORGA_DAYS[odx(inst.date)] + " " + fmtDate(inst.date)),
                 oh("span", { className: "og-who" }, owner),
                 t.time && oh("span", null, "bis " + t.time),
                 multiFix && inst.fixture && oh("span", null, "vs. " + inst.fixture.opp),
                 t.recurring === false && oh("span", { className: "og-badge" }, "einmalig"),
+                done && doneBy && oh("span", { className: "og-by" }, "✓ " + doneBy),
                 onLink && t.link && oh("button", { className: "linkbtn", onClick: () => onLink(t.link) }, ORGA_LINKS[t.link] + " öffnen")),
             t.note && oh("div", { className: "og-note" }, t.note)));
 }
@@ -21688,9 +21749,57 @@ function OrgaFixtureSheet({ fx, onSave, onDelete, onClose }) {
                 oh("button", { className: "btn sm", onClick: () => { if (f.opp.trim() && f.date)
                         onSave({ ...f, opp: f.opp.trim() }); } }, "Speichern"))));
 }
+function orgaShareText({ mon, inst, persons, weekFx, isDone, scope, onlyOpen }) {
+    const end = addDays(mon, 6);
+    const lines = ["*" + CLUB + " · Orga KW " + isoWeek(mon) + "* (" + fmtDate(mon) + "–" + fmtDate(end) + ")"];
+    if (weekFx.length)
+        weekFx.forEach(f => lines.push("⚽ " + ORGA_DAYS[odx(f.date)] + " " + fmtDate(f.date) + (f.time ? ", " + f.time + " Uhr" : "") + " – " + (f.home ? "Heimspiel gegen " : "auswärts bei ") + f.opp));
+    else
+        lines.push("Spielfreie Woche");
+    const item = i => (isDone(i.key) ? "✅ " : "▫️ ") + ORGA_DAYS[odx(i.date)] + " " + fmtDate(i.date) + ": " + i.task.title + (i.task.time ? " (bis " + i.task.time + ")" : "");
+    const pick = p => inst.filter(i => i.task.owner === p.id && (!onlyOpen || !isDone(i.key)));
+    const group = scope === "all" ? persons : persons.filter(p => p.id === scope);
+    let any = false;
+    group.forEach(p => {
+        const ii = pick(p);
+        if (!ii.length)
+            return;
+        any = true;
+        lines.push("");
+        if (scope === "all")
+            lines.push("*" + (p.name || p.role) + "*" + (p.name ? " (" + p.role + ")" : ""));
+        else
+            lines.push("Hallo " + ((p.name || "").split(" ")[0] || p.role) + ", deine Aufgaben diese Woche:");
+        ii.forEach(i => lines.push(item(i)));
+    });
+    if (!any)
+        lines.push("", onlyOpen ? "Alles erledigt – danke!" : "Keine Aufgaben eingetragen.");
+    lines.push("", "Abhaken im Orga-Bereich der App.");
+    return lines.join("\n");
+}
+function OrgaShareSheet({ mon, inst, persons, weekFx, isDone, initialWho, copyText, onClose }) {
+    const [scope, setScope] = useState(initialWho || "all");
+    const [onlyOpen, setOnlyOpen] = useState(true);
+    const text = orgaShareText({ mon, inst, persons, weekFx, isDone, scope, onlyOpen });
+    return oh("div", { className: "ov", onClick: onClose },
+        oh("div", { className: "sheet", onClick: e => e.stopPropagation() },
+            oh("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 14 } },
+                oh("div", { style: { flex: 1 } },
+                    oh("h3", { style: { fontSize: 17 } }, "Wochenplan teilen"),
+                    oh("div", { style: { fontSize: 12, color: "var(--muted)" } }, "Fertiger Text für die WhatsApp-Gruppe oder als Einzelnachricht")),
+                oh("button", { className: "icon-btn", onClick: onClose, "aria-label": "Schließen" }, oh(Icon, { d: I.x, size: 16 }))),
+            oh("div", { className: "filterrow" },
+                oh("select", { id: "og-share-scope", className: "sel", value: scope, onChange: e => setScope(e.target.value), "aria-label": "Für wen" },
+                    oh("option", { value: "all" }, "Ganzes Funktionsteam"), persons.map(p => oh("option", { key: p.id, value: p.id }, p.name || p.role))),
+                oh("button", { className: "togglechip", "aria-pressed": onlyOpen, onClick: () => setOnlyOpen(!onlyOpen) }, "Nur offene")),
+            oh("textarea", { id: "og-share-text", className: "sel og-in og-share", readOnly: true, rows: 14, value: text, onFocus: e => e.target.select() }),
+            oh("div", { style: { display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", justifyContent: "flex-end" } },
+                oh("button", { className: "btn sm ghost", onClick: () => copyText(text, "Text kopiert – jetzt in WhatsApp einfügen.") }, oh(Icon, { d: I.copy, size: 15 }), " Kopieren"),
+                oh("a", { className: "btn sm og-wa", href: "https://wa.me/?text=" + encodeURIComponent(text), target: "_blank", rel: "noopener" }, "In WhatsApp öffnen"))));
+}
 /* ---------- Hauptbereich ---------- */
-function OrgaArea({ cfg, today, sessions, toast, copyText, navBar, coach, metrics, squad, submitted, onOpenTab, orgaPin, setOrgaPin }) {
-    const orga = useOrga(cfg);
+function OrgaArea({ orga, cfg, sessions, toast, copyText, navBar, coach, metrics, squad, submitted, onOpenTab, onAddSessions, orgaPin, setOrgaPin }) {
+    const today = localIso();
     const { items, put, remove } = orga;
     const [view, setView] = useState(() => store.get("orga.view", "woche"));
     useEffect(() => { store.set("orga.view", view); }, [view]);
@@ -21701,6 +21810,10 @@ function OrgaArea({ cfg, today, sessions, toast, copyText, navBar, coach, metric
     useEffect(() => { store.set("orga.hide", hideDone); }, [hideDone]);
     const [editTask, setEditTask] = useState(null);
     const [editFx, setEditFx] = useState(null);
+    const [share, setShare] = useState(false);
+    const [showPrev, setShowPrev] = useState(true);
+    const [me, setMe] = useState(() => store.get("orga.me", ""));
+    useEffect(() => { store.set("orga.me", me); }, [me]);
     const list = kind => Object.values(items).filter(v => v.kind === kind && !v._del).map(v => v.data);
     const persons = useMemo(() => list("person").sort((a, b) => (a.order || 0) - (b.order || 0)), [items]);
     const tasks = useMemo(() => list("task"), [items]);
@@ -21713,14 +21826,26 @@ function OrgaArea({ cfg, today, sessions, toast, copyText, navBar, coach, metric
         if (isDone(k))
             remove(k);
         else
-            put(k, "done", { done: true, at: Date.now(), by: who !== "all" ? who : null });
+            put(k, "done", { done: true, at: Date.now(), by: me || (who !== "all" ? who : null) });
     };
     const thisMon = mondayOf(today);
+    const hm = nowHM();
+    const isLate = i => !isDone(i.key) && (i.date < today || (i.date === today && !!i.task.time && i.task.time < hm));
+    const doneBy = i => {
+        const d = items[i.key] && items[i.key].data;
+        if (!d || !d.done)
+            return null;
+        const at = d.at ? new Date(d.at) : null;
+        const when = at ? ORGA_DAYS[(at.getDay() + 6) % 7] + " " + String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0") : "";
+        return (d.by ? pname(d.by) + (when ? " · " : "") : "") + when;
+    };
+    const taskEl = (x, extra = {}) => oh(OrgaTask, { key: x.key, inst: x, done: isDone(x.key), late: isLate(x), doneBy: doneBy(x), owner: pname(x.task.owner), multiFix: weekFx.length > 1, onToggle: () => toggle(x), onEdit: () => setEditTask(x.task), onLink, ...extra });
     const weekOf = m => weekInstances(m, tasks, fixtures, sessions, settings);
     const inst = useMemo(() => weekOf(mon), [mon, tasks, fixtures, sessions, settings]);
     const vis = inst.filter(i => (who === "all" || i.task.owner === who) && !(hideDone && isDone(i.key)));
     const mine = inst.filter(i => who === "all" || i.task.owner === who);
     const doneN = mine.filter(i => isDone(i.key)).length;
+    const lateN = mine.filter(isLate).length;
     const weekFx = fixtures.filter(f => f.date >= mon && f.date <= addDays(mon, 6));
     // Saisonbilanz Orga: alle Wochen seit Start der Aufgabenliste bis heute
     const seasonWeeks = useMemo(() => {
@@ -21778,9 +21903,34 @@ function OrgaArea({ cfg, today, sessions, toast, copyText, navBar, coach, metric
         oh("button", { className: "togglechip", "aria-pressed": who === "all", onClick: () => setWho("all") }, "Alle"),
         persons.map(p => {
             const open = inst.filter(i => i.task.owner === p.id && !isDone(i.key)).length;
+            const late = inst.filter(i => i.task.owner === p.id && isLate(i)).length;
             return oh("button", { key: p.id, className: "togglechip", "aria-pressed": who === p.id, onClick: () => setWho(p.id) },
-                p.name || p.role, oh("span", { className: "og-n" }, open));
+                p.name || p.role, oh("span", { className: "og-n" + (late ? " og-n-late" : "") }, late ? late + "!" : open));
         }));
+    const renderTrainingPrompt = tr => {
+        if (!onAddSessions || tr.planned || !tr.dates.length || mon < thisMon)
+            return null;
+        return oh("div", { className: "card og-prompt" },
+            oh("div", { style: { flex: "1 1 260px", minWidth: 0 } },
+                oh("h3", { style: { fontSize: 14.5 } }, "Trainings dieser Woche noch nicht angelegt"),
+                oh("p", { style: { margin: "3px 0 0", fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55 } },
+                    tr.dates.map(d => ORGA_DAYS[odx(d)] + " " + fmtDate(d)).join(" · ") + " – ohne Einheit können die Spieler kein RPE eintragen. Die geplante Intensität kommt aus dem MD-Plan.")),
+            oh("button", { className: "btn sm", onClick: () => onAddSessions(trainingSessionsFor(tr.dates, fixtures)) }, "Als Einheiten anlegen"));
+    };
+    const renderPrevOpen = () => {
+        if (mon !== thisMon)
+            return null;
+        const pm = addDays(mon, -7);
+        const open = weekOf(pm).filter(i => !isDone(i.key) && (who === "all" || i.task.owner === who));
+        if (!open.length)
+            return null;
+        return oh("div", { className: "card og-prev" },
+            oh("button", { className: "og-prevhead", "aria-expanded": showPrev, onClick: () => setShowPrev(!showPrev) },
+                oh("span", { className: "og-latebadge" }, open.length),
+                oh("span", { style: { flex: 1, textAlign: "left", fontWeight: 650 } }, "Noch offen aus KW " + isoWeek(pm)),
+                oh("span", { className: "linkbtn" }, showPrev ? "Einklappen" : "Anzeigen")),
+            showPrev && oh("div", { className: "og-daytasks", style: { marginTop: 10 } }, open.map(x => taskEl(x, { showDay: true, multiFix: true }))));
+    };
     /* ---------- Woche ---------- */
     const renderWeek = () => {
         const end = addDays(mon, 6);
@@ -21809,7 +21959,8 @@ function OrgaArea({ cfg, today, sessions, toast, copyText, navBar, coach, metric
                 oh("div", { className: "card og-prog" },
                     oh("div", { className: "eyebrow" }, who === "all" ? "Erledigt diese Woche" : "Erledigt · " + pname(who)),
                     oh("div", { className: "og-big" }, mine.length ? doneN + " / " + mine.length : "–"),
-                    oh("div", { className: "meter" }, oh("i", { style: { width: (mine.length ? doneN / mine.length * 100 : 0) + "%", background: "var(--good)" } }))),
+                    oh("div", { className: "meter" }, oh("i", { style: { width: (mine.length ? doneN / mine.length * 100 : 0) + "%", background: "var(--good)" } })),
+                    lateN > 0 && oh("div", { className: "og-latecount" }, lateN + (lateN === 1 ? " Aufgabe überfällig" : " Aufgaben überfällig"))),
                 coach && oh("div", { className: "card og-load" },
                     oh("div", { className: "eyebrow" }, "Belastungssteuerung"),
                     mon === thisMon && oh("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", margin: "6px 0 8px" } },
@@ -21825,9 +21976,14 @@ function OrgaArea({ cfg, today, sessions, toast, copyText, navBar, coach, metric
                     oh("button", { className: "linkbtn", style: { marginTop: 8 }, onClick: () => onOpenTab("dash") }, "Zum Dashboard"))),
             oh("div", { className: "filterrow", style: { marginTop: 4 } }, peopleChips),
             oh("div", { className: "filterrow" },
+                oh("select", { id: "og-me", className: "sel", value: me, onChange: e => setMe(e.target.value), "aria-label": "Wer bist du?" },
+                    oh("option", { value: "" }, "Ich bin …"), persons.map(p => oh("option", { key: p.id, value: p.id }, p.name || p.role))),
                 oh("button", { className: "togglechip", "aria-pressed": hideDone, onClick: () => setHideDone(!hideDone) }, "Erledigte ausblenden"),
                 oh("div", { style: { flex: 1 } }),
+                oh("button", { className: "btn sm ghost", onClick: () => setShare(true) }, "Wochenplan teilen"),
                 oh("button", { className: "btn sm", onClick: () => openNewTask() }, oh(Icon, { d: I.plus, size: 15 }), " Aufgabe")),
+            renderTrainingPrompt(tr),
+            renderPrevOpen(),
             oh("div", { className: "og-days" }, ORGA_DAYS.map((d, i) => {
                 const date = addDays(mon, i);
                 const dayList = vis.filter(x => x.date === date);
@@ -21844,10 +22000,10 @@ function OrgaArea({ cfg, today, sessions, toast, copyText, navBar, coach, metric
                     oh("div", { className: "og-daytag" },
                         fx.length ? fx.map(f => (f.home ? "Heim" : "Auswärts") + " vs. " + f.opp + (f.time ? " · " + f.time : "")).join(" / ")
                             : sess.length ? sess.map(s => s.label || s.type).join(" · ")
-                                : isTr ? "Training (Standard)" : ""),
+                                : isTr ? "Training (Standard, nicht angelegt)" : ""),
                     plan && oh("div", { className: "og-plan" }, plan.text)),
                     oh("div", { className: "og-daytasks" },
-                    dayList.length ? dayList.map(x => oh(OrgaTask, { key: x.key, inst: x, done: isDone(x.key), owner: pname(x.task.owner), multiFix: weekFx.length > 1, onToggle: () => toggle(x), onEdit: () => setEditTask(x.task), onLink }))
+                    dayList.length ? dayList.map(x => taskEl(x))
                         : oh("div", { className: "og-empty" }, "Nichts zu tun")));
             })));
     };
@@ -21924,8 +22080,9 @@ function OrgaArea({ cfg, today, sessions, toast, copyText, navBar, coach, metric
                     onBlur: e => { const v = e.target.value.trim(); if (v !== (p.name || ""))
                         put("person:" + p.id, "person", { ...p, name: v }); } }),
                 oh("div", { className: "og-blocks", title: "Eine Kachel pro Aufgabe dieser Woche" }, wk.map(i => oh("i", { key: i.key, style: { background: (ORGA_CATS[i.task.cat] || {}).color, opacity: isDone(i.key) ? 0.3 : 1 } }))),
-                oh("div", { style: { fontSize: 12, color: "var(--muted)" } }, "Diese Woche " + wk.filter(i => isDone(i.key)).length + "/" + wk.length + " · Saison " + (s.due ? Math.round(s.done / s.due * 100) + " %" : "–")),
-                oh("div", { className: "og-plist" }, wk.map(i => oh("button", { key: i.key, className: "og-pl" + (isDone(i.key) ? " og-done" : ""), onClick: () => toggle(i) },
+                oh("div", { style: { fontSize: 12, color: "var(--muted)" } }, "Diese Woche " + wk.filter(i => isDone(i.key)).length + "/" + wk.length + " · Saison " + (s.due ? Math.round(s.done / s.due * 100) + " %" : "–"),
+                    wk.filter(isLate).length > 0 && oh("span", { style: { color: "var(--crit)", fontWeight: 650 } }, " · " + wk.filter(isLate).length + " überfällig")),
+                oh("div", { className: "og-plist" }, wk.map(i => oh("button", { key: i.key, className: "og-pl" + (isDone(i.key) ? " og-done" : "") + (isLate(i) ? " og-pl-late" : ""), onClick: () => toggle(i) },
                     oh("span", { className: "og-mono" }, ORGA_DAYS[odx(i.date)]), oh("span", { className: "og-pt" }, i.task.title)))));
         })),
         oh("div", { className: "card", style: { marginTop: 12 } },
@@ -21955,6 +22112,7 @@ function OrgaArea({ cfg, today, sessions, toast, copyText, navBar, coach, metric
         view === "aufgaben" && oh(React.Fragment, null, oh("div", { className: "filterrow" }, peopleChips), renderTasks()),
         view === "team" && renderTeam(),
         editTask && oh(OrgaTaskSheet, { task: editTask, persons, coach, weekMon: mon, onSave: saveTask, onDelete: deleteTask, onClose: () => setEditTask(null) }),
+        share && oh(OrgaShareSheet, { mon, inst, persons, weekFx, isDone, pname, initialWho: who, copyText, onClose: () => setShare(false) }),
         editFx && oh(OrgaFixtureSheet, { fx: editFx, onSave: saveFx, onDelete: deleteFx, onClose: () => setEditFx(null) }));
 }
 
@@ -21977,6 +22135,9 @@ function App() {
     const [msg, setMsg] = useState(null);
     const [cfg, setCfg] = useState(() => readCfgFromHash() || store.get("cfg", null));
     const [sync, setSync] = useState({ state: "off", msg: "", at: null, schema: null });
+    const orgaOn = mode === "coach" || mode === "orga";
+    const orga = useOrga(orgaOn ? cfg : null, orgaOn);
+    const metaOk = useRef(false);
     const calendar = useMemo(() => [...sessions].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0), [sessions]);
     const toast = useCallback(t => { setMsg(t); setTimeout(() => setMsg(null), 2800); }, []);
     useEffect(() => { if (cfg)
@@ -22047,6 +22208,7 @@ function App() {
         setSync(s => ({ ...s, state: "busy" }));
         try {
             const meta = await api.meta(c);
+            metaOk.current = true;
             const row = meta && meta[0];
             if (row) {
                 if (Array.isArray(row.squad) && row.squad.length)
@@ -22128,6 +22290,41 @@ function App() {
             setSync(s => ({ ...s, state: "error", msg: String((e && e.message) || e), at: Date.now() }));
         }
     }, []);
+    // Spielplan aus dem Orga-Bereich hält die Spiel-Einheiten aktuell – erst nach dem ersten Abgleich,
+    // damit ein Gerät mit altem Stand keine Einheiten anderer überschreibt
+    const orgaFixtures = useMemo(() => Object.values(orga.items).filter(v => v.kind === "fixture" && !v._del).map(v => v.data), [orga.items]);
+    const applySessions = next => {
+        const prevById = new Map(sessions.map(x => [x.id, x]));
+        setSessions(next);
+        setEntries(list => list.map(e => {
+            const n = next.find(x => x.id === e.sessionId), o = prevById.get(e.sessionId);
+            return n && o && (n.date !== o.date || n.type !== o.type) ? { ...e, date: n.date, type: n.type } : e;
+        }));
+        pushMeta(squad, next);
+    };
+    useEffect(() => {
+        if (!orgaOn)
+            return;
+        if (cfg && (!metaOk.current || orga.st.state !== "ok"))
+            return;
+        const next = planFixtureSessions(sessions, orgaFixtures, entries, today, mode === "coach");
+        if (next)
+            applySessions(next);
+    }, [orgaOn, cfg, orgaFixtures, sessions, sync.at, orga.st.state]);
+    const addSessions = list => {
+        if (cfg && !metaOk.current) {
+            toast("Noch nicht mit dem Team abgeglichen – bitte kurz warten.");
+            return;
+        }
+        const ids = new Set(sessions.map(x => x.id));
+        const add = list.filter(x => !ids.has(x.id));
+        if (!add.length)
+            return;
+        const next = [...sessions, ...add];
+        setSessions(next);
+        pushMeta(squad, next);
+        toast(add.length + (add.length === 1 ? " Einheit angelegt." : " Einheiten angelegt."));
+    };
     // Erstabgleich + regelmäßiges Nachladen, solange die App sichtbar ist
     useEffect(() => {
         if (!cfg) {
@@ -22285,7 +22482,7 @@ function App() {
                 React.createElement("span", { className: "modebadge" }, "Orga"),
                 React.createElement("button", { className: "icon-btn", onClick: leaveMode, "aria-label": "Bereich verlassen" },
                     React.createElement(Icon, { d: I.exit, size: 17 }))),
-            React.createElement(OrgaArea, { cfg: cfg, today: today, sessions: sessions, toast: toast, copyText: copyText, navBar: true, coach: false, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
+            React.createElement(OrgaArea, { orga: orga, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: true, coach: false, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
             msg && React.createElement("div", { className: "toast" }, React.createElement(Icon, { d: I.check, size: 15 }), " ", msg)));
     return (React.createElement("div", { className: "app" },
         React.createElement("div", { className: "topbar" },
@@ -22341,7 +22538,7 @@ function App() {
         !isPlayer && tab === "input" && React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: saveEntry, toast: toast, onManage: () => setPlanner(true) }),
         !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: entries, today: today, metrics: metrics, calendar: calendar, hist: hist, onOpenPlayer: setOpenPlayer, onDownload: download, onToast: toast }),
         !isPlayer && tab === "resp" && React.createElement(ResponsesView, { squad: squad, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: cfg ? cfgToLink(cfg) : "", onCopy: copyText, onDownload: download }),
-        !isPlayer && tab === "orga" && React.createElement(OrgaArea, { cfg: cfg, today: today, sessions: sessions, toast: toast, copyText: copyText, navBar: false, coach: true, metrics: metrics, squad: squad, submitted: submitted, onOpenTab: setTab, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
+        !isPlayer && tab === "orga" && React.createElement(OrgaArea, { orga: orga, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: false, coach: true, metrics: metrics, squad: squad, submitted: submitted, onOpenTab: setTab, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
         !isPlayer && tab === "report" && React.createElement(ReportView, { report: report, shortReport: shortReport, allReports: m => buildAllPlayerReports({ squad, entries, metrics, calendar, today, mode: m }), onCopy: copyReport, onDownload: (t, v) => { download(t, "bericht_KW" + isoWeek(today) + "_" + v + ".txt", "text/plain;charset=utf-8"); toast("Bericht gesichert."); } }),
         openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: entries, calendar: calendar, today: today, onCopy: copyText, onClose: () => setOpenPlayer(null) }),
         planner && React.createElement(SessionSheet, { sessions: sessions, entries: entries, today: today, onSave: saveSession, onDelete: deleteSession, onClose: () => setPlanner(false) }),
