@@ -21829,7 +21829,7 @@ function OrgaArea({ orga, cfg, sessions, toast, copyText, navBar, coach, metrics
     const settings = useMemo(() => (items["settings:main"] && items["settings:main"].data) || { trainingDays: [1, 3], defaultMatchDay: 5 }, [items]);
     // Einmalige Ergänzungen am Bestand – erst nach dem Abgleich, damit es nur einmal fürs Team passiert
     useEffect(() => {
-        if ((cfg && orga.st.state !== "ok") || !items["settings:main"])
+        if ((cfg && orga.st.state !== "ok" && orga.st.schema !== false) || !items["settings:main"])
             return;
         const mig = settings.migrations || [];
         if (mig.includes("p-robert"))
