@@ -478,6 +478,12 @@ button:focus-visible,.og-name:focus-visible{outline:2px solid var(--s1);outline-
 .og-prevhead{display:flex;gap:10px;align-items:center;width:100%;font-size:14px}
 .og-share{font-family:inherit;font-size:13px;line-height:1.55;white-space:pre-wrap;min-height:220px}
 .og-wa{background:#1f9d55;text-decoration:none}
+
+.og-role{flex:1;min-width:0;font:inherit;font-size:11px;font-weight:650;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);background:none;border:0;padding:2px 0}
+.og-role:focus{outline:none;color:var(--ink);border-bottom:1px dashed var(--s1)}
+.og-addp{border-style:dashed}
+
+.og-teamgrid > .card,.og-catgrid > .card,.og-top > .card{margin:0}
 </style>
 </head>
 <body>
@@ -21304,7 +21310,7 @@ const ORGA_SEED = (() => {
     const P = [
         ["stefan", "Cheftrainer", "Stefan Arlt"], ["spyro", "Co-Trainer", "Spyro"], ["tm", "Teammanager", ""],
         ["betreuer", "Betreuer / Zeugwart", ""], ["tw", "Torwarttrainer", ""], ["physio", "Physiotherapeut", "Michael Knospe"],
-        ["arzt", "Mannschaftsarzt", "Fabian Pajonk"],
+        ["arzt", "Mannschaftsarzt", "Fabian Pajonk"], ["robert", "Videoanalyst", "Robert"],
     ];
     // [id, Titel, Kategorie, zuständig, Anker, Versatz, Uhrzeit, Notiz, extra]
     const T = [
@@ -21365,7 +21371,7 @@ const ORGA_SEED = (() => {
         const id = "fx2627-" + String(f[0]).padStart(2, "0");
         items["fixture:" + id] = { kind: "fixture", data: { id, st: f[0], date: f[1], time: f[2], home: f[3], opp: f[4], res: f[5], comp: "Liga" } };
     });
-    items["settings:main"] = { kind: "settings", data: { trainingDays: [1, 3], defaultMatchDay: 5 } };
+    items["settings:main"] = { kind: "settings", data: { trainingDays: [1, 3], defaultMatchDay: 5, migrations: ["p-robert"] } };
     return items;
 })();
 const orgaApi = {
@@ -21813,12 +21819,41 @@ function OrgaArea({ orga, cfg, sessions, toast, copyText, navBar, coach, metrics
     const [share, setShare] = useState(false);
     const [showPrev, setShowPrev] = useState(true);
     const [me, setMe] = useState(() => store.get("orga.me", ""));
+    const [newP, setNewP] = useState({ name: "", role: "" });
+    const [armedDel, setArmedDel] = useState(null);
     useEffect(() => { store.set("orga.me", me); }, [me]);
     const list = kind => Object.values(items).filter(v => v.kind === kind && !v._del).map(v => v.data);
     const persons = useMemo(() => list("person").sort((a, b) => (a.order || 0) - (b.order || 0)), [items]);
     const tasks = useMemo(() => list("task"), [items]);
     const fixtures = useMemo(() => list("fixture").sort((a, b) => a.date < b.date ? -1 : 1), [items]);
     const settings = useMemo(() => (items["settings:main"] && items["settings:main"].data) || { trainingDays: [1, 3], defaultMatchDay: 5 }, [items]);
+    // Einmalige Ergänzungen am Bestand – erst nach dem Abgleich, damit es nur einmal fürs Team passiert
+    useEffect(() => {
+        if ((cfg && orga.st.state !== "ok") || !items["settings:main"])
+            return;
+        const mig = settings.migrations || [];
+        if (mig.includes("p-robert"))
+            return;
+        if (!items["person:robert"])
+            put("person:robert", "person", { id: "robert", role: "Videoanalyst", name: "Robert", order: 7 });
+        put("settings:main", "settings", { ...settings, migrations: [...mig, "p-robert"] });
+    }, [orga.st.state, items]);
+    const addPerson = () => {
+        const name = newP.name.trim(), role = newP.role.trim();
+        if (!name && !role)
+            return;
+        const id = "p" + Date.now().toString(36);
+        put("person:" + id, "person", { id, name, role: role || "Funktionsteam", order: persons.length ? Math.max(...persons.map(p => p.order || 0)) + 1 : 0 });
+        setNewP({ name: "", role: "" });
+        toast((name || role) + " hinzugefügt.");
+    };
+    const removePerson = p => {
+        remove("person:" + p.id);
+        setArmedDel(null);
+        if (who === p.id)
+            setWho("all");
+        toast((p.name || p.role) + " entfernt. Zugeteilte Aufgaben stehen jetzt auf „offen“.");
+    };
     const isDone = key => !!(items[key] && !items[key]._del && items[key].data && items[key].data.done);
     const pname = id => { const p = persons.find(x => x.id === id); return p ? (p.name || p.role) : "offen"; };
     const toggle = inst => {
@@ -22074,8 +22109,11 @@ function OrgaArea({ orga, cfg, sessions, toast, copyText, navBar, coach, metrics
         oh("div", { className: "og-teamgrid" }, persons.map(p => {
             const wk = inst.filter(i => i.task.owner === p.id);
             const s = seasonStats.per[p.id] || { due: 0, done: 0 };
-            return oh("section", { key: p.id, className: "card og-person" },
-                oh("div", { className: "eyebrow" }, p.role),
+            return oh("section", { key: p.id + "|" + (p.name || "") + "|" + p.role, className: "card og-person" },
+                oh("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                    oh("input", { id: "og-pr-" + p.id, className: "og-role", defaultValue: p.role, "aria-label": "Funktion", onBlur: e => { const v = e.target.value.trim(); if (v && v !== p.role)
+                            put("person:" + p.id, "person", { ...p, role: v }); } }),
+                    oh("button", { className: "linkbtn", style: armedDel === p.id ? { color: "var(--crit)" } : null, onClick: () => armedDel === p.id ? removePerson(p) : setArmedDel(p.id) }, armedDel === p.id ? "Wirklich entfernen?" : "Entfernen")),
                 oh("input", { id: "og-pn-" + p.id, className: "og-name", defaultValue: p.name, placeholder: "Name eintragen", "aria-label": "Name " + p.role,
                     onBlur: e => { const v = e.target.value.trim(); if (v !== (p.name || ""))
                         put("person:" + p.id, "person", { ...p, name: v }); } }),
@@ -22084,7 +22122,13 @@ function OrgaArea({ orga, cfg, sessions, toast, copyText, navBar, coach, metrics
                     wk.filter(isLate).length > 0 && oh("span", { style: { color: "var(--crit)", fontWeight: 650 } }, " · " + wk.filter(isLate).length + " überfällig")),
                 oh("div", { className: "og-plist" }, wk.map(i => oh("button", { key: i.key, className: "og-pl" + (isDone(i.key) ? " og-done" : "") + (isLate(i) ? " og-pl-late" : ""), onClick: () => toggle(i) },
                     oh("span", { className: "og-mono" }, ORGA_DAYS[odx(i.date)]), oh("span", { className: "og-pt" }, i.task.title)))));
-        })),
+        }),
+            oh("section", { className: "card og-person og-addp" },
+                oh("div", { className: "eyebrow" }, "Person hinzufügen"),
+                oh("input", { id: "og-new-name", className: "sel og-in", placeholder: "Name", value: newP.name, onChange: e => setNewP({ ...newP, name: e.target.value }) }),
+                oh("input", { id: "og-new-role", className: "sel og-in", placeholder: "Funktion, z. B. Videoanalyst", value: newP.role, onChange: e => setNewP({ ...newP, role: e.target.value }), onKeyDown: e => { if (e.key === "Enter")
+                        addPerson(); } }),
+                oh("button", { className: "btn sm", style: { alignSelf: "flex-start" }, onClick: addPerson }, oh(Icon, { d: I.plus, size: 15 }), " Hinzufügen"))),
         oh("div", { className: "card", style: { marginTop: 12 } },
             oh("div", { className: "card-head" }, oh("div", null, oh("h3", null, "Einstellungen Orga"), oh("p", null, "Gelten für alle Geräte, außer der PIN."))),
             oh("div", { style: { display: "grid", gap: 12 } },
