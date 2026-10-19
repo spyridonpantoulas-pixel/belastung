@@ -21639,6 +21639,29 @@ function trainingSessionsFor(dates, fixtures) {
         return { id: "tr-" + d, date: d, type: "Training", minutes: 90, planRpe: plan, label: "Training " + ORGA_DAYS[odx(d)] };
     });
 }
+// Spielplan-Datei (spielplan.json im Repo, wöchentlich aktualisiert) -> Änderungen an den Spielen.
+// Von Hand bearbeitete Spiele (manual) behalten ihre Angaben, bekommen aber ein fehlendes Ergebnis nachgetragen.
+function orgaFeedChanges(items, feed) {
+    const st = (items["settings:main"] && items["settings:main"].data) || {};
+    const ignore = new Set(st.ignoreFx || []);
+    const out = [];
+    ((feed && feed.fixtures) || []).forEach(f => {
+        if (!f || !f.id || !f.date || !f.opp || ignore.has(f.id))
+            return;
+        const key = "fixture:" + f.id;
+        const cur = items[key] && !items[key]._del ? items[key].data : null;
+        const nf = { id: f.id, st: f.st || null, date: f.date, time: f.time || "", home: !!f.home, opp: f.opp, res: f.res || "", comp: f.comp || "Liga", src: "feed" };
+        if (!cur) {
+            out.push([key, nf]);
+            return;
+        }
+        const next = cur.manual ? { ...cur, res: cur.res || nf.res } : { ...cur, ...nf };
+        const keys = cur.manual ? ["res"] : Object.keys(nf);
+        if (keys.some(k => String(next[k] == null ? "" : next[k]) !== String(cur[k] == null ? "" : cur[k])))
+            out.push([key, next]);
+    });
+    return out;
+}
 const whenLabel = t => t.anchor === "wd" ? ORGA_DAYS_LONG[t.off || 0]
     : t.anchor === "tr" ? "Jedes Training"
         : t.anchor === "lt" ? "Abschlusstraining"
@@ -21804,7 +21827,7 @@ function OrgaShareSheet({ mon, inst, persons, weekFx, isDone, initialWho, copyTe
                 oh("a", { className: "btn sm og-wa", href: "https://wa.me/?text=" + encodeURIComponent(text), target: "_blank", rel: "noopener" }, "In WhatsApp öffnen"))));
 }
 /* ---------- Hauptbereich ---------- */
-function OrgaArea({ orga, cfg, sessions, toast, copyText, navBar, coach, metrics, squad, submitted, onOpenTab, onAddSessions, orgaPin, setOrgaPin }) {
+function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coach, metrics, squad, submitted, onOpenTab, onAddSessions, orgaPin, setOrgaPin }) {
     const today = localIso();
     const { items, put, remove } = orga;
     const [view, setView] = useState(() => store.get("orga.view", "woche"));
@@ -21918,11 +21941,18 @@ function OrgaArea({ orga, cfg, sessions, toast, copyText, navBar, coach, metrics
     const deleteTask = t => { remove("task:" + t.id); setEditTask(null); toast("Aufgabe gelöscht."); };
     const saveFx = f => {
         const id = f.id || "fx" + Date.now().toString(36);
-        put("fixture:" + id, "fixture", { ...f, id });
+        put("fixture:" + id, "fixture", { ...f, id, manual: true });
         setEditFx(null);
         toast(f.id ? "Spiel gespeichert." : "Spiel hinzugefügt.");
     };
-    const deleteFx = f => { remove("fixture:" + f.id); setEditFx(null); toast("Spiel gelöscht."); };
+    const deleteFx = f => {
+        remove("fixture:" + f.id);
+        // damit der wöchentliche Abgleich ein bewusst gelöschtes Spiel nicht wieder anlegt
+        if (f.src === "feed" || /^fx\d{4}-/.test(f.id))
+            put("settings:main", "settings", { ...settings, ignoreFx: [...(settings.ignoreFx || []), f.id] });
+        setEditFx(null);
+        toast("Spiel gelöscht.");
+    };
     const onLink = coach ? onOpenTab : null;
     const VIEWS = [
         { key: "woche", label: "Woche", icon: I.check },
@@ -22066,7 +22096,9 @@ function OrgaArea({ orga, cfg, sessions, toast, copyText, navBar, coach, metrics
                 oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Orga-Quote Saison"), oh("span", { className: "v" }, pct === null ? "–" : pct + " %"), oh("span", { className: "d" }, seasonStats.done + " von " + seasonStats.due + " fälligen Aufgaben"))),
             oh("div", { className: "card", style: { marginTop: 12 } },
                 oh("div", { className: "card-head" },
-                    oh("div", null, oh("h3", null, "Spielplan 2026/27"), oh("p", null, "Antippen öffnet die Woche. Spieltag " + (lastSt + 1) + " ff. nachtragen, sobald der HFV ansetzt.")),
+                    oh("div", null, oh("h3", null, "Spielplan 2026/27"), oh("p", null, "Antippen öffnet die Woche. " + (feedInfo && feedInfo.updated
+                        ? "Automatischer Abgleich jeden Montag, zuletzt " + new Date(feedInfo.updated).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + " Uhr. Von Hand geänderte Spiele bleiben, wie ihr sie eingetragen habt."
+                        : "Spieltag " + (lastSt + 1) + " ff. nachtragen, sobald der HFV ansetzt."))),
                     oh("div", { className: "spacer" }),
                     oh("button", { className: "btn sm", onClick: () => setEditFx({ opp: "", date: today, time: "", home: true, res: "", comp: "Liga", st: lastSt + 1 }) }, "+ Spiel")),
                 oh("div", { className: "tblwrap", style: { overflowX: "auto" } },
@@ -22355,6 +22387,26 @@ function App() {
         if (next)
             applySessions(next);
     }, [orgaOn, cfg, orgaFixtures, sessions, sync.at, orga.st.state]);
+    // Wöchentlich aktualisierte Spielplan-Datei aus dem Repo einlesen und übernehmen
+    const [feed, setFeed] = useState(null);
+    useEffect(() => {
+        if (!orgaOn)
+            return;
+        let alive = true;
+        fetch("spielplan.json?ts=" + Date.now(), { cache: "no-store" })
+            .then(r => r.ok ? r.json() : null)
+            .then(j => { if (alive && j && Array.isArray(j.fixtures))
+            setFeed(j); })
+            .catch(() => { });
+        return () => { alive = false; };
+    }, [orgaOn]);
+    useEffect(() => {
+        if (!feed || !orgaOn || !orga.items["settings:main"])
+            return;
+        if (cfg && orga.st.state !== "ok" && orga.st.schema !== false)
+            return;
+        orgaFeedChanges(orga.items, feed).forEach(([k, d]) => orga.put(k, "fixture", d));
+    }, [feed, orgaOn, orga.items, orga.st.state]);
     const addSessions = list => {
         if (cfg && !metaOk.current) {
             toast("Noch nicht mit dem Team abgeglichen – bitte kurz warten.");
@@ -22526,7 +22578,7 @@ function App() {
                 React.createElement("span", { className: "modebadge" }, "Orga"),
                 React.createElement("button", { className: "icon-btn", onClick: leaveMode, "aria-label": "Bereich verlassen" },
                     React.createElement(Icon, { d: I.exit, size: 17 }))),
-            React.createElement(OrgaArea, { orga: orga, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: true, coach: false, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
+            React.createElement(OrgaArea, { orga: orga, feedInfo: feed, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: true, coach: false, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
             msg && React.createElement("div", { className: "toast" }, React.createElement(Icon, { d: I.check, size: 15 }), " ", msg)));
     return (React.createElement("div", { className: "app" },
         React.createElement("div", { className: "topbar" },
@@ -22582,7 +22634,7 @@ function App() {
         !isPlayer && tab === "input" && React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: saveEntry, toast: toast, onManage: () => setPlanner(true) }),
         !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: entries, today: today, metrics: metrics, calendar: calendar, hist: hist, onOpenPlayer: setOpenPlayer, onDownload: download, onToast: toast }),
         !isPlayer && tab === "resp" && React.createElement(ResponsesView, { squad: squad, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: cfg ? cfgToLink(cfg) : "", onCopy: copyText, onDownload: download }),
-        !isPlayer && tab === "orga" && React.createElement(OrgaArea, { orga: orga, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: false, coach: true, metrics: metrics, squad: squad, submitted: submitted, onOpenTab: setTab, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
+        !isPlayer && tab === "orga" && React.createElement(OrgaArea, { orga: orga, feedInfo: feed, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: false, coach: true, metrics: metrics, squad: squad, submitted: submitted, onOpenTab: setTab, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
         !isPlayer && tab === "report" && React.createElement(ReportView, { report: report, shortReport: shortReport, allReports: m => buildAllPlayerReports({ squad, entries, metrics, calendar, today, mode: m }), onCopy: copyReport, onDownload: (t, v) => { download(t, "bericht_KW" + isoWeek(today) + "_" + v + ".txt", "text/plain;charset=utf-8"); toast("Bericht gesichert."); } }),
         openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: entries, calendar: calendar, today: today, onCopy: copyText, onClose: () => setOpenPlayer(null) }),
         planner && React.createElement(SessionSheet, { sessions: sessions, entries: entries, today: today, onSave: saveSession, onDelete: deleteSession, onClose: () => setPlanner(false) }),

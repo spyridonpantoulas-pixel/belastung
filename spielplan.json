@@ -1,0 +1,150 @@
+{
+ "team": "FC Süderelbe",
+ "league": "Oberliga Hamburg",
+ "season": "2026/27",
+ "source": "https://www.landkreis-fussball.de/verein/fc_suederelbe/spielplan_liga/2026",
+ "updated": "2026-10-19T16:49:55+00:00",
+ "note": "Ergebnisse aus Sicht des FC Süderelbe (eigene Tore zuerst). id bleibt pro Begegnung stabil.",
+ "fixtures": [
+  {
+   "id": "fx2627-01",
+   "st": 1,
+   "date": "2026-07-26",
+   "time": "15:00",
+   "home": true,
+   "opp": "Altona 93",
+   "res": "1:2",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-02",
+   "st": 2,
+   "date": "2026-07-31",
+   "time": "19:30",
+   "home": false,
+   "opp": "TuRa Harksheide",
+   "res": "1:1",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-03",
+   "st": 3,
+   "date": "2026-08-14",
+   "time": "19:30",
+   "home": true,
+   "opp": "FC Eintracht Norderstedt II",
+   "res": "3:1",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-04",
+   "st": 4,
+   "date": "2026-08-23",
+   "time": "14:30",
+   "home": false,
+   "opp": "Nikola Tesla",
+   "res": "4:0",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-05",
+   "st": 5,
+   "date": "2026-08-28",
+   "time": "19:30",
+   "home": true,
+   "opp": "USC Paloma",
+   "res": "2:5",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-06",
+   "st": 6,
+   "date": "2026-09-06",
+   "time": "14:00",
+   "home": false,
+   "opp": "Niendorfer TSV",
+   "res": "0:1",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-07",
+   "st": 7,
+   "date": "2026-09-11",
+   "time": "19:30",
+   "home": true,
+   "opp": "HT 16",
+   "res": "1:0",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-08",
+   "st": 8,
+   "date": "2026-09-18",
+   "time": "19:00",
+   "home": false,
+   "opp": "SC Vorwärts-Wacker",
+   "res": "0:0",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-09",
+   "st": 9,
+   "date": "2026-09-26",
+   "time": "18:00",
+   "home": true,
+   "opp": "SC Victoria Hamburg",
+   "res": "1:1",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-10",
+   "st": 10,
+   "date": "2026-10-04",
+   "time": "13:00",
+   "home": false,
+   "opp": "TBS Pinneberg",
+   "res": "1:2",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-11",
+   "st": 11,
+   "date": "2026-10-11",
+   "time": "10:45",
+   "home": false,
+   "opp": "HEBC Hamburg",
+   "res": "3:1",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-12",
+   "st": 12,
+   "date": "2026-10-16",
+   "time": "19:30",
+   "home": true,
+   "opp": "TSV Sasel",
+   "res": "1:2",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-13",
+   "st": 13,
+   "date": "2026-10-24",
+   "time": "13:00",
+   "home": false,
+   "opp": "TuS Dassendorf",
+   "res": "",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-14",
+   "st": 14,
+   "date": "2026-10-30",
+   "time": "19:30",
+   "home": true,
+   "opp": "FC Teutonia 05",
+   "res": "",
+   "comp": "Liga"
+  }
+ ]
+}
