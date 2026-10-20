@@ -21444,6 +21444,15 @@ function RoleGate({ pin, orgaPin, onPick, connected }) {
                             React.createElement("span", { style: { color: "var(--muted)", display: "inline-flex", verticalAlign: "-2px", marginLeft: 4 } },
                                 React.createElement(Icon, { d: I.lock, size: 13 }))),
                         React.createElement("span", { className: "rd" }, "Wochenboard, Spielplan und Aufgaben f\u00FCr Trainer- und Funktionsteam. Mit PIN gesch\u00FCtzt."))),
+                React.createElement("button", { className: "rolecard", onClick: () => onPick("med") },
+                    React.createElement("span", { className: "ri", style: { background: "rgba(255,59,48,0.16)", color: "var(--crit)" } },
+                        React.createElement(Icon, { d: I.cross, size: 23 })),
+                    React.createElement("span", { style: { flex: 1 } },
+                        React.createElement("span", { className: "rt" },
+                            "Medizin ",
+                            React.createElement("span", { style: { color: "var(--muted)", display: "inline-flex", verticalAlign: "-2px", marginLeft: 4 } },
+                                React.createElement(Icon, { d: I.lock, size: 13 }))),
+                        React.createElement("span", { className: "rd" }, "Akten und \u00DCbersicht f\u00FCr Mannschaftsarzt und Trainerteam. Mit Medizin-PIN."))),
                 connected ? (React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", textAlign: "center", margin: "20px 0 0", lineHeight: 1.6 } }, "Mit dem Team verbunden. Das Kabinen-Handy bleibt im Spielerbereich \u2013 dort sind fremde Werte nicht einsehbar.")) : (React.createElement("p", { style: { fontSize: 12, color: "var(--crit)", textAlign: "center", margin: "20px 0 0", lineHeight: 1.6,
                         background: "rgba(255,59,48,0.10)", border: "1px solid rgba(255,59,48,0.35)",
                         borderRadius: "var(--r-sm)", padding: "10px 12px" } },
@@ -21676,7 +21685,7 @@ const ORGA_CATS = {
 };
 const ORGA_DAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const ORGA_DAYS_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
-const ORGA_LINKS = { dash: "Dashboard", resp: "Rückmeldungen", report: "Wochenbericht", input: "Eingabe", med: "Medizin-Briefing" };
+const ORGA_LINKS = { dash: "Dashboard", resp: "Rückmeldungen", report: "Wochenbericht", input: "Eingabe" };
 const ORGA_SEED_FROM = "2026-10-19";
 const ORGA_SEED = (() => {
     const P = [
@@ -23719,20 +23728,13 @@ function App() {
     const [msg, setMsg] = useState(null);
     const [cfg, setCfg] = useState(() => readCfgFromHash() || store.get("cfg", null));
     const [sync, setSync] = useState({ state: "off", msg: "", at: null, schema: null });
-    const orgaOn = mode === "coach" || mode === "orga";
+    const orgaOn = mode === "coach" || mode === "orga" || mode === "med";
     const orga = useOrga(orgaOn ? cfg : null, orgaOn);
-    const med = useMed(mode === "coach" ? cfg : null);
-    useEffect(() => { if (mode !== "coach" && !med.locked)
+    const med = useMed(cfg);
+    // Wer den Medizin-Bereich verlässt, sperrt ihn – auch auf dem Kabinen-Handy
+    useEffect(() => { if (mode !== "med" && !med.locked)
         med.lock(); }, [mode]);
-    const medCases = useMemo(() => {
-        const m = {};
-        Object.values(med.items).filter(v => v.kind === "case" && v.data && v.data.status !== "closed").forEach(v => {
-            const c = v.data;
-            if (!m[c.pid] || Number(c.phase) < Number(m[c.pid].phase))
-                m[c.pid] = c;
-        });
-        return med.locked ? null : m;
-    }, [med.items, med.locked]);
+    const medCases = null;
     const orgaPersons = useMemo(() => Object.values(orga.items).filter(v => v.kind === "person" && !v._del).map(v => v.data).sort((a, b) => (a.order || 0) - (b.order || 0)), [orga.items]);
     const metaOk = useRef(false);
     const calendar = useMemo(() => [...sessions].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0), [sessions]);
@@ -23814,7 +23816,7 @@ function App() {
                     setSessions(row.sessions);
             }
             let schemaOk = null;
-            if (modeRef.current === "coach") {
+            if (modeRef.current === "coach" || modeRef.current === "med") {
                 const rows = (await api.allEntries(c)) || [];
                 schemaOk = schemaCheck(rows);
                 setEntries(prev => mergeEntries(prev, rows.map(rowToEntry), schemaOk));
@@ -24065,11 +24067,11 @@ function App() {
         toast("Alle Einheiten und Eingaben gelöscht.");
     };
     const COACH_TABS = [
+        { key: "input", label: "Eingabe", short: "Eingabe", icon: I.edit2 },
         { key: "dash", label: "Dashboard", short: "Dashboard", icon: I.chart },
         { key: "resp", label: "Rückmeldungen", short: "Meldungen", icon: I.users },
-        { key: "med", label: "Medizin", short: "Medizin", icon: I.cross },
+        { key: "report", label: "Wochenbericht", short: "Bericht", icon: I.file },
         { key: "orga", label: "Orga", short: "Orga", icon: I.check },
-        { key: "more", label: "Mehr", short: "Mehr", icon: MORE_ICON },
     ];
     const PLAYER_TABS = [
         { key: "input", label: "Einheit eintragen", short: "Eintragen", icon: I.edit2 },
@@ -24088,6 +24090,17 @@ function App() {
                 : cfg ? { c: "var(--muted)", t: "Lokal" }
                     : { c: "var(--crit)", t: "Nicht verbunden" };
     const pendingCount = entries.filter(e => e._pending).length;
+    if (mode === "med")
+        return (React.createElement("div", { className: "app" },
+            React.createElement("div", { className: "topbar" },
+                React.createElement(ClubLogo, { size: 40 }),
+                React.createElement("div", { className: "club" }, CLUB, React.createElement("small", null, "Medizin")),
+                React.createElement("div", { className: "spacer" }),
+                React.createElement("span", { className: "modebadge" }, "Medizin"),
+                React.createElement("button", { className: "icon-btn", onClick: leaveMode, "aria-label": "Bereich verlassen" },
+                    React.createElement(Icon, { d: I.exit, size: 17 }))),
+            React.createElement(MedArea, { med: med, cfg: cfg, squad: squad, entries: entries, metrics: metrics, fixtures: orgaFixtures, persons: orgaPersons, toast: toast, copyText: copyText }),
+            msg && React.createElement("div", { className: "toast" }, React.createElement(Icon, { d: I.check, size: 15 }), " ", msg)));
     if (mode === "orga")
         return (React.createElement("div", { className: "app" },
             React.createElement("div", { className: "topbar" },
@@ -24147,14 +24160,11 @@ function App() {
                             " SQL kopieren"),
                         React.createElement("button", { className: "btn sm ghost", onClick: () => { flush().then(pull); toast("Wird geprüft …"); } }, "Erneut pr\u00FCfen")),
                     React.createElement("p", { style: { margin: "10px 0 0", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.55 } }, "Bis dahin bleiben die Angaben auf diesem Ger\u00E4t erhalten \u2013 sie werden beim Abgleich nicht mehr \u00FCberschrieben."))))),
-        React.createElement("div", { className: "tabs", role: "tablist" }, TABS.map(t => (React.createElement("button", { key: t.key, role: "tab", "aria-selected": tab === t.key || (t.key === "more" && !isPlayer && (tab === "input" || tab === "report")), onClick: () => setTab(t.key) },
+        React.createElement("div", { className: "tabs", role: "tablist" }, TABS.map(t => (React.createElement("button", { key: t.key, role: "tab", "aria-selected": tab === t.key, onClick: () => setTab(t.key) },
             React.createElement(Icon, { d: t.icon, size: 17 }),
             React.createElement("span", { className: "lbl-long" }, t.label),
             React.createElement("span", { className: "lbl-short" }, t.short))))),
         isPlayer && React.createElement(PlayerArea, { squad: squad, calendar: calendar, entries: entries, today: today, metrics: metrics, submitted: submitted, onSave: saveEntry, toast: toast, sub: tab, setSub: setTab, meId: meId, setMeId: setMeId, connected: !!cfg }),
-        !isPlayer && (tab === "input" || tab === "report") && React.createElement(BackToMore, { setTab: setTab }),
-        !isPlayer && tab === "more" && React.createElement(MoreView, { setTab: setTab }),
-        !isPlayer && tab === "med" && React.createElement(MedArea, { med: med, cfg: cfg, squad: squad, entries: entries, metrics: metrics, fixtures: orgaFixtures, persons: orgaPersons, toast: toast, copyText: copyText }),
         !isPlayer && tab === "input" && React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: saveEntry, toast: toast, onManage: () => setPlanner(true) }),
         !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: entries, today: today, metrics: metrics, calendar: calendar, hist: hist, onOpenPlayer: setOpenPlayer, onDownload: download, onToast: toast }),
         !isPlayer && tab === "resp" && React.createElement(ResponsesView, { squad: squad, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: cfg ? cfgToLink(cfg) : "", onCopy: copyText, onDownload: download }),
