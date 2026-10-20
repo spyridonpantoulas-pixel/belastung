@@ -601,6 +601,28 @@ button:focus-visible,.og-name:focus-visible{outline:2px solid var(--s1);outline-
 .med-moreic{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;background:var(--s1);color:#fff;flex:0 0 auto}
 .med-back{display:inline-flex;align-items:center;gap:2px;min-height:44px;color:var(--s1);font-size:17px;margin:-8px 0 8px -6px}
 
+/* ---------- Übersicht (Mittwochs-Termin) ---------- */
+.mt{display:flex;flex-direction:column;gap:10px}
+.mt-intro{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.mt-head{display:none}
+.mt-row{background:var(--surface);border-radius:16px;padding:12px;display:grid;gap:10px}
+.mt-player{display:flex;flex-direction:column;gap:6px;min-width:0}
+.mt-name{font-size:17px;font-weight:600;text-align:left;min-height:44px;color:var(--ink)}
+.mt-reg{margin-top:0;font-size:15px}
+.mt-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.mt-cell,.mt-date{display:flex;flex-direction:column;gap:4px;min-width:0}
+.mt-lab{font-size:12px;font-weight:500;color:var(--muted);letter-spacing:0.02em}
+.mt-in{margin-top:0;min-height:88px;resize:vertical;line-height:1.45}
+.mt-date .og-in{margin-top:0}
+.mt-add .og-in{margin-top:0;max-width:360px}
+@media(min-width:900px){
+  .mt-head{display:grid;grid-template-columns:200px repeat(3,minmax(0,1fr));gap:12px;padding:0 12px;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0.02em;text-transform:uppercase}
+  .mt-row{grid-template-columns:200px repeat(3,minmax(0,1fr));align-items:start;gap:12px}
+  .mt-cell .mt-lab{display:none}
+  .mt-in{min-height:120px}
+  .mt-date{grid-column:4;margin-top:-4px}
+}
+
 /* ==========================================================================
    iOS DARK MODE · Apple Human Interface Guidelines
    Systemfarben (Dark), SF-Systemschrift, 44pt-Touch-Ziele, Tab-Bar mit Blur
@@ -23075,6 +23097,8 @@ function medStatusFor(c, d) {
 }
 function medPrognose(c) {
     const p = [];
+    if (c.progText)
+        p.push(c.progText);
     if (c.returnTraining)
         p.push("Training ab " + fmtDate(c.returnTraining));
     if (c.returnMatch)
@@ -23273,7 +23297,7 @@ function MedCaseForm({ c, player, me, pname, onSave, onDelete, onCancel }) {
                 MED_SIDES.map(r => oh("option", { key: r, value: r }, r || "–")))),
             fld("Entstanden", oh("select", { id: "mc-mech", className: "sel og-in", value: f.mech || "", onChange: e => set("mech", e.target.value) },
                 MED_MECH.map(r => oh("option", { key: r, value: r }, r || "–")))),
-            fld("Diagnose", ta("diagnosis", "z. B. Muskelfaserriss M. biceps femoris, Grad II"), true),
+            fld("Befund / Diagnose", ta("diagnosis", "z. B. Muskelfaserriss M. biceps femoris, Grad II"), true),
             fld("Bildgebung / Befunde", ta("imaging", "MRT, Ultraschall, Röntgen – Datum und Ergebnis"), true),
             fld("Behandlung / Behandler", inp("treater", "z. B. Physio Knospe 2× pro Woche")),
             fld("Medikation", inp("meds", "")),
@@ -23284,6 +23308,8 @@ function MedCaseForm({ c, player, me, pname, onSave, onDelete, onCancel }) {
             fld("Spielfähig ab (Prognose)", inp("returnMatch", "", "date")),
             fld("Erlaubt", inp("allowed", "z. B. Laufen, Rad, Oberkörper")),
             fld("Nicht erlaubt", inp("notAllowed", "z. B. Sprints, Zweikämpfe, Schüsse")),
+            fld("Weiteres Vorgehen", ta("plan", "z. B. Physio 2× pro Woche, Kontroll-MRT in 2 Wochen"), true),
+            fld("Prognose (Text)", inp("progText", "z. B. 3–4 Wochen")),
             fld("Nächster Termin", inp("nextDate", "", "date")),
             fld("Termin wofür", inp("nextWhat", "z. B. Kontroll-MRT"))),
         oh("div", { className: "med-fld med-wide" }, lab("Verlauf"),
@@ -23339,10 +23365,108 @@ function MedFile({ player, cases, entries, me, pname, prefill, onSaveCase, onDel
                         oh("span", { className: "og-mono" }, fmtDate(e.date)), oh("span", { style: { flex: 1, minWidth: 0 } }, repLine(e)))))
                         : oh("div", { className: "og-empty" }, "Keine Beschwerden gemeldet."))));
 }
+/* ---------- Übersicht für den Mittwochs-Termin: direkt reinschreiben ---------- */
+const MED_COLS = [
+    ["diagnosis", "Befund", "Was ist es? Aktueller Stand"],
+    ["plan", "Weiteres Vorgehen", "Behandlung, Termine, nächste Schritte"],
+    ["progText", "Prognose", "z. B. 2–3 Wochen, ab Spieltag 16"],
+];
+function MedCell({ c, k, label, ph, onCommit }) {
+    const [v, setV] = useState(c[k] || "");
+    const saved = useRef(c[k] || "");
+    useEffect(() => { if ((c[k] || "") !== saved.current) {
+        saved.current = c[k] || "";
+        setV(c[k] || "");
+    } }, [c[k]]);
+    const commit = () => {
+        const t = v.trim();
+        if (t === (saved.current || "").trim())
+            return;
+        saved.current = t;
+        onCommit(k, t);
+    };
+    return oh("label", { className: "mt-cell" },
+        oh("span", { className: "mt-lab" }, label),
+        oh("textarea", { id: "mt-" + c.id.replace(/\W/g, "") + "-" + k, className: "sel og-in mt-in", rows: 2, placeholder: ph, value: v,
+            onChange: e => setV(e.target.value), onBlur: commit }));
+}
+function MedTable({ med, cases, sq, byPid, mByPid, me, toast, onOpenFile }) {
+    const today = localIso();
+    const [adding, setAdding] = useState("");
+    const [flash, setFlash] = useState({});
+    const open = cases.filter(c => medIsOpen(c) && byPid[c.pid])
+        .sort((a, b) => pName(byPid[a.pid]).localeCompare(pName(byPid[b.pid]), "de"));
+    const latest = id => { const it = med.items[id]; return it ? { ...it.data, id } : null; };
+    const write = (c, patch, note) => {
+        const cur = latest(c.id) || c;
+        const data = { ...cur, ...patch };
+        delete data.id;
+        if (note)
+            data.notes = [...(cur.notes || []), { d: today, t: note, by: me || null }];
+        return med.put([{ id: c.id, kind: "case", data }], me).then(ok => {
+            setFlash(f => ({ ...f, [c.id]: ok ? "ok" : "err" }));
+            setTimeout(() => setFlash(f => { const n = { ...f }; delete n[c.id]; return n; }), 1800);
+            if (!ok)
+                toast("Nicht gespeichert – keine Verbindung. Wird erneut versucht.");
+        });
+    };
+    const commit = c => (k, t) => {
+        const label = (MED_COLS.find(x => x[0] === k) || [k, k])[1];
+        write(c, { [k]: t }, t ? label + ": " + t : null);
+    };
+    const add = pid => {
+        if (!pid)
+            return;
+        const m = mByPid && mByPid[pid];
+        const reg = (m && m.injury && m.injury.injury && m.injury.injury.region) || (m && m.worstPain && m.worstPain.region) || "";
+        const id = "case:" + Date.now().toString(36);
+        med.put([{ id, kind: "case", data: { pid, opened: today, phase: 1, status: "open", region: reg, notes: [] } }], me);
+        setAdding("");
+    };
+    const withCase = new Set(open.map(c => c.pid));
+    // Vorschläge zuerst: Spieler, die sich selbst verletzt oder mit Beschwerden gemeldet haben
+    const flagged = sq.filter(p => !withCase.has(p.id) && mByPid && mByPid[p.id] &&
+        (mByPid[p.id].status.key === "injured" || (mByPid[p.id].worstPain && mByPid[p.id].worstPain.level >= 2)));
+    const rest = sq.filter(p => !withCase.has(p.id) && !flagged.includes(p));
+    return oh("div", { className: "mt" },
+        oh("div", { className: "mt-intro" },
+            oh("div", null,
+                oh("div", { className: "eyebrow" }, "Übersicht · " + ORGA_DAYS_LONG[odx(today)] + ", " + fmtDate(today)),
+                oh("div", { className: "med-sub" }, "Einfach reinschreiben – jedes Feld wird beim Verlassen in die Akte übernommen.")),
+            oh("span", { className: "pill" }, open.length + (open.length === 1 ? " Spieler" : " Spieler"))),
+        oh("div", { className: "mt-head", "aria-hidden": "true" }, oh("span", null, "Spieler"), MED_COLS.map(([k, l]) => oh("span", { key: k }, l))),
+        open.length === 0 && oh("div", { className: "card og-empty", style: { textAlign: "center", padding: 20 } }, "Aktuell keine verletzten Spieler. Unten einen Spieler hinzufügen."),
+        open.map(c => {
+            const p = byPid[c.pid];
+            const fl = flash[c.id];
+            return oh("div", { key: c.id, className: "mt-row" },
+                oh("div", { className: "mt-player" },
+                    oh("button", { className: "mt-name", onClick: () => onOpenFile(p) }, pName(p)),
+                    oh("input", { id: "mt-reg-" + c.id.replace(/\W/g, ""), className: "sel og-in mt-reg", placeholder: "Körperstelle", defaultValue: medWhere(c) === "ohne Angabe" ? "" : medWhere(c),
+                        onBlur: e => { const t = e.target.value.trim(); if (t !== (medWhere(c) === "ohne Angabe" ? "" : medWhere(c)))
+                            write(c, { region: t, side: "" }); } }),
+                    oh("div", { className: "mt-meta" },
+                        fl === "ok" ? oh("span", { style: { color: "var(--good)" } }, "✓ in Akte gespeichert")
+                            : fl === "err" ? oh("span", { style: { color: "var(--crit)" } }, "nicht gespeichert")
+                                : oh("span", null, "seit " + (c.opened ? fmtDate(c.opened) : "–")),
+                        oh("button", { className: "linkbtn", onClick: () => write(c, { status: "closed", closed: today, phase: 6 }, "Wieder fit – Fall abgeschlossen") }, "Wieder fit"))),
+                MED_COLS.map(([k, l, ph]) => oh(MedCell, { key: k, c, k, label: l, ph, onCommit: commit(c) })),
+                oh("label", { className: "mt-date" },
+                    oh("span", { className: "mt-lab" }, "Spielfähig ab (für die Kaderplanung)"),
+                    oh("input", { id: "mt-rm-" + c.id.replace(/\W/g, ""), className: "sel og-in", type: "date", defaultValue: c.returnMatch || "",
+                        onBlur: e => { if ((e.target.value || "") !== (c.returnMatch || ""))
+                            write(c, { returnMatch: e.target.value }, e.target.value ? "Spielfähig ab " + fmtDate(e.target.value) : null); } })));
+        }),
+        oh("div", { className: "mt-add" },
+            oh("select", { id: "mt-add", className: "sel og-in", value: adding, onChange: e => { setAdding(e.target.value); add(e.target.value); } },
+                oh("option", { value: "" }, "+ Spieler hinzufügen"),
+                flagged.length > 0 && oh("optgroup", { label: "Hat Beschwerden gemeldet" }, flagged.map(p => oh("option", { key: p.id, value: p.id }, pName(p)))),
+                oh("optgroup", { label: "Kader" }, rest.map(p => oh("option", { key: p.id, value: p.id }, pName(p)))))));
+}
 /* ---------- Hauptbereich ---------- */
 function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, copyText }) {
     const today = localIso();
-    const [view, setView] = useState(() => store.get("med.view", "briefing"));
+    const [view, setView] = useState(() => store.get("med.view", "tabelle"));
     useEffect(() => { store.set("med.view", view); }, [view]);
     const [me, setMe] = useState(() => store.get("med.me", ""));
     useEffect(() => { store.set("med.me", me); }, [me]);
@@ -23434,6 +23558,7 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
                 oh("span", { style: { flex: 1 } }),
                 oh(PhaseBar, { v: r.c.phase })),
             oh("div", { className: "med-sub" }, medWhere(r.c) + (r.c.diagnosis ? " · " + r.c.diagnosis : "")),
+            r.c.plan && oh("div", { className: "med-sub" }, "Vorgehen: " + r.c.plan),
             oh("div", { className: "med-sub" }, medPrognose(r.c) + (r.c.nextDate ? " · Termin " + fmtDate(r.c.nextDate) + (r.c.nextWhat ? " " + r.c.nextWhat : "") : "")),
             (r.c.allowed || r.c.notAllowed) && oh("div", { className: "med-free" },
                 r.c.allowed && oh("span", { style: { color: "var(--good)" } }, "✓ " + r.c.allowed),
@@ -23520,6 +23645,7 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
     return oh("div", { className: "med-area", onPointerDown: med.touch, onKeyDown: med.touch },
         oh("div", { className: "filterrow med-top" },
             oh("div", { className: "viewswitch" },
+                oh("button", { "aria-pressed": view === "tabelle", onClick: () => setView("tabelle") }, "Übersicht"),
                 oh("button", { "aria-pressed": view === "briefing", onClick: () => setView("briefing") }, "Briefing"),
                 oh("button", { "aria-pressed": view === "akten", onClick: () => setView("akten") }, "Akten")),
             oh("select", { id: "med-me", className: "sel", value: me, onChange: e => setMe(e.target.value), "aria-label": "Wer bist du?" },
@@ -23540,7 +23666,7 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
                     if (r === "ok")
                         setPinForm(null);
                 } }, "Ändern")),
-        view === "briefing" ? renderBriefing() : renderFiles(),
+        view === "tabelle" ? oh(MedTable, { med, cases, sq, byPid, mByPid, me, toast, onOpenFile: p => setFile({ p }) }) : view === "briefing" ? renderBriefing() : renderFiles(),
         file && oh(MedFile, { key: file.p.id, player: file.p, prefill: file.prefill, cases, entries, me, pname, onSaveCase: saveCase, onDeleteCase: deleteCase, onClose: () => setFile(null) }));
 }
 /* ---------- „Mehr“-Tab (iOS: höchstens fünf Tabs) ---------- */
