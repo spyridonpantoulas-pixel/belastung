@@ -4,16 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Belastungssteuerung · Kader-Monitoring</title>
-<meta name="theme-color" content="#0e1014">
+<meta name="theme-color" content="#000000">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Belastung">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="logo.png">
 <meta name="description" content="Belastungssteuerung für Amateurfußball – RPE, Beschwerden und Befinden pro Einheit.">
 <style>
 :root{
   color-scheme: dark;
-  --bg:#0e1014;
+  --bg:#000000;
   --surface:#16181d;
   --surface-2:#1c2028;
   --surface-3:#232833;
@@ -22,10 +24,10 @@
   --ink:#ffffff;
   --ink-2:#b8bfcc;
   --muted:#868e9e;
-  --s1:#3987e5;      /* Kategorie 1 – Akutlast */
+  --s1:#0A84FF;      /* Kategorie 1 – Akutlast */
   --s2:#d95926;      /* Kategorie 2 – Chronische Last */
   --good:#0ca30c;
-  --warn:#fab219;
+  --warn:#FFCC00;
   --serious:#ec835a;
   --crit:#d03b3b;
   --ring:rgba(255,255,255,0.10);
@@ -63,7 +65,7 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
   width:38px;height:38px;border-radius:11px;flex:0 0 auto;
   background:linear-gradient(145deg,var(--s1),#1c5cab);
   display:grid;place-items:center;font-weight:700;font-size:15px;color:#fff;
-  box-shadow:0 4px 14px rgba(57,135,229,0.28);
+  box-shadow:0 4px 14px rgba(10,132,255,0.28);
 }
 .club{font-size:15px;font-weight:650;letter-spacing:-0.01em;line-height:1.2}
 .club small{display:block;font-size:11.5px;color:var(--muted);font-weight:500;letter-spacing:0.02em;text-transform:uppercase}
@@ -96,7 +98,7 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
   .lbl-short{display:inline}
   .tabs{
     position:fixed;left:0;right:0;bottom:0;z-index:50;margin:0;border-radius:0;
-    border:none;border-top:1px solid var(--line);background:rgba(18,20,25,0.94);
+    border:none;border-top:1px solid var(--line);background:rgba(22,22,23,0.78);
     backdrop-filter:blur(14px);padding:6px 8px calc(6px + env(safe-area-inset-bottom));
   }
   .tabs button{flex-direction:column;gap:3px;font-size:10.5px;padding:6px 4px;letter-spacing:0.01em}
@@ -175,7 +177,7 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
   transition:transform .08s,border-color .14s,background .14s;
 }
 .chip:active{transform:scale(0.97)}
-.chip[aria-pressed="true"]{border-color:var(--s1);background:rgba(57,135,229,0.14);box-shadow:inset 0 0 0 1px var(--s1)}
+.chip[aria-pressed="true"]{border-color:var(--s1);background:rgba(10,132,255,0.14);box-shadow:inset 0 0 0 1px var(--s1)}
 .chip .c-sub{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-top:3px}
 
 .squadgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -190,7 +192,7 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
 .pbtn .pn{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--s1)}
 .pbtn .pl{font-size:13px;font-weight:640;line-height:1.25;text-align:center;color:var(--ink);overflow-wrap:anywhere}
 .pbtn .pp{font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.02em}
-.pbtn.gk{border-color:rgba(217,89,38,0.4)}
+.pbtn.gk{border-color:rgba(255,149,0,0.4)}
 .pbtn.done{opacity:0.45}
 .pbtn.gk .pn{color:var(--s2)}
 
@@ -231,7 +233,7 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
 .painrow .pl2{flex:1;font-size:13.5px;font-weight:600}
 .lvls{display:flex;gap:4px}
 .lvl{width:32px;height:30px;border-radius:8px;border:1px solid var(--line);font-size:11px;font-weight:700;color:var(--muted);background:var(--surface-3)}
-.lvl[aria-pressed="true"]{color:#0e1014}
+.lvl[aria-pressed="true"]{color:#000000}
 
 .progress{height:3px;background:var(--surface-3);border-radius:2px;overflow:hidden;margin-bottom:16px}
 .progress i{display:block;height:100%;background:var(--s1);border-radius:2px;transition:width .28s ease}
@@ -293,7 +295,7 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
 .misschips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .misschip{
   font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;
-  background:rgba(250,178,25,0.12);border:1px solid rgba(250,178,25,0.35);color:#f0c256;
+  background:rgba(255,204,0,0.12);border:1px solid rgba(255,204,0,0.35);color:#FFCC00;
 }
 
 .tblwrap{overflow-x:auto;margin-top:12px;border:1px solid var(--line-soft);border-radius:var(--r-sm)}
@@ -313,7 +315,7 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
   display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:10px;font-size:13px;font-weight:600;
   background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);
 }
-.togglechip[aria-pressed="true"]{border-color:var(--s1);background:rgba(57,135,229,0.14);color:var(--ink)}
+.togglechip[aria-pressed="true"]{border-color:var(--s1);background:rgba(10,132,255,0.14);color:var(--ink)}
 
 /* ---------- Filter row ---------- */
 .filterrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
@@ -326,12 +328,12 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
 
 /* ---------- Report ---------- */
 .report{
-  background:#0b0d11;border:1px solid var(--line);border-radius:var(--r);padding:14px;
+  background:#1C1C1E;border:1px solid var(--line);border-radius:var(--r);padding:14px;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.65;
   white-space:pre-wrap;word-break:break-word;color:var(--ink-2);max-height:60vh;overflow:auto;
 }
 /* ---------- Modal ---------- */
-.ov{position:fixed;inset:0;background:rgba(6,7,10,0.7);backdrop-filter:blur(3px);z-index:60;display:flex;align-items:flex-end;justify-content:center;padding:0}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px);z-index:60;display:flex;align-items:flex-end;justify-content:center;padding:0}
 @media(min-width:700px){ .ov{align-items:center;padding:24px} }
 .sheet{
   background:var(--surface);border:1px solid var(--line);border-radius:18px 18px 0 0;width:100%;max-width:620px;
@@ -393,8 +395,8 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
 .og-fix{display:flex;gap:12px;align-items:center}
 .og-ha{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:750;font-size:14px;flex:0 0 auto}
 .og-ha.sm{width:22px;height:22px;border-radius:6px;font-size:11px}
-.og-home{background:rgba(57,135,229,0.18);color:var(--s1)}
-.og-away{background:rgba(217,89,38,0.18);color:var(--s2)}
+.og-home{background:rgba(10,132,255,0.18);color:var(--s1)}
+.og-away{background:rgba(255,149,0,0.18);color:var(--s2)}
 .og-opp{font-size:19px;font-weight:680;letter-spacing:-0.01em;line-height:1.2;overflow-wrap:break-word;hyphens:auto}
 .og-big{font-size:30px;font-weight:660;letter-spacing:-0.02em;margin-top:4px;font-variant-numeric:tabular-nums}
 .og-sess{display:flex;flex-direction:column;gap:4px}
@@ -412,7 +414,7 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
   .og-daytasks{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
 }
 .og-day.og-today{border-color:var(--s1);box-shadow:inset 0 0 0 1px var(--s1)}
-.og-day.og-match{background:linear-gradient(180deg,rgba(217,89,38,0.12),var(--surface) 70%)}
+.og-day.og-match{background:linear-gradient(180deg,rgba(255,149,0,0.12),var(--surface) 70%)}
 .og-dayhead{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
 .og-dayhead b{font-size:15px}
 .og-date{font-weight:500;color:var(--muted);font-size:12.5px}
@@ -431,18 +433,18 @@ h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
 .og-badge{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--line);border-radius:5px;padding:0 5px}
 .og-note{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4}
 .og-empty{font-size:12px;color:var(--muted);padding:4px 2px}
-.og-sql{background:#0b0d11;border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.7;color:var(--ink-2);white-space:pre-wrap;overflow-x:auto}
+.og-sql{background:#1C1C1E;border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.7;color:var(--ink-2);white-space:pre-wrap;overflow-x:auto}
 .og-in{width:100%;margin-top:4px;background-image:none;padding-right:11px;font-weight:500;font-size:14px}
 select.og-in{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23868e9e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 6l4 4 4-4'/></svg>");padding-right:30px}
 textarea.og-in{resize:vertical;font-family:inherit}
 .og-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:420px){ .og-2{grid-template-columns:1fr} }
 .og-row{cursor:pointer}
-.og-row.og-next td{background:rgba(57,135,229,0.10)}
+.og-row.og-next td{background:rgba(10,132,255,0.10)}
 .og-res{font-weight:700;padding:1px 6px;border-radius:5px}
-.og-res-S{color:var(--good);background:rgba(12,163,12,0.14)}
-.og-res-U{color:var(--warn);background:rgba(250,178,25,0.14)}
-.og-res-N{color:var(--crit);background:rgba(208,59,59,0.14)}
+.og-res-S{color:var(--good);background:rgba(52,199,89,0.14)}
+.og-res-U{color:var(--warn);background:rgba(255,204,0,0.14)}
+.og-res-N{color:var(--crit);background:rgba(255,59,48,0.14)}
 .og-catgrid{display:grid;gap:12px}
 @media(min-width:900px){ .og-catgrid{grid-template-columns:1fr 1fr} }
 .og-cat{display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -467,17 +469,17 @@ button:focus-visible,.og-name:focus-visible{outline:2px solid var(--s1);outline-
   .filterrow .og-chips .togglechip{flex:0 0 auto;white-space:nowrap}
 }
 
-.og-late{border-color:rgba(208,59,59,0.55);background:rgba(208,59,59,0.08)}
+.og-late{border-color:rgba(255,59,48,0.55);background:rgba(255,59,48,0.08)}
 .og-latebadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;font-size:10px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:#fff;background:var(--crit);border-radius:5px;padding:1px 6px}
 .og-latecount{margin-top:8px;font-size:12.5px;font-weight:650;color:var(--crit)}
 .og-n-late{color:var(--crit);font-weight:700}
 .og-by{color:var(--good);font-weight:600}
 .og-pl-late .og-pt{color:var(--crit)}
-.og-prompt{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;border-color:rgba(57,135,229,0.45);background:rgba(57,135,229,0.07)}
-.og-prev{margin-bottom:12px;border-color:rgba(208,59,59,0.4)}
+.og-prompt{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;border-color:rgba(10,132,255,0.45);background:rgba(10,132,255,0.07)}
+.og-prev{margin-bottom:12px;border-color:rgba(255,59,48,0.4)}
 .og-prevhead{display:flex;gap:10px;align-items:center;width:100%;font-size:14px}
 .og-share{font-family:inherit;font-size:13px;line-height:1.55;white-space:pre-wrap;min-height:220px}
-.og-wa{background:#1f9d55;text-decoration:none}
+.og-wa{background:#34C759;text-decoration:none}
 
 .og-role{flex:1;min-width:0;font:inherit;font-size:11px;font-weight:650;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);background:none;border:0;padding:2px 0}
 .og-role:focus{outline:none;color:var(--ink);border-bottom:1px dashed var(--s1)}
@@ -538,6 +540,240 @@ button:focus-visible,.og-name:focus-visible{outline:2px solid var(--s1);outline-
 @media(max-width:480px){ .mr-det{margin-left:0} .mr-seg button{padding:4px 7px} }
 
 .mr-bar{margin:0;position:sticky;top:-18px;z-index:2;background:var(--surface);padding:8px 0;border-bottom:1px solid var(--line-soft)}
+
+/* ==========================================================================
+   iOS DARK MODE · Apple Human Interface Guidelines
+   Systemfarben (Dark), SF-Systemschrift, 44pt-Touch-Ziele, Tab-Bar mit Blur
+   ========================================================================== */
+:root{
+  color-scheme: dark;
+  --bg:#000000;                 /* systemBackground */
+  --surface:#1C1C1E;            /* secondarySystemBackground – Karten */
+  --surface-2:#2C2C2E;          /* tertiarySystemBackground – Elemente in Karten */
+  --surface-3:#3A3A3C;
+  --fill:rgba(118,118,128,0.24);/* tertiarySystemFill – Buttons, Segmente */
+  --fill-2:rgba(118,118,128,0.36);
+  --line:rgba(84,84,88,0.65);   /* separator */
+  --line-soft:rgba(84,84,88,0.34);
+  --ink:#FFFFFF;                /* label */
+  --ink-2:rgba(235,235,245,0.78);
+  --muted:#8E8E93;              /* systemGray – sekundäre Infos */
+  --s1:#0A84FF;                 /* systemBlue (Dark) – Akzent */
+  --s2:#FF9500;                 /* systemOrange */
+  --good:#34C759;               /* systemGreen – optimale Belastung */
+  --warn:#FFCC00;               /* systemYellow – Warnung */
+  --serious:#FF9500;
+  --crit:#FF3B30;               /* systemRed – Überlastung */
+  --ring:rgba(84,84,88,0.65);
+  --r:16px;
+  --r-sm:12px;
+  --shadow:none;
+  --tabbar-h:50px;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",system-ui,sans-serif;
+}
+html,body{background:#000000}
+body{font-family:var(--font);font-size:15px;line-height:1.4;letter-spacing:-0.01em;color:var(--ink)}
+h1,h2,h3,h4{font-weight:600;letter-spacing:-0.02em}
+::selection{background:rgba(10,132,255,0.45)}
+
+/* ---------- Layout ---------- */
+.app{max-width:1180px;padding:0 16px calc(var(--tabbar-h) + 40px + env(safe-area-inset-bottom)) 16px;
+  padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+
+/* ---------- Navigationsleiste (transluzent wie UINavigationBar) ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  margin:0 calc(-1 * max(16px,env(safe-area-inset-left))) 16px;
+  padding:calc(8px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left));
+  background:rgba(0,0,0,0.72);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:0.5px solid var(--line);
+  gap:12px;min-height:60px;
+}
+.club{font-size:17px;font-weight:600;letter-spacing:-0.02em}
+.club small{font-size:12px;font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0}
+.clublogo{display:block;flex:0 0 auto;background:#fff;box-shadow:0 0 0 0.5px rgba(255,255,255,0.18)}
+.clublogo-fb{display:grid;place-items:center;border-radius:50%;background:var(--surface-2);box-shadow:none}
+.modebadge{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted);background:var(--fill);border:0;border-radius:8px;padding:4px 8px}
+
+/* ---------- Tab-Bar (UITabBar): fest unten, transluzent, Blur ---------- */
+.tabs{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  display:flex;justify-content:center;gap:0;margin:0;border:0;border-radius:0;
+  padding:0 max(8px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px,env(safe-area-inset-left));
+  background:rgba(22,22,23,0.78);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+  border-top:0.5px solid var(--line);
+}
+.tabs button{
+  flex:1 1 0;max-width:150px;min-height:var(--tabbar-h);padding:6px 2px 4px;border-radius:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  font-size:10.5px;font-weight:500;letter-spacing:0.01em;color:var(--muted);background:none;
+}
+.tabs button svg{width:24px;height:24px}
+.tabs button[aria-selected="true"]{color:var(--s1);background:none}
+.tabs .lbl-long{display:none}
+.tabs .lbl-short{display:inline}
+
+/* ---------- Karten (Inset Grouped) ---------- */
+.card,.hero,.tile{background:var(--surface);border:0;border-radius:var(--r)}
+.card{padding:16px}
+.tile{border-radius:14px}
+.card-head h3{font-size:17px;font-weight:600}
+.card-head p{font-size:13px;color:var(--muted)}
+.eyebrow{font-size:12px;font-weight:500;letter-spacing:0.02em;color:var(--muted)}
+.sheet .card,.sheet .tile,.sheet .hero{background:var(--surface-2)}
+.hero .val{font-weight:700;letter-spacing:-0.03em}
+.tile .v{font-weight:600}
+
+/* ---------- Buttons ---------- */
+.btn{min-height:50px;border-radius:14px;font-size:17px;font-weight:600;background:var(--s1);color:#fff;border:0;letter-spacing:-0.01em}
+.btn.sm{min-height:44px;padding:0 16px;font-size:15px;border-radius:12px}
+.btn.ghost{background:var(--fill);border:0;color:var(--s1)}
+.btn:hover{filter:none}
+.btn:active,.togglechip:active,.icon-btn:active,.chip:active{opacity:0.6;transform:none}
+.icon-btn{width:44px;height:44px;border-radius:50%;background:var(--fill);border:0;color:var(--s1)}
+.icon-btn:hover{background:var(--fill-2);color:var(--s1)}
+.syncchip{min-height:44px;padding:0 14px;border-radius:22px;background:var(--fill);border:0;font-size:13px;font-weight:500;color:var(--ink-2)}
+.linkbtn{position:relative;color:var(--s1);text-decoration:none;font-size:13px;font-weight:500}
+.linkbtn::after{content:"";position:absolute;left:-8px;right:-8px;top:50%;height:44px;transform:translateY(-50%)}
+.linkbtn:hover{color:var(--s1);opacity:0.75}
+
+/* Chips & Segmented Controls */
+.togglechip{min-height:44px;padding:0 16px;border-radius:22px;background:var(--fill);border:0;color:var(--ink);font-size:15px;font-weight:500}
+.togglechip[aria-pressed="true"]{background:var(--s1);color:#fff;border:0}
+.chip{min-height:44px;border:0;background:var(--surface-2);border-radius:12px}
+.chip[aria-pressed="true"]{background:rgba(10,132,255,0.22);box-shadow:inset 0 0 0 2px var(--s1)}
+.viewswitch{background:var(--fill);border:0;border-radius:12px;padding:2px;gap:0}
+.viewswitch button{min-height:44px;padding:0 14px;border-radius:10px;font-size:15px;font-weight:500;color:var(--ink)}
+.viewswitch button[aria-pressed="true"]{background:#636366;color:#fff;font-weight:600;box-shadow:0 3px 8px rgba(0,0,0,0.12),0 3px 1px rgba(0,0,0,0.04)}
+.pill{border:0;background:var(--fill);border-radius:999px;font-weight:600;padding:4px 10px 4px 8px}
+
+/* Formulare – 16px verhindert das Zoomen in iOS Safari */
+input,select,textarea{font-family:var(--font);font-size:16px}
+.sel{min-height:44px;font-size:16px;font-weight:400;border:0;border-radius:10px;background-color:var(--surface-2);color:var(--ink)}
+.sheet .sel,.card .sel{background-color:var(--surface-3)}
+.sheet .card .sel{background-color:var(--surface-3)}
+input.sel,textarea.sel{padding:10px 12px}
+textarea.sel{min-height:44px;line-height:1.4}
+.sel:focus,input:focus,textarea:focus,select:focus{outline:none;box-shadow:0 0 0 2px var(--s1)}
+::placeholder{color:#636366}
+
+/* Fokus für Tastatur */
+button:focus-visible,a:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+
+/* ---------- Listen & Zeilen ---------- */
+.prow{min-height:56px;border:0;background:var(--surface-2);border-radius:12px}
+.prow:hover{background:var(--surface-3);border:0}
+.nr{background:var(--surface-3);border-radius:8px}
+.tblwrap{border:0;border-radius:12px;background:var(--surface)}
+.dtable th{background:var(--surface-2);color:var(--muted);font-weight:500;letter-spacing:0.02em;border-bottom:0.5px solid var(--line)}
+.dtable td{border-bottom:0.5px solid var(--line-soft)}
+.dtable tbody tr:hover td{background:rgba(118,118,128,0.12)}
+.matrix td.who{font-size:13px}
+
+/* Spieler-Eingabe: große Flächen, ohne Rahmen */
+.pbtn,.mbtn,.sbtn,.rbtn{border:0;background:var(--surface-2);border-radius:14px}
+.pbtn[aria-pressed="true"],.mbtn[aria-pressed="true"],.sbtn[aria-pressed="true"],.rbtn[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--s1)}
+.lvl{width:44px;height:44px;border:0;border-radius:10px;background:var(--surface-3);font-size:13px}
+.misschip{color:var(--warn);background:rgba(255,204,0,0.14);border:0}
+.progress{height:4px;background:var(--surface-3)}
+.meter{height:6px;border-radius:3px;background:var(--surface-3)}
+.report{background:var(--surface);border:0;border-radius:14px}
+button[aria-label="Erklärung"]{position:relative}
+button[aria-label="Erklärung"]::after{content:"";position:absolute;inset:-16px}
+
+/* ---------- Sheets (Modal wie UISheetPresentationController) ---------- */
+.ov{background:rgba(0,0,0,0.55);-webkit-backdrop-filter:none;backdrop-filter:none;z-index:60}
+.sheet{position:relative;background:var(--surface);border:0;border-radius:16px 16px 0 0;padding:26px 16px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -1px 0 rgba(255,255,255,0.04)}
+.sheet::before{content:"";position:absolute;top:7px;left:50%;transform:translateX(-50%);width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,0.3)}
+@media(min-width:700px){ .sheet{border-radius:16px;padding-bottom:24px} .sheet::before{display:none} }
+
+/* Toast über der Tab-Bar */
+.toast{bottom:calc(var(--tabbar-h) + 20px + env(safe-area-inset-bottom));background:rgba(44,44,46,0.92);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:0;border-radius:14px;font-size:15px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
+
+/* ---------- Startseite & Code-Eingabe ---------- */
+.gate{background:#000000}
+.gate .clublogo{margin:0 auto 18px}
+.gate h1{font-size:28px;font-weight:700;letter-spacing:-0.02em}
+.gate .sub{font-size:15px;color:var(--muted)}
+.rolecard{min-height:72px;background:var(--surface);border:0;border-radius:16px;padding:16px}
+.rolecard:hover{background:var(--surface-2);border:0}
+.rolecard:active{opacity:0.7;transform:none}
+.rolecard .ri{border-radius:12px}
+.pindots{gap:22px}
+.pindots i{width:14px;height:14px;background:transparent;border:1.5px solid #FFFFFF}
+.pindots i.on{background:#FFFFFF;border-color:#FFFFFF}
+.pindots.err i{background:var(--crit);border-color:var(--crit)}
+.numpad{grid-template-columns:repeat(3,78px);justify-content:center;gap:16px 26px;max-width:none}
+.numpad button{width:78px;height:78px;border-radius:50%;background:rgba(118,118,128,0.3);border:0;font-size:32px;font-weight:400;color:#fff}
+.numpad button:active{background:rgba(118,118,128,0.6);transform:none}
+
+/* ---------- Orga: Aufgaben, Tage, Spiel-Ansicht ---------- */
+.og-day{background:var(--surface);border:0;border-radius:16px}
+.og-day.og-today{box-shadow:inset 0 0 0 2px var(--s1);border:0}
+.og-day.og-match{background:linear-gradient(180deg,rgba(255,149,0,0.14),var(--surface) 70%)}
+.og-task{background:var(--surface-2);border:0;border-radius:12px;box-shadow:inset 3px 0 0 var(--cat);min-height:44px}
+.og-task.og-late{background:rgba(255,59,48,0.14);box-shadow:inset 3px 0 0 var(--crit)}
+.og-check{position:relative;width:44px;height:44px;margin:-11px -8px -11px -11px;border:0;border-radius:50%;background:none;display:grid;place-items:center;color:#fff;flex:0 0 auto}
+.og-check::before{content:"";position:absolute;inset:11px;border-radius:50%;border:2px solid #636366;background:transparent;transition:background .15s,border-color .15s}
+.og-check[aria-checked="true"]{background:none}
+.og-check[aria-checked="true"]::before{background:var(--good);border-color:var(--good)}
+.og-check svg{position:relative;z-index:1}
+.og-tt{position:relative;font-size:15px;font-weight:500}
+.og-tt::after{content:"";position:absolute;left:0;right:0;top:50%;min-height:44px;height:100%;transform:translateY(-50%)}
+.og-meta{font-size:12.5px}
+.og-latebadge{background:var(--crit);border-radius:6px}
+.og-sessrow,.og-tpl,.og-prevhead,.og-pl{min-height:44px;align-items:center}
+.og-sessrow,.og-tpl{background:var(--surface-2);border-radius:12px}
+.og-pl{border-bottom:0.5px solid var(--line-soft);padding:0}
+.og-name{font-size:20px;font-weight:600;border-bottom:0.5px solid var(--line);min-height:44px}
+.og-role{min-height:44px;font-size:12px;font-weight:500;letter-spacing:0.02em}
+.og-prompt{background:rgba(10,132,255,0.12);border:0}
+.og-prev{border:0;box-shadow:inset 0 0 0 1px rgba(255,59,48,0.35)}
+.og-addp{border:0;box-shadow:inset 0 0 0 1px var(--line)}
+.og-sql{background:#000000;border:0;border-radius:12px}
+.og-fxbtns .togglechip{min-height:44px;padding:0 14px;font-size:14px}
+.og-ha{border-radius:50%}
+.og-wa{background:var(--good);color:#fff}
+.mx-prow,.mx-link{background:var(--surface-2);border-radius:12px;min-height:52px}
+.mx-sel{min-height:44px;max-width:170px;font-size:15px}
+.mr-row{background:var(--surface-2);border:0;border-radius:12px}
+.mr-row.mr-S{box-shadow:inset 3px 0 0 var(--good);border:0}
+.mr-row.mr-B{box-shadow:inset 3px 0 0 var(--s1);border:0}
+.mr-seg button{min-height:44px;padding:0 12px;font-size:14px}
+.mr-num .og-in{width:72px;min-height:44px}
+.mr-goals .icon-btn{width:44px;height:44px}
+.mr-card{min-width:48px;height:44px;border-radius:10px;font-size:13px;border:0;background:var(--surface-3)}
+.mr-y[aria-pressed="true"]{background:var(--warn);color:#1a1400}
+.mr-r[aria-pressed="true"]{background:var(--crit)}
+.mr-gr[aria-pressed="true"]{background:linear-gradient(135deg,var(--warn) 50%,var(--crit) 50%)}
+.mr-bar{background:var(--surface);border-bottom:0.5px solid var(--line)}
+.mx-tabs button{min-height:44px}
+.og-res-S{color:var(--good);background:rgba(52,199,89,0.16)}
+.og-res-U{color:var(--warn);background:rgba(255,204,0,0.16)}
+.og-res-N{color:var(--crit);background:rgba(255,59,48,0.16)}
+@media(max-width:699px){
+  .filterrow .og-chips{gap:8px}
+  .og-weekbar .btn.sm{padding:0 12px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* Schmale Bildschirme: nichts darf seitlich überstehen */
+.card-head{flex-wrap:wrap;row-gap:10px}
+.viewswitch{max-width:100%;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
+.viewswitch::-webkit-scrollbar{display:none}
+.viewswitch button{white-space:nowrap;flex:0 0 auto}
+.mx-tabs button,.mr-seg button{flex:1 1 0}
+/* Kopfzeile auf dem iPhone: Knöpfe nie stauchen, Status als Punkt */
+.topbar .icon-btn,.topbar .syncchip,.topbar .clublogo{flex:0 0 auto}
+@media(max-width:560px){
+  .topbar{gap:6px}
+  .topbar .pill{display:none}
+  .topbar .syncchip{width:44px;padding:0;justify-content:center;font-size:0;gap:0}
+  .topbar .syncchip .sd{width:10px;height:10px}
+  .club{font-size:16px}
+}
+@media(max-width:380px){ .club{font-size:15px;letter-spacing:-0.03em} .topbar{gap:5px} }
 </style>
 </head>
 <body>
@@ -17757,12 +17993,12 @@ const SLEEP = [
     { v: 1, em: "😫", label: "sehr schlecht", color: "var(--crit)" },
     { v: 2, em: "😕", label: "schlecht", color: "var(--serious)" },
     { v: 3, em: "😐", label: "okay", color: "var(--warn)" },
-    { v: 4, em: "🙂", label: "gut", color: "#5aa832" },
+    { v: 4, em: "🙂", label: "gut", color: "#34C759" },
     { v: 5, em: "😴", label: "sehr gut", color: "var(--good)" },
 ];
 const STRESS = [
     { v: 1, em: "😌", label: "sehr entspannt", color: "var(--good)" },
-    { v: 2, em: "🙂", label: "entspannt", color: "#5aa832" },
+    { v: 2, em: "🙂", label: "entspannt", color: "#34C759" },
     { v: 3, em: "😐", label: "normal", color: "var(--warn)" },
     { v: 4, em: "😣", label: "gestresst", color: "var(--serious)" },
     { v: 5, em: "🤯", label: "sehr gestresst", color: "var(--crit)" },
@@ -17867,12 +18103,12 @@ const acwrWord = v => v < 0.8 ? "weniger als gewohnt"
             : "viel mehr als gewohnt";
 const acwrShort = v => v < 0.8 ? "weniger" : v <= 1.3 ? "gewohnt" : v <= 1.5 ? "mehr" : "viel mehr";
 const TINT = {
-    "var(--good)": "rgba(12,163,12,0.16)",
-    "var(--warn)": "rgba(250,178,25,0.16)",
-    "var(--crit)": "rgba(208,59,59,0.16)",
-    "var(--serious)": "rgba(236,131,90,0.16)",
-    "var(--s1)": "rgba(57,135,229,0.16)",
-    "var(--s2)": "rgba(217,89,38,0.16)",
+    "var(--good)": "rgba(52,199,89,0.16)",
+    "var(--warn)": "rgba(255,204,0,0.16)",
+    "var(--crit)": "rgba(255,59,48,0.16)",
+    "var(--serious)": "rgba(255,149,0,0.16)",
+    "var(--s1)": "rgba(10,132,255,0.16)",
+    "var(--s2)": "rgba(255,149,0,0.16)",
     "var(--muted)": "rgba(134,142,158,0.16)",
 };
 const tint = c => TINT[c] || "rgba(255,255,255,0.08)";
@@ -18709,7 +18945,7 @@ function TableToggle({ children, rows, cols }) {
 /* ============================================================
    7) ANSICHT 1 — SPIELER-EINGABE
    ============================================================ */
-const rpeColor = v => v <= 3 ? "#256abf" : v <= 6 ? "var(--s1)" : v <= 8 ? "var(--warn)" : "var(--crit)";
+const rpeColor = v => v <= 3 ? "#0060DF" : v <= 6 ? "var(--s1)" : v <= 8 ? "var(--warn)" : "var(--crit)";
 function InputView({ squad, calendar, entries, today, submitted, onSave, toast, onManage, onShowMine, meId, setMeId }) {
     const known = meId && squad.some(p => p.id === meId) ? meId : null;
     const [stepIdx, setStepIdx] = useState(known ? 1 : 0);
@@ -18799,7 +19035,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
         const worst = done.pains.reduce((m, p) => Math.max(m, p.level), 0);
         return (React.createElement("div", { className: "card", style: { textAlign: "center", padding: "34px 18px" } },
             React.createElement("div", { style: { width: 62, height: 62, borderRadius: "50%", display: "grid", placeItems: "center", margin: "0 auto 14px",
-                    background: done.out ? "rgba(208,59,59,0.16)" : done.away ? "rgba(236,131,90,0.16)" : "rgba(12,163,12,0.16)",
+                    background: done.out ? "rgba(255,59,48,0.16)" : done.away ? "rgba(255,149,0,0.16)" : "rgba(52,199,89,0.16)",
                     color: done.out ? "var(--crit)" : done.away ? "var(--serious)" : "var(--good)" } },
                 React.createElement(Icon, { d: done.out ? I.cross : done.away ? I.minus : I.check, size: 30, stroke: 2.4 })),
             React.createElement("h3", { style: { fontSize: 19 } }, done.out ? "Ausfall gemeldet" : done.away ? "Abgemeldet" : "Gespeichert"),
@@ -18821,7 +19057,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
     }
     if (!calendar.length) {
         return (React.createElement("div", { className: "card", style: { textAlign: "center", padding: "38px 20px" } },
-            React.createElement("div", { style: { width: 56, height: 56, borderRadius: 16, background: "rgba(57,135,229,0.14)", display: "grid", placeItems: "center", margin: "0 auto 14px", color: "var(--s1)" } },
+            React.createElement("div", { style: { width: 56, height: 56, borderRadius: 16, background: "rgba(10,132,255,0.14)", display: "grid", placeItems: "center", margin: "0 auto 14px", color: "var(--s1)" } },
                 React.createElement(Icon, { d: I.cal, size: 26 })),
             React.createElement("h3", { style: { fontSize: 18 } }, "Noch keine Einheit angelegt"),
             React.createElement("p", { style: { color: "var(--muted)", fontSize: 13.5, margin: "8px auto 18px", maxWidth: 420, lineHeight: 1.6 } }, "Bevor die Mannschaft etwas eintragen kann, legt das Trainerteam die Einheit an \u2013 mit Datum, Art und Dauer. Danach dauert eine R\u00FCckmeldung rund 20 Sekunden."),
@@ -18881,28 +19117,28 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
                             " Minuten \u00B7 ",
                             s.type,
                             has ? " · schon eingetragen" : "")),
-                    s.date === today && React.createElement("span", { className: "pill", style: { color: "var(--s1)", borderColor: "rgba(57,135,229,0.4)", background: "rgba(57,135,229,0.14)" } }, "heute")));
+                    s.date === today && React.createElement("span", { className: "pill", style: { color: "var(--s1)", borderColor: "rgba(10,132,255,0.4)", background: "rgba(10,132,255,0.14)" } }, "heute")));
             })),
             React.createElement("div", { style: { marginTop: 12 } },
                 React.createElement("button", { className: "linkbtn", onClick: onManage }, "Einheit fehlt? Einheiten verwalten")))),
         cur === "part" && (React.createElement("div", { className: "card" },
             React.createElement("div", { className: "chips" },
                 React.createElement("button", { className: "chip", style: { textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "16px 14px" }, onClick: () => { setPart("in"); next(); } },
-                    React.createElement("span", { style: { width: 44, height: 44, borderRadius: 12, background: "rgba(12,163,12,0.16)", color: "var(--good)",
+                    React.createElement("span", { style: { width: 44, height: 44, borderRadius: 12, background: "rgba(52,199,89,0.16)", color: "var(--good)",
                             display: "grid", placeItems: "center", flex: "0 0 auto" } },
                         React.createElement(Icon, { d: I.check, size: 22 })),
                     React.createElement("span", { style: { flex: 1 } },
                         "Ja, mitgemacht",
                         React.createElement("span", { className: "c-sub", style: { textAlign: "left" } }, "Ganz normal weiter mit der Anstrengung"))),
                 React.createElement("button", { className: "chip", style: { textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "16px 14px" }, onClick: () => { setPart("out"); next(); } },
-                    React.createElement("span", { style: { width: 44, height: 44, borderRadius: 12, background: "rgba(208,59,59,0.16)", color: "var(--crit)",
+                    React.createElement("span", { style: { width: 44, height: 44, borderRadius: 12, background: "rgba(255,59,48,0.16)", color: "var(--crit)",
                             display: "grid", placeItems: "center", flex: "0 0 auto" } },
                         React.createElement(Icon, { d: I.cross, size: 22 })),
                     React.createElement("span", { style: { flex: 1 } },
                         "Verletzt \u2013 nicht dabei",
                         React.createElement("span", { className: "c-sub", style: { textAlign: "left" } }, "Kurze R\u00FCckfrage zur Verletzung, dauert 15 Sekunden"))),
                 React.createElement("button", { className: "chip", style: { textAlign: "left", display: "flex", alignItems: "center", gap: 12, padding: "16px 14px" }, onClick: () => { setPart("away"); next(); } },
-                    React.createElement("span", { style: { width: 44, height: 44, borderRadius: 12, background: "rgba(236,131,90,0.16)", color: "var(--serious)",
+                    React.createElement("span", { style: { width: 44, height: 44, borderRadius: 12, background: "rgba(255,149,0,0.16)", color: "var(--serious)",
                             display: "grid", placeItems: "center", flex: "0 0 auto" } },
                         React.createElement(Icon, { d: I.minus, size: 22 })),
                     React.createElement("span", { style: { flex: 1 } },
@@ -18927,7 +19163,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
             React.createElement("div", { className: "qblock" },
                 React.createElement("div", { className: "qhead" }, "Welche Region?"),
                 React.createElement("div", { className: "qsub" }, player && player.gk ? "Torhüter-spezifische Regionen." : "Wo sitzt das Problem?"),
-                React.createElement("div", { className: "squadgrid", style: { gridTemplateColumns: "repeat(2,1fr)" } }, regions.map(r => (React.createElement("button", { key: r, className: "pbtn", "aria-pressed": injRegion === r, style: injRegion === r ? { borderColor: "var(--crit)", background: "rgba(208,59,59,0.14)" } : {}, onClick: () => setInjRegion(r) },
+                React.createElement("div", { className: "squadgrid", style: { gridTemplateColumns: "repeat(2,1fr)" } }, regions.map(r => (React.createElement("button", { key: r, className: "pbtn", "aria-pressed": injRegion === r, style: injRegion === r ? { borderColor: "var(--crit)", background: "rgba(255,59,48,0.14)" } : {}, onClick: () => setInjRegion(r) },
                     React.createElement("span", { className: "pl" }, r)))))),
             React.createElement("div", { className: "qblock" },
                 React.createElement("div", { className: "qhead" }, "Wie stark?"),
@@ -18936,7 +19172,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
                     React.createElement("span", { className: "ml", style: { color: injLevel === l ? PAIN_COLOR[l] : "var(--ink)" } }, PAIN_LVL[l])))))),
             React.createElement("div", { className: "qblock" },
                 React.createElement("div", { className: "qhead" }, "Seit wann?"),
-                React.createElement("div", { className: "moodgrid", style: { gridTemplateColumns: "repeat(2,1fr)" } }, INJ_ONSET.map(o => (React.createElement("button", { key: o.key, className: "mbtn", "aria-pressed": injOnset === o.key, style: injOnset === o.key ? { borderColor: "var(--s1)", background: "rgba(57,135,229,0.16)" } : {}, onClick: () => setInjOnset(o.key) },
+                React.createElement("div", { className: "moodgrid", style: { gridTemplateColumns: "repeat(2,1fr)" } }, INJ_ONSET.map(o => (React.createElement("button", { key: o.key, className: "mbtn", "aria-pressed": injOnset === o.key, style: injOnset === o.key ? { borderColor: "var(--s1)", background: "rgba(10,132,255,0.16)" } : {}, onClick: () => setInjOnset(o.key) },
                     React.createElement("span", { className: "ml" }, o.label),
                     React.createElement("span", { style: { fontSize: 11, color: "var(--muted)", fontWeight: 600 } }, o.sub)))))),
             React.createElement("button", { className: "btn", style: { marginTop: 18, ...(injRegion && injLevel && injOnset ? {} : { opacity: 0.45 }) }, disabled: !(injRegion && injLevel && injOnset), onClick: next }, "Weiter"))),
@@ -18944,12 +19180,12 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
             React.createElement("div", { className: "qblock" },
                 React.createElement("div", { className: "qhead" }, "Was ging heute?"),
                 React.createElement("div", { className: "qsub" }, "Damit das Trainerteam den Wiedereinstieg planen kann."),
-                React.createElement("div", { className: "scale5", style: { gridTemplateColumns: "repeat(2,1fr)" } }, INJ_ACTIVITY.map(a => (React.createElement("button", { key: a.key, className: "sbtn", "aria-pressed": injActivity === a.key, style: injActivity === a.key ? { borderColor: "var(--s1)", background: "rgba(57,135,229,0.16)" } : {}, onClick: () => setInjActivity(a.key) },
+                React.createElement("div", { className: "scale5", style: { gridTemplateColumns: "repeat(2,1fr)" } }, INJ_ACTIVITY.map(a => (React.createElement("button", { key: a.key, className: "sbtn", "aria-pressed": injActivity === a.key, style: injActivity === a.key ? { borderColor: "var(--s1)", background: "rgba(10,132,255,0.16)" } : {}, onClick: () => setInjActivity(a.key) },
                     React.createElement("span", { className: "se" }, a.em),
                     React.createElement("span", { className: "sl", style: { fontSize: 11 } }, a.label)))))),
             React.createElement("div", { className: "qblock" },
                 React.createElement("div", { className: "qhead" }, "Schon \u00E4rztlich abgekl\u00E4rt?"),
-                React.createElement("div", { className: "moodgrid" }, INJ_MEDICAL.map(o => (React.createElement("button", { key: o.key, className: "mbtn", "aria-pressed": injMedical === o.key, style: injMedical === o.key ? { borderColor: "var(--s1)", background: "rgba(57,135,229,0.16)" } : {}, onClick: () => setInjMedical(o.key) },
+                React.createElement("div", { className: "moodgrid" }, INJ_MEDICAL.map(o => (React.createElement("button", { key: o.key, className: "mbtn", "aria-pressed": injMedical === o.key, style: injMedical === o.key ? { borderColor: "var(--s1)", background: "rgba(10,132,255,0.16)" } : {}, onClick: () => setInjMedical(o.key) },
                     React.createElement("span", { className: "ml" }, o.label)))))),
             React.createElement("button", { className: "btn", style: { marginTop: 18, ...(injActivity && injMedical ? {} : { opacity: 0.45 }) }, disabled: !(injActivity && injMedical), onClick: next }, "Weiter"))),
         cur === "minutes" && session && (React.createElement("div", { className: "card" },
@@ -18996,7 +19232,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
             React.createElement("p", { style: { margin: "0 0 12px", fontSize: 12.5, color: "var(--muted)" } }, player && player.gk ? "Torhüter-spezifische Regionen." : "Nur eintragen, wenn du etwas spürst."),
             React.createElement("div", { className: "rows" }, regions.map(r => (React.createElement("div", { className: "painrow", key: r },
                 React.createElement("span", { className: "pl2" }, r),
-                React.createElement("div", { className: "lvls" }, [1, 2, 3].map(l => (React.createElement("button", { key: l, className: "lvl", "aria-pressed": pains[r] === l, title: PAIN_LVL[l], style: pains[r] === l ? { background: PAIN_COLOR[l], borderColor: PAIN_COLOR[l], color: "#0e1014" } : {}, onClick: () => setPains(p => ({ ...p, [r]: p[r] === l ? 0 : l })) }, l)))))))),
+                React.createElement("div", { className: "lvls" }, [1, 2, 3].map(l => (React.createElement("button", { key: l, className: "lvl", "aria-pressed": pains[r] === l, title: PAIN_LVL[l], style: pains[r] === l ? { background: PAIN_COLOR[l], borderColor: PAIN_COLOR[l], color: "#000000" } : {}, onClick: () => setPains(p => ({ ...p, [r]: p[r] === l ? 0 : l })) }, l)))))))),
             React.createElement("p", { style: { fontSize: 11, color: "var(--muted)", margin: "10px 0 14px" } }, "1 = leicht \u00B7 2 = deutlich \u00B7 3 = stark"),
             React.createElement("div", { style: { display: "flex", gap: 8 } },
                 React.createElement("button", { className: "btn ghost", onClick: () => { setPains({}); save({}); } }, "Keine Beschwerden"),
@@ -19061,7 +19297,7 @@ function ResponseOverview({ squad, calendar, entries, submitted, today, shareLin
                 React.createElement("h3", null, "R\u00FCckmeldungen"),
                 React.createElement("p", null, "Wer hat eingetragen? Neueste Einheit links.")),
             React.createElement("div", { className: "spacer" }),
-            React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center", fontSize: 11.5, color: "var(--muted)", fontWeight: 600 } },
+            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px 12px", alignItems: "center", fontSize: 12, color: "var(--muted)", fontWeight: 500 } },
                 React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 6 } },
                     React.createElement("i", { className: "mk yes" }),
                     " eingetragen"),
@@ -19105,8 +19341,8 @@ function ResponseOverview({ squad, calendar, entries, submitted, today, shareLin
         missing.length === 0 && (React.createElement("p", { style: { margin: "14px 0 0", fontSize: 13, color: "var(--good)", display: "flex", alignItems: "center", gap: 8, fontWeight: 600 } },
             React.createElement(Icon, { d: I.check, size: 16 }),
             " Vollz\u00E4hlig \u2013 alle haben eingetragen.")),
-        silent.length > 0 && (React.createElement("p", { style: { margin: "14px 0 0", fontSize: 12.5, color: "var(--ink-2)", background: "rgba(208,59,59,0.10)",
-                border: "1px solid rgba(208,59,59,0.30)", borderRadius: "var(--r-sm)", padding: "10px 12px", lineHeight: 1.55 } },
+        silent.length > 0 && (React.createElement("p", { style: { margin: "14px 0 0", fontSize: 12.5, color: "var(--ink-2)", background: "rgba(255,59,48,0.10)",
+                border: "1px solid rgba(255,59,48,0.30)", borderRadius: "var(--r-sm)", padding: "10px 12px", lineHeight: 1.55 } },
             React.createElement("strong", { style: { color: "var(--crit)" } },
                 "Seit ",
                 recent.length,
@@ -19406,7 +19642,7 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             perPlayer.length ? (React.createElement("div", { className: "rows" }, perPlayer.map(x => {
                 const isOpen = open[x.p.id] !== undefined ? open[x.p.id] : allOpen;
                 return (React.createElement("div", { key: x.p.id },
-                    React.createElement("button", { className: "prow", onClick: () => setOpen(o => ({ ...o, [x.p.id]: !isOpen })), style: { borderColor: x.inj ? "rgba(208,59,59,0.3)" : x.abs ? "rgba(236,131,90,0.25)" : undefined } },
+                    React.createElement("button", { className: "prow", onClick: () => setOpen(o => ({ ...o, [x.p.id]: !isOpen })), style: { borderColor: x.inj ? "rgba(255,59,48,0.3)" : x.abs ? "rgba(255,149,0,0.25)" : undefined } },
                         React.createElement("span", { style: { color: "var(--muted)", display: "inline-flex", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform .15s" } },
                             React.createElement(Icon, { d: I.right, size: 15 })),
                         x.p.nr > 0 && React.createElement("span", { className: "nr" }, x.p.nr),
@@ -19751,9 +19987,9 @@ function MatchWeek({ calendar, today }) {
             const tooHard = s0 && s0.planRpe && s0.planRpe > info.plan + 1;
             const isMatch = d === 0;
             return (React.createElement("div", { className: "prow", key: date, style: { cursor: "default",
-                    borderColor: tooHard ? "rgba(250,178,25,0.4)" : undefined } },
+                    borderColor: tooHard ? "rgba(255,204,0,0.4)" : undefined } },
                 React.createElement("span", { className: "nr", style: { width: 52, fontSize: 11, lineHeight: 1.15, flexDirection: "column", display: "flex", justifyContent: "center",
-                        background: isMatch ? "rgba(217,89,38,0.18)" : undefined,
+                        background: isMatch ? "rgba(255,149,0,0.18)" : undefined,
                         color: isMatch ? "var(--s2)" : undefined } },
                     React.createElement("span", { style: { fontWeight: 700, fontSize: 12 } }, isMatch ? "Spiel" : "MD-" + d),
                     React.createElement("span", { style: { opacity: 0.75 } },
@@ -19772,7 +20008,7 @@ function MatchWeek({ calendar, today }) {
                             " (RPE ",
                             s0.planRpe,
                             ")") : null)),
-                tooHard && (React.createElement("span", { className: "pill", style: { color: "var(--warn)", borderColor: "rgba(250,178,25,0.45)", background: "rgba(250,178,25,0.14)" } },
+                tooHard && (React.createElement("span", { className: "pill", style: { color: "var(--warn)", borderColor: "rgba(255,204,0,0.45)", background: "rgba(255,204,0,0.14)" } },
                     React.createElement(Icon, { d: I.alert, size: 12 }),
                     " zu hart f\u00FCr MD-",
                     d)),
@@ -20000,7 +20236,7 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
     };
     if (!entries.length) {
         return (React.createElement("div", { className: "card", style: { textAlign: "center", padding: "38px 20px" } },
-            React.createElement("div", { style: { width: 56, height: 56, borderRadius: 16, background: "rgba(57,135,229,0.14)", display: "grid", placeItems: "center", margin: "0 auto 14px", color: "var(--s1)" } },
+            React.createElement("div", { style: { width: 56, height: 56, borderRadius: 16, background: "rgba(10,132,255,0.14)", display: "grid", placeItems: "center", margin: "0 auto 14px", color: "var(--s1)" } },
                 React.createElement(Icon, { d: I.chart, size: 26 })),
             React.createElement("h3", { style: { fontSize: 18 } }, "Noch keine Daten"),
             React.createElement("p", { style: { color: "var(--muted)", fontSize: 13.5, margin: "8px auto 0", maxWidth: 440, lineHeight: 1.6 } }, "Sobald die erste Einheit angelegt und \u00FCber \u201ESpieler-Eingabe\u201C erfasst ist, erscheinen hier Ampelstatus, Tagesbelastung und der Verlauf von Akut- gegen chronische Last. Zum Ausprobieren lassen sich \u00FCber das Personen-Symbol oben rechts Demo-Daten erzeugen.")));
@@ -20024,9 +20260,9 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                 React.createElement("button", { "aria-pressed": !detail, onClick: () => setDetail(false) }, "Einfach"),
                 React.createElement("button", { "aria-pressed": detail, onClick: () => setDetail(true) }, "Alle Details"))),
         React.createElement(Situation, { scoped: scoped, metrics: scopedMetrics, counts: counts, fit: fit, weekLoad: weekLoad, delta: delta, quote: quote, respondedToday: respondedToday, nextMatch: nextMatch, hist: H, teamAcwr: teamAcwr, avgSleep: avgSleepTeam, todaySessions: todaySessions, lastPlan: lastPlan }),
-        !H.mature && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(57,135,229,0.35)", background: "rgba(57,135,229,0.06)" } },
+        !H.mature && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(10,132,255,0.35)", background: "rgba(10,132,255,0.06)" } },
             React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
-                React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(57,135,229,0.16)", color: "var(--s1)",
+                React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(10,132,255,0.16)", color: "var(--s1)",
                         display: "grid", placeItems: "center", flex: "0 0 auto" } },
                     React.createElement(Icon, { d: I.alert, size: 19 })),
                 React.createElement("div", { style: { flex: 1 } },
@@ -20127,7 +20363,7 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                 detail ? " „Belastung“ vergleicht diese Woche mit der Gewöhnung der letzten vier Wochen." : "")),
         React.createElement(PlanVsActual, { calendar: calendar, entries: scopedEntries, squad: scoped, today: today, detail: detail, onDownload: onDownload, onToast: onToast }),
         React.createElement(MatchWeek, { calendar: calendar, today: today }),
-        outList.length > 0 && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(208,59,59,0.35)" } },
+        outList.length > 0 && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(255,59,48,0.35)" } },
             React.createElement("div", { className: "card-head" },
                 React.createElement("div", null,
                     React.createElement("h3", { style: { display: "flex", alignItems: "center", gap: 8 } },
@@ -20782,7 +21018,7 @@ function PlayerDetail({ m, entries, today }) {
         cases.length > 0 && (() => {
             const c = cases[0];
             const step = nextStep(c);
-            return (React.createElement("div", { style: { marginTop: 16, border: "1px solid rgba(208,59,59,0.35)", borderRadius: "var(--r-sm)", padding: "13px 14px", background: "rgba(208,59,59,0.06)" } },
+            return (React.createElement("div", { style: { marginTop: 16, border: "1px solid rgba(255,59,48,0.35)", borderRadius: "var(--r-sm)", padding: "13px 14px", background: "rgba(255,59,48,0.06)" } },
                 React.createElement("div", { className: "eyebrow", style: { color: "var(--crit)", marginBottom: 8 } }, "Verletzungsakte"),
                 React.createElement("div", { style: { fontSize: 14.5, fontWeight: 650, marginBottom: 2 } },
                     c.region,
@@ -20826,7 +21062,7 @@ function PlayerDetail({ m, entries, today }) {
             const mood = MOODS.find(x => x.key === e.mood) || MOODS[0];
             const inj = isInjured(e) ? (e.injury || {}) : null;
             if (inj)
-                return (React.createElement("div", { className: "prow", key: e.id, style: { cursor: "default", borderColor: "rgba(208,59,59,0.3)" } },
+                return (React.createElement("div", { className: "prow", key: e.id, style: { cursor: "default", borderColor: "rgba(255,59,48,0.3)" } },
                     React.createElement("span", { style: { color: "var(--crit)", display: "inline-flex" } },
                         React.createElement(Icon, { d: I.cross, size: 18 })),
                     React.createElement("span", { className: "grow" },
@@ -21065,7 +21301,7 @@ function SettingsSheet({ squad, setSquad, pin, setPin, onClose, onExport, onImpo
                 React.createElement("input", { className: "sel", style: { width: 52, padding: "7px 8px", textAlign: "center" }, value: p.nr, onChange: e => upd(p.id, "nr", e.target.value), "aria-label": "R\u00FCckennummer" }),
                 React.createElement("input", { className: "sel", style: { flex: 1, minWidth: 0, padding: "7px 10px", backgroundImage: "none" }, value: p.name, onChange: e => upd(p.id, "name", e.target.value), "aria-label": "Name" }),
                 React.createElement("input", { className: "sel", style: { width: 64, padding: "7px 8px", textAlign: "center", backgroundImage: "none" }, value: p.pos, onChange: e => upd(p.id, "pos", e.target.value), "aria-label": "Position" }),
-                React.createElement("button", { className: "lvl", style: { width: 38, color: p.gk ? "#0e1014" : "var(--muted)", background: p.gk ? "var(--s2)" : "var(--surface-3)", borderColor: p.gk ? "var(--s2)" : "var(--line)" }, onClick: () => upd(p.id, "gk", !p.gk), title: "Torh\u00FCter" }, "TW"),
+                React.createElement("button", { className: "lvl", style: { width: 38, color: p.gk ? "#000000" : "var(--muted)", background: p.gk ? "var(--s2)" : "var(--surface-3)", borderColor: p.gk ? "var(--s2)" : "var(--line)" }, onClick: () => upd(p.id, "gk", !p.gk), title: "Torh\u00FCter" }, "TW"),
                 React.createElement("button", { className: "icon-btn", style: { width: 32, height: 30 }, onClick: () => del(p.id), "aria-label": "Entfernen" },
                     React.createElement(Icon, { d: I.x, size: 14 })))))),
             React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 14 } },
@@ -21096,20 +21332,20 @@ function RoleGate({ pin, orgaPin, onPick, connected }) {
     const tap = d => setCode(c => c.length >= 4 ? c : c + d);
     return (React.createElement("div", { className: "gate" },
         React.createElement("div", { className: "gate-inner" },
-            React.createElement("div", { className: "crest" }, CREST),
+            React.createElement(ClubLogo, { size: 88 }),
             React.createElement("h1", null, CLUB),
             React.createElement("p", { className: "sub" },
                 LEAGUE,
                 " \u00B7 Belastungssteuerung"),
             !asking ? (React.createElement("div", null,
                 React.createElement("button", { className: "rolecard", onClick: () => onPick("player") },
-                    React.createElement("span", { className: "ri", style: { background: "rgba(57,135,229,0.16)", color: "var(--s1)" } },
+                    React.createElement("span", { className: "ri", style: { background: "rgba(10,132,255,0.16)", color: "var(--s1)" } },
                         React.createElement(Icon, { d: I.person, size: 23 })),
                     React.createElement("span", { style: { flex: 1 } },
                         React.createElement("span", { className: "rt" }, "Spieler"),
                         React.createElement("span", { className: "rd" }, "Einheit eintragen und eigene Werte ansehen. Rund 20 Sekunden pro R\u00FCckmeldung."))),
                 React.createElement("button", { className: "rolecard", onClick: () => { setAsking("coach"); setCode(""); } },
-                    React.createElement("span", { className: "ri", style: { background: "rgba(217,89,38,0.16)", color: "var(--s2)" } },
+                    React.createElement("span", { className: "ri", style: { background: "rgba(255,149,0,0.16)", color: "var(--s2)" } },
                         React.createElement(Icon, { d: I.chart, size: 23 })),
                     React.createElement("span", { style: { flex: 1 } },
                         React.createElement("span", { className: "rt" },
@@ -21118,7 +21354,7 @@ function RoleGate({ pin, orgaPin, onPick, connected }) {
                                 React.createElement(Icon, { d: I.lock, size: 13 }))),
                         React.createElement("span", { className: "rd" }, "Dashboard, Wochenbericht, Einheiten und Kader. Mit PIN gesch\u00FCtzt."))),
                 React.createElement("button", { className: "rolecard", onClick: () => { setAsking("orga"); setCode(""); } },
-                    React.createElement("span", { className: "ri", style: { background: "rgba(43,179,163,0.16)", color: "#2bb3a3" } },
+                    React.createElement("span", { className: "ri", style: { background: "rgba(100,210,255,0.16)", color: "#2bb3a3" } },
                         React.createElement(Icon, { d: I.check, size: 23 })),
                     React.createElement("span", { style: { flex: 1 } },
                         React.createElement("span", { className: "rt" },
@@ -21127,7 +21363,7 @@ function RoleGate({ pin, orgaPin, onPick, connected }) {
                                 React.createElement(Icon, { d: I.lock, size: 13 }))),
                         React.createElement("span", { className: "rd" }, "Wochenboard, Spielplan und Aufgaben f\u00FCr Trainer- und Funktionsteam. Mit PIN gesch\u00FCtzt."))),
                 connected ? (React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", textAlign: "center", margin: "20px 0 0", lineHeight: 1.6 } }, "Mit dem Team verbunden. Das Kabinen-Handy bleibt im Spielerbereich \u2013 dort sind fremde Werte nicht einsehbar.")) : (React.createElement("p", { style: { fontSize: 12, color: "var(--crit)", textAlign: "center", margin: "20px 0 0", lineHeight: 1.6,
-                        background: "rgba(208,59,59,0.10)", border: "1px solid rgba(208,59,59,0.35)",
+                        background: "rgba(255,59,48,0.10)", border: "1px solid rgba(255,59,48,0.35)",
                         borderRadius: "var(--r-sm)", padding: "10px 12px" } },
                     React.createElement("strong", null, "Nicht mit dem Team verbunden."),
                     React.createElement("br", null),
@@ -21186,9 +21422,9 @@ function MyStats({ squad, metrics, entries, today, meId, setMeId }) {
         React.createElement(PlayerDetail, { m: m, entries: entries, today: today })));
 }
 function NotConnected() {
-    return (React.createElement("div", { className: "card", style: { borderColor: "rgba(208,59,59,0.5)", background: "rgba(208,59,59,0.08)", marginBottom: 12 } },
+    return (React.createElement("div", { className: "card", style: { borderColor: "rgba(255,59,48,0.5)", background: "rgba(255,59,48,0.08)", marginBottom: 12 } },
         React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
-            React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(208,59,59,0.18)", color: "var(--crit)",
+            React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(255,59,48,0.18)", color: "var(--crit)",
                     display: "grid", placeItems: "center", flex: "0 0 auto" } },
                 React.createElement(Icon, { d: I.alert, size: 19 })),
             React.createElement("div", { style: { flex: 1, minWidth: 0 } },
@@ -21308,8 +21544,8 @@ function SyncSheet({ cfg, setCfg, sync, squad, sessions, entryCount, onPushAll, 
                 cfg && React.createElement("button", { className: "btn sm ghost", onClick: disconnect }, "Trennen")),
             test && (React.createElement("p", { style: { fontSize: 12, margin: "0 0 16px", padding: "10px 12px", borderRadius: "var(--r-sm)", lineHeight: 1.5,
                     color: test.ok ? "var(--good)" : "var(--crit)",
-                    background: test.ok ? "rgba(12,163,12,0.12)" : "rgba(208,59,59,0.12)",
-                    border: "1px solid " + (test.ok ? "rgba(12,163,12,0.35)" : "rgba(208,59,59,0.35)"), wordBreak: "break-word" } }, test.msg)),
+                    background: test.ok ? "rgba(52,199,89,0.12)" : "rgba(255,59,48,0.12)",
+                    border: "1px solid " + (test.ok ? "rgba(52,199,89,0.35)" : "rgba(255,59,48,0.35)"), wordBreak: "break-word" } }, test.msg)),
             cfg && (React.createElement(React.Fragment, null,
                 React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 } },
                     React.createElement("button", { className: "btn sm ghost", onClick: onPull }, "Jetzt abgleichen"),
@@ -21351,10 +21587,10 @@ const ORGA_SQL = "create table if not exists orga_items (\n"
     + "create policy \"orga_items_team\" on orga_items for all to anon using (true) with check (true);\n"
     + "grant select, insert, update, delete on orga_items to anon;";
 const ORGA_CATS = {
-    log: { name: "Spieltags-Logistik", short: "Logistik", sub: "Trikots, Kabine, Schiedsrichter, Verpflegung, Anreise", color: "#2bb3a3" },
-    sport: { name: "Sportliche Vorbereitung", short: "Sportlich", sub: "Trainingsplanung, Belastungssteuerung, Gegneranalyse", color: "#3987e5" },
-    kader: { name: "Kader- & Kabinenkultur", short: "Kader", sub: "Zu- und Absagen, Strafenkatalog, Teamevents", color: "#fab219" },
-    intern: { name: "Interne Abstimmung", short: "Intern", sub: "Trainerteam, Vorstand, Funktionsteam", color: "#a27ff0" },
+    log: { name: "Spieltags-Logistik", short: "Logistik", sub: "Trikots, Kabine, Schiedsrichter, Verpflegung, Anreise", color: "#64D2FF" },
+    sport: { name: "Sportliche Vorbereitung", short: "Sportlich", sub: "Trainingsplanung, Belastungssteuerung, Gegneranalyse", color: "#0A84FF" },
+    kader: { name: "Kader- & Kabinenkultur", short: "Kader", sub: "Zu- und Absagen, Strafenkatalog, Teamevents", color: "#FF9F0A" },
+    intern: { name: "Interne Abstimmung", short: "Intern", sub: "Trainerteam, Vorstand, Funktionsteam", color: "#BF5AF2" },
 };
 const ORGA_DAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const ORGA_DAYS_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
@@ -21746,7 +21982,7 @@ function OrgaTask({ inst, done, owner, multiFix, onToggle, onEdit, onLink, onMat
 function OrgaSchemaCard({ st, onCopy, onRetry }) {
     if (st.schema !== false)
         return null;
-    return oh("div", { className: "card", style: { marginBottom: 12, borderColor: "rgba(250,178,25,0.5)", background: "rgba(250,178,25,0.07)" } },
+    return oh("div", { className: "card", style: { marginBottom: 12, borderColor: "rgba(255,204,0,0.5)", background: "rgba(255,204,0,0.07)" } },
         oh("h3", { style: { fontSize: 14.5, marginBottom: 4, color: "var(--warn)" } }, "Orga-Tabelle fehlt in Supabase"),
         oh("p", { style: { margin: "0 0 10px", fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.6 } }, "Bis die Tabelle angelegt ist, bleibt alles nur auf diesem Gerät. Diese Zeilen einmal im SQL-Editor von Supabase ausführen:"),
         oh("div", { className: "og-sql" }, ORGA_SQL),
@@ -22731,6 +22967,18 @@ function SquadStats({ squad, eng, nextFx }) {
                 })))));
 }
 
+/* ---------- Vereinslogo mit SVG-Fallback ---------- */
+function ClubLogo({ size = 40 }) {
+    const [failed, setFailed] = useState(false);
+    if (failed)
+        return React.createElement("span", { className: "clublogo clublogo-fb", role: "img", "aria-label": "Vereinslogo", style: { width: size, height: size } },
+            React.createElement("svg", { width: size * 0.62, height: size * 0.62, viewBox: "0 0 24 24", fill: "none", stroke: "#0A84FF", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" },
+                React.createElement("path", { d: "M12 2.5 4.5 5v6.2c0 4.6 3.1 8.6 7.5 10.3 4.4-1.7 7.5-5.7 7.5-10.3V5L12 2.5Z" }),
+                React.createElement("circle", { cx: "12", cy: "12", r: "3.6" }),
+                React.createElement("path", { d: "m12 10.3 1.6 1.2-.6 1.9h-2l-.6-1.9 1.6-1.2Z", fill: "#0A84FF" })));
+    return React.createElement("img", { id: "vereinslogo", src: "logo.png", alt: "Vereinslogo", className: "clublogo",
+        style: { width: size + "px", height: size + "px", borderRadius: "50%", objectFit: "cover" }, onError: () => setFailed(true) });
+}
 function App() {
     const today = useMemo(() => iso(new Date()), []);
     const [mode, setMode] = useState(() => store.get("mode", null) === "player" ? "player" : null);
@@ -23109,7 +23357,7 @@ function App() {
     if (mode === "orga")
         return (React.createElement("div", { className: "app" },
             React.createElement("div", { className: "topbar" },
-                React.createElement("div", { className: "crest" }, CREST),
+                React.createElement(ClubLogo, { size: 40 }),
                 React.createElement("div", { className: "club" }, CLUB, React.createElement("small", null, LEAGUE)),
                 React.createElement("div", { className: "spacer" }),
                 React.createElement("span", { className: "syncchip" },
@@ -23121,7 +23369,7 @@ function App() {
             msg && React.createElement("div", { className: "toast" }, React.createElement(Icon, { d: I.check, size: 15 }), " ", msg)));
     return (React.createElement("div", { className: "app" },
         React.createElement("div", { className: "topbar" },
-            React.createElement("div", { className: "crest" }, CREST),
+            React.createElement(ClubLogo, { size: 40 }),
             React.createElement("div", { className: "club" },
                 CLUB,
                 React.createElement("small", null, LEAGUE)),
@@ -23134,7 +23382,7 @@ function App() {
                 syncLook.t,
                 pendingCount ? " ·" + pendingCount : ""),
             React.createElement("span", { className: "modebadge" }, isPlayer ? "Spieler" : "Trainer"),
-            !isPlayer && redCount > 0 && tab !== "input" && (React.createElement("span", { className: "pill", style: { color: "var(--crit)", borderColor: "rgba(208,59,59,0.45)", background: "rgba(208,59,59,0.14)" } },
+            !isPlayer && redCount > 0 && tab !== "input" && (React.createElement("span", { className: "pill", style: { color: "var(--crit)", borderColor: "rgba(255,59,48,0.45)", background: "rgba(255,59,48,0.14)" } },
                 React.createElement(Icon, { d: I.alert, size: 12 }),
                 " ",
                 redCount,
@@ -23145,9 +23393,9 @@ function App() {
                 React.createElement(Icon, { d: I.users, size: 17 })),
             React.createElement("button", { className: "icon-btn", onClick: leaveMode, "aria-label": "Bereich verlassen" },
                 React.createElement(Icon, { d: I.exit, size: 17 }))),
-        !isPlayer && sync.schema === false && (React.createElement("div", { className: "card", style: { marginBottom: 12, borderColor: "rgba(208,59,59,0.5)", background: "rgba(208,59,59,0.08)" } },
+        !isPlayer && sync.schema === false && (React.createElement("div", { className: "card", style: { marginBottom: 12, borderColor: "rgba(255,59,48,0.5)", background: "rgba(255,59,48,0.08)" } },
             React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
-                React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(208,59,59,0.18)", color: "var(--crit)",
+                React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(255,59,48,0.18)", color: "var(--crit)",
                         display: "grid", placeItems: "center", flex: "0 0 auto" } },
                     React.createElement(Icon, { d: I.alert, size: 19 })),
                 React.createElement("div", { style: { flex: 1, minWidth: 0 } },
@@ -23156,7 +23404,7 @@ function App() {
                         "In Supabase fehlen vier Spalten. Verletzungen, Abmeldungen, Schlaf und Stress werden deshalb ",
                         React.createElement("strong", null, "nicht gespeichert"),
                         " \u2013 auf anderen Ger\u00E4ten fehlen sie, und eine rote Ampel kann dort wieder auf Gr\u00FCn springen. Diese Zeilen einmal im SQL-Editor ausf\u00FChren:"),
-                    React.createElement("div", { style: { background: "#0b0d11", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "10px 12px",
+                    React.createElement("div", { style: { background: "#1C1C1E", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "10px 12px",
                             fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 11, lineHeight: 1.7,
                             color: "var(--ink-2)", whiteSpace: "pre-wrap", overflowX: "auto" } }, MIGRATION_SQL),
                     React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 } },
