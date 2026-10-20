@@ -540,6 +540,66 @@ button:focus-visible,.og-name:focus-visible{outline:2px solid var(--s1);outline-
 @media(max-width:480px){ .mr-det{margin-left:0} .mr-seg button{padding:4px 7px} }
 
 .mr-bar{margin:0;position:sticky;top:-18px;z-index:2;background:var(--surface);padding:8px 0;border-bottom:1px solid var(--line-soft)}
+/* ---------- Medizin ---------- */
+.med-area{display:flex;flex-direction:column;gap:12px}
+.med-top{margin:0}
+.med-lock{max-width:420px;margin:8px auto 0;text-align:center}
+.med-lockhead{display:flex;flex-direction:column;align-items:center;gap:6px}
+.med-lockhead h3{font-size:22px;font-weight:700}
+.med-cross{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:rgba(255,59,48,0.16);color:var(--crit)}
+.med-p{font-size:14px;color:var(--muted);line-height:1.5;margin:4px 0 0}
+.med-err{color:var(--crit);font-weight:600;font-size:14px;margin:0 0 14px}
+.med-head{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.med-group{display:flex;flex-direction:column;gap:8px}
+.med-row{background:var(--surface);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.med-rowmain{display:flex;flex-direction:column;gap:4px;text-align:left;width:100%;min-height:44px}
+.med-obs{cursor:default}
+.med-rowtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.med-sub{font-size:13px;color:var(--muted);line-height:1.45}
+.med-diag{font-size:14px;color:var(--ink-2);line-height:1.45}
+.med-free{display:flex;gap:4px 14px;flex-wrap:wrap;font-size:13px;font-weight:500}
+.med-chg{font-size:11px;font-weight:700;letter-spacing:0.02em;border:1px solid;border-radius:6px;padding:1px 6px}
+.med-line{margin-top:0}
+.med-phase{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}
+.med-bar{display:inline-flex;gap:2px}
+.med-bar i{width:9px;height:9px;border-radius:2px;background:var(--surface-3);display:block}
+.med-phs{font-size:12px;font-weight:600;color:var(--ink-2);min-width:62px}
+.med-files{display:flex;flex-direction:column;background:var(--surface);border-radius:16px;overflow:hidden}
+.med-filerow{display:flex;align-items:center;gap:10px;min-height:52px;padding:0 14px;border-bottom:0.5px solid var(--line-soft);color:var(--ink)}
+.med-filerow:last-child{border-bottom:0}
+.med-filerow svg{color:#636366;transform:none}
+.med-case{display:flex;flex-direction:column;gap:4px;text-align:left;width:100%;background:var(--surface-2);border-radius:12px;padding:12px;min-height:44px}
+.med-closed{opacity:0.65}
+.med-casetop{display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.med-where{font-weight:600;font-size:15px}
+.med-form{display:flex;flex-direction:column;gap:14px}
+.med-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){ .med-grid{grid-template-columns:1fr} }
+.med-fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.med-wide{grid-column:1/-1}
+.med-phases{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+@media(max-width:560px){ .med-phases{grid-template-columns:repeat(3,minmax(0,1fr))} }
+.med-phases button{min-height:52px;border-radius:12px;background:var(--surface-3);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11.5px;color:var(--ink-2)}
+.med-phases button b{font-size:16px;color:var(--ink)}
+.med-phases button[aria-pressed="true"]{background:var(--s1);color:#fff}
+.med-phases button[aria-pressed="true"] b{color:#fff}
+.med-notes{display:flex;flex-direction:column;gap:6px}
+.med-note{display:flex;gap:10px;align-items:baseline;background:var(--surface-3);border-radius:10px;padding:9px 11px;font-size:14px;line-height:1.45}
+.sheet .med-note{background:var(--surface-2)}
+.med-by{font-size:12px;color:var(--muted)}
+.med-addnote{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-top:6px}
+@media(max-width:560px){ .med-addnote{grid-template-columns:1fr} }
+.med-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.med-warn{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:rgba(255,204,0,0.12);color:var(--warn);font-weight:600}
+.med-pinform{display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:center}
+.med-pinform .og-in{margin-top:0}
+@media(max-width:560px){ .med-pinform{grid-template-columns:1fr 1fr} }
+.med-more{padding:0;overflow:hidden}
+.med-morerow{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;padding:8px 16px;border-bottom:0.5px solid var(--line-soft);color:var(--ink)}
+.med-morerow:last-child{border-bottom:0}
+.med-morerow > svg{color:#636366}
+.med-moreic{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;background:var(--s1);color:#fff;flex:0 0 auto}
+.med-back{display:inline-flex;align-items:center;gap:2px;min-height:44px;color:var(--s1);font-size:17px;margin:-8px 0 8px -6px}
 
 /* ==========================================================================
    iOS DARK MODE · Apple Human Interface Guidelines
@@ -21594,7 +21654,7 @@ const ORGA_CATS = {
 };
 const ORGA_DAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const ORGA_DAYS_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
-const ORGA_LINKS = { dash: "Dashboard", resp: "Rückmeldungen", report: "Wochenbericht", input: "Eingabe" };
+const ORGA_LINKS = { dash: "Dashboard", resp: "Rückmeldungen", report: "Wochenbericht", input: "Eingabe", med: "Medizin-Briefing" };
 const ORGA_SEED_FROM = "2026-10-19";
 const ORGA_SEED = (() => {
     const P = [
@@ -21639,6 +21699,8 @@ const ORGA_SEED = (() => {
         ["t33", "RPE-Abfrage nach dem Spiel in die Gruppe", "sport", "spyro", "md", 0, "", "Für das Belastungs-Dashboard", { link: "resp" }],
         ["t34", "Wochenbericht ans Trainerteam schicken", "intern", "spyro", "wd", 0, "", "", { link: "report" }],
         ["t36", "Spielbericht ausfüllen: Aufstellung, Wechsel, Tore, Karten", "sport", "tm", "md", 1, "20:00", "Grundlage für Spielminuten, Sperren und Ausgleichstraining", { link: "bericht" }],
+        ["t37", "Arztakten aktualisieren: Phase, Prognose, Freigaben", "sport", "arzt", "wd", 2, "16:00", "Vor dem Medizin-Call um 17 Uhr", { link: "med" }],
+        ["t38", "Medizin-Call Trainerteam + Mannschaftsarzt", "intern", "stefan", "wd", 2, "17:00", "Briefing im Bereich Medizin, Beschlüsse direkt protokollieren", { link: "med" }],
         ["t35", "Teamabend zum Hinrundenabschluss planen", "kader", "tm", "wd", 3, "", "Termin, Ort, Kasse", { recurring: false, week: ORGA_SEED_FROM }],
     ];
     // Oberliga Hamburg 2026/27 – Stand 19.10.2026 (landkreis-fussball.de / fussball.de)
@@ -21662,7 +21724,7 @@ const ORGA_SEED = (() => {
         const id = "fx2627-" + String(f[0]).padStart(2, "0");
         items["fixture:" + id] = { kind: "fixture", data: { id, st: f[0], date: f[1], time: f[2], home: f[3], opp: f[4], res: f[5], comp: "Liga" } };
     });
-    items["settings:main"] = { kind: "settings", data: { trainingDays: [1, 3], defaultMatchDay: 5, migrations: ["p-robert", "match-links"], yellowLimit: 5, grBan: 1 } };
+    items["settings:main"] = { kind: "settings", data: { trainingDays: [1, 3], defaultMatchDay: 5, migrations: ["p-robert", "match-links", "med-tasks"], yellowLimit: 5, grBan: 1 } };
     return items;
 })();
 const orgaApi = {
@@ -22121,7 +22183,7 @@ function OrgaShareSheet({ mon, inst, persons, weekFx, isDone, initialWho, copyTe
                 oh("a", { className: "btn sm og-wa", href: "https://wa.me/?text=" + encodeURIComponent(text), target: "_blank", rel: "noopener" }, "In WhatsApp öffnen"))));
 }
 /* ---------- Hauptbereich ---------- */
-function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coach, metrics, squad, submitted, onOpenTab, onAddSessions, orgaPin, setOrgaPin }) {
+function OrgaArea({ orga, feedInfo, medCases, cfg, sessions, toast, copyText, navBar, coach, metrics, squad, submitted, onOpenTab, onAddSessions, orgaPin, setOrgaPin }) {
     const today = localIso();
     const { items, put, remove } = orga;
     const [view, setView] = useState(() => store.get("orga.view", "woche"));
@@ -22167,6 +22229,11 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
             if (!items["task:t36"])
                 put("task:t36", "task", { ...ORGA_SEED["task:t36"].data, from: mondayOf(localIso()) });
             add.push("match-links");
+        }
+        if (!mig.includes("med-tasks")) {
+            ["task:t37", "task:t38"].forEach(k => { if (!items[k])
+                put(k, "task", { ...ORGA_SEED[k].data, from: mondayOf(localIso()) }); });
+            add.push("med-tasks");
         }
         if (add.length)
             put("settings:main", "settings", { ...settings, migrations: [...mig, ...add], yellowLimit: settings.yellowLimit || 5, grBan: settings.grBan || 1 });
@@ -22362,7 +22429,7 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
                             oh("div", { className: "og-opp" }, f.opp),
                             oh("div", { style: { fontSize: 12.5, color: "var(--ink-2)" } }, ORGA_DAYS_LONG[odx(f.date)] + ", " + fmtDate(f.date) + (f.time ? " · " + f.time + " Uhr" : "") + (f.res ? " · Ergebnis " + f.res : "")),
                             sq.length > 0 && f.date >= today && (() => {
-                                const av = availabilityFor(f, sq, reportOf(items, f.id), eng, mByPid, coach);
+                                const av = availabilityFor(f, sq, reportOf(items, f.id), eng, mByPid, coach, medCases);
                                 const c = k => av.filter(x => x.key === k).length;
                                 return oh("div", { className: "og-avline" },
                                     oh("span", { style: { color: "var(--good)" } }, c("ok") + " verfügbar"),
@@ -22552,7 +22619,7 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
         view === "aufgaben" && oh(React.Fragment, null, oh("div", { className: "filterrow" }, peopleChips), renderTasks()),
         view === "team" && renderTeam(),
         editTask && oh(OrgaTaskSheet, { task: editTask, persons, coach, weekMon: mon, onSave: saveTask, onDelete: deleteTask, onClose: () => setEditTask(null) }),
-        matchId && fixtures.find(f => f.id === matchId) && oh(MatchSheet, { key: matchId, fx: fixtures.find(f => f.id === matchId), tab: matchTab, setTab: setMatchTab, items, put, squad: sq, fixtures, eng, mByPid, coach, me, pname,
+        matchId && fixtures.find(f => f.id === matchId) && oh(MatchSheet, { key: matchId, fx: fixtures.find(f => f.id === matchId), tab: matchTab, setTab: setMatchTab, items, put, squad: sq, fixtures, eng, mByPid, medCases, coach, me, pname,
             onWeek: () => { const f = fixtures.find(x => x.id === matchId); setMon(mondayOf(f.date)); setView("woche"); setMatchId(null); },
             onAddSessions, nextTrainingAfter, toast, copyText, onClose: () => setMatchId(null) }),
         share && oh(OrgaShareSheet, { mon, inst, persons, weekFx, isDone, pname, initialWho: who, copyText, onClose: () => setShare(false) }),
@@ -22655,7 +22722,7 @@ function cardEngine(fixtures, items, settings) {
     return { thr, yellows, susp, stats, pending };
 }
 // Verfügbarkeit für ein Spiel. Gesundheitsangaben (Verletzung, Ampel) nur im Trainerbereich.
-function availabilityFor(fx, squad, rep, eng, mByPid, coach) {
+function availabilityFor(fx, squad, rep, eng, mByPid, coach, medCases) {
     const avail = (rep && rep.avail) || {};
     const sp = (eng.susp[fx.id]) || {};
     const isFuture = fx.date >= localIso();
@@ -22668,6 +22735,9 @@ function availabilityFor(fx, squad, rep, eng, mByPid, coach) {
             return { ...base, key: "susp", label: "Gesperrt", note: sp[p.id] };
         if (man && man.s === "out")
             return { ...base, key: "out", label: "Fällt aus", note: man.n || "" };
+        const mc = coach && isFuture && medCases ? medStatusFor(medCases[p.id], fx.date) : null;
+        if (mc)
+            return { ...base, key: mc.key, label: mc.label, note: medWhere(medCases[p.id]) + " · " + medPrognose(medCases[p.id]), health: true };
         if (coach && isFuture && mByPid) {
             const m = mByPid[p.id];
             const k = m && m.status && m.status.key;
@@ -22711,7 +22781,7 @@ function compensationFor(rep, squad, mByPid) {
 const reportOf = (items, fid) => items["report:" + fid] && !items["report:" + fid]._del ? items["report:" + fid].data : null;
 /* ---------- Spiel-Ansicht ---------- */
 function MatchSheet(props) {
-    const { fx, tab, setTab, items, put, squad, fixtures, eng, mByPid, coach, me, pname, onWeek, onAddSessions, nextTrainingAfter, toast, copyText, onClose } = props;
+    const { fx, tab, setTab, items, put, squad, fixtures, eng, mByPid, medCases, coach, me, pname, onWeek, onAddSessions, nextTrainingAfter, toast, copyText, onClose } = props;
     const rep = reportOf(items, fx.id) || { id: fx.id, players: {}, avail: {}, len: 90 };
     const r = parseRes(fx.res);
     const resTone = r ? (r[0] > r[1] ? "S" : r[0] === r[1] ? "U" : "N") : null;
@@ -22728,7 +22798,7 @@ function MatchSheet(props) {
                 MATCH_TABS.map(([k, l]) => oh("button", { key: k, "aria-pressed": tab === k, onClick: () => setTab(k) }, l)),
             ),
             tab === "gegner" && oh(OppProfile, { fx, items, put, fixtures, me, pname }),
-            tab === "kader" && oh(SquadAvail, { fx, rep, put, squad, eng, mByPid, coach, copyText }),
+            tab === "kader" && oh(SquadAvail, { fx, rep, put, squad, eng, mByPid, medCases, coach, copyText }),
             tab === "bericht" && oh(MatchReport, { fx, rep, put, squad, eng, mByPid, coach, toast, copyText, onAddSessions, nextTrainingAfter }),
             oh("div", { style: { display: "flex", justifyContent: "flex-end", marginTop: 14 } },
                 oh("button", { className: "btn sm ghost", onClick: onWeek }, "Woche dieses Spiels öffnen"))));
@@ -22785,10 +22855,10 @@ function OppProfile({ fx, items, put, fixtures, me, pname }) {
             "Zuletzt bearbeitet " + new Date(prof.updated).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + (prof.by ? " von " + pname(prof.by) : "")),
         oh("div", { style: { fontSize: 11.5, color: "var(--muted)" } }, "Gilt für alle Spiele gegen " + fx.opp + " – beim Rückspiel liegt alles wieder bereit."));
 }
-function SquadAvail({ fx, rep, put, squad, eng, mByPid, coach, copyText }) {
+function SquadAvail({ fx, rep, put, squad, eng, mByPid, medCases, coach, copyText }) {
     if (!squad || !squad.length)
         return oh("div", { className: "og-empty" }, "Kein Kader angelegt.");
-    const list = availabilityFor(fx, squad, rep, eng, mByPid, coach);
+    const list = availabilityFor(fx, squad, rep, eng, mByPid, coach, medCases);
     const by = k => list.filter(x => x.key === k);
     const setMan = (pid, s, n) => {
         const avail = { ...(rep.avail || {}) };
@@ -22967,6 +23037,531 @@ function SquadStats({ squad, eng, nextFx }) {
                 })))));
 }
 
+/* ============================================================
+   14) MEDIZIN – Akten pro Spieler, Briefing für den Mittwochs-Call
+   Daten nur über Server-Funktionen mit Medizin-PIN (med_list / med_put)
+   Im Gerät nur im Arbeitsspeicher, nie im Browser-Speicher.
+   ============================================================ */
+const MED_SQL_BASE = "-- Medizin-Bereich: Akten nur mit Medizin-PIN lesbar (Prüfung auf dem Server)\ncreate extension if not exists pgcrypto with schema extensions;\n\ncreate table if not exists med_config (\n  team text primary key,\n  pin_hash text not null,\n  updated_at timestamptz not null default now()\n);\ncreate table if not exists med_attempts (\n  id bigserial primary key,\n  team text not null,\n  at timestamptz not null default now()\n);\ncreate table if not exists med_items (\n  id text primary key,\n  team text not null,\n  kind text not null,\n  data jsonb not null default '{}'::jsonb,\n  deleted boolean not null default false,\n  updated_at timestamptz not null default now(),\n  updated_by text\n);\n-- Kein direkter Zugriff über den App-Schlüssel – nur über die Funktionen unten\nalter table med_config enable row level security;\nalter table med_attempts enable row level security;\nalter table med_items enable row level security;\nrevoke all on med_config, med_attempts, med_items from anon, authenticated;\n\ncreate or replace function med_auth(p_team text, p_pin text) returns text\nlanguage plpgsql security definer set search_path = public, extensions as $$\ndeclare h text; fails int;\nbegin\n  delete from med_attempts where at < now() - interval '1 day';\n  select count(*) into fails from med_attempts where team = p_team and at > now() - interval '15 minutes';\n  if fails >= 5 then return 'locked'; end if;\n  select pin_hash into h from med_config where team = p_team;\n  if h is null then return 'nopin'; end if;\n  if crypt(coalesce(p_pin, ''), h) = h then return 'ok'; end if;\n  insert into med_attempts(team) values (p_team);\n  return 'pin';\nend $$;\n\ncreate or replace function med_list(p_team text, p_pin text) returns jsonb\nlanguage plpgsql security definer set search_path = public, extensions as $$\ndeclare a text;\nbegin\n  a := med_auth(p_team, p_pin);\n  if a <> 'ok' then return jsonb_build_object('ok', false, 'error', a); end if;\n  return jsonb_build_object('ok', true, 'items', coalesce((\n    select jsonb_agg(jsonb_build_object('id', substr(id, length(p_team) + 2), 'kind', kind, 'data', data,\n                                        'updated_at', updated_at, 'updated_by', updated_by))\n    from med_items where team = p_team and not deleted), '[]'::jsonb));\nend $$;\n\ncreate or replace function med_put(p_team text, p_pin text, p_items jsonb, p_by text) returns jsonb\nlanguage plpgsql security definer set search_path = public, extensions as $$\ndeclare a text; x jsonb;\nbegin\n  a := med_auth(p_team, p_pin);\n  if a <> 'ok' then return jsonb_build_object('ok', false, 'error', a); end if;\n  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) > 200 then\n    return jsonb_build_object('ok', false, 'error', 'format');\n  end if;\n  for x in select value from jsonb_array_elements(p_items) loop\n    insert into med_items(id, team, kind, data, deleted, updated_at, updated_by)\n    values (p_team || '|' || (x->>'id'), p_team, x->>'kind', coalesce(x->'data', '{}'::jsonb),\n            coalesce((x->>'deleted')::boolean, false), now(), p_by)\n    on conflict (id) do update set kind = excluded.kind, data = excluded.data, deleted = excluded.deleted,\n                                   updated_at = now(), updated_by = excluded.updated_by;\n  end loop;\n  return jsonb_build_object('ok', true);\nend $$;\n\ncreate or replace function med_set_pin(p_team text, p_old text, p_new text) returns jsonb\nlanguage plpgsql security definer set search_path = public, extensions as $$\ndeclare a text;\nbegin\n  a := med_auth(p_team, p_old);\n  if a <> 'ok' then return jsonb_build_object('ok', false, 'error', a); end if;\n  if p_new !~ '^[0-9]{6,12}$' then return jsonb_build_object('ok', false, 'error', 'format'); end if;\n  update med_config set pin_hash = crypt(p_new, gen_salt('bf')), updated_at = now() where team = p_team;\n  return jsonb_build_object('ok', true);\nend $$;\n\nrevoke all on function med_auth(text, text) from public, anon, authenticated;\nrevoke all on function med_list(text, text) from public;\nrevoke all on function med_put(text, text, jsonb, text) from public;\nrevoke all on function med_set_pin(text, text, text) from public;\ngrant execute on function med_list(text, text) to anon, authenticated;\ngrant execute on function med_put(text, text, jsonb, text) to anon, authenticated;\ngrant execute on function med_set_pin(text, text, text) to anon, authenticated;\n";
+const medSetupSql = team => MED_SQL_BASE + "\n-- Medizin-PIN festlegen (mind. 6 Ziffern, hier ersetzen):\n"
+    + "insert into med_config(team, pin_hash) values ('" + team.replace(/'/g, "''") + "', extensions.crypt('DEINE-PIN', extensions.gen_salt('bf')))\n"
+    + "  on conflict (team) do update set pin_hash = excluded.pin_hash, updated_at = now();";
+const MED_PHASES = [
+    { v: 1, s: "Pause", l: "Komplett pausiert" },
+    { v: 2, s: "Physio", l: "Reha / Behandlung" },
+    { v: 3, s: "Alternativ", l: "Rad, Schwimmen, Kraft" },
+    { v: 4, s: "Laufen", l: "Individuelles Laufen" },
+    { v: 5, s: "Teilintegr.", l: "Teile des Mannschaftstrainings" },
+    { v: 6, s: "Voll belastbar", l: "Freigabe Mannschaftstraining" },
+];
+const MED_REGIONS = ["Kopf", "Nacken", "Schulter", "Arm", "Hand / Finger", "Brust / Rippen", "Rücken", "Bauch", "Hüfte", "Leiste", "Adduktoren",
+    "Oberschenkel vorne", "Oberschenkel hinten", "Knie", "Schienbein", "Wade", "Achillessehne", "Sprunggelenk", "Fuß", "Sonstiges"];
+const MED_SIDES = ["", "links", "rechts", "beidseitig"];
+const MED_MECH = ["", "Training", "Spiel", "Ohne Gegnerkontakt", "Mit Gegnerkontakt", "Überlastung", "Außerhalb des Fußballs"];
+const medPhase = v => MED_PHASES.find(x => x.v === Number(v)) || MED_PHASES[0];
+const medWhere = c => (c.region || "ohne Angabe") + (c.side ? " " + c.side : "");
+const medIsOpen = c => c && c.status !== "closed";
+// Ist der Spieler für ein Spiel am Datum d laut Akte dabei?
+function medStatusFor(c, d) {
+    if (!medIsOpen(c))
+        return null;
+    if (c.returnMatch && c.returnMatch <= d)
+        return null;
+    if (Number(c.phase) >= 6)
+        return null;
+    if (Number(c.phase) === 5)
+        return { key: "doubt", label: "Teilintegration (Arzt)" };
+    return { key: "out", label: "Verletzt (Arzt)" };
+}
+function medPrognose(c) {
+    const p = [];
+    if (c.returnTraining)
+        p.push("Training ab " + fmtDate(c.returnTraining));
+    if (c.returnMatch)
+        p.push("spielfähig ab " + fmtDate(c.returnMatch));
+    return p.join(" · ") || "Prognose offen";
+}
+/* ---------- Zustand: entsperren, laden, speichern ---------- */
+function useMed(cfg) {
+    const [st, setSt] = useState({ locked: true, items: {}, err: null, busy: false, pending: 0 });
+    const pinRef = useRef(null);
+    const lastAct = useRef(Date.now());
+    const queue = useRef([]);
+    const cfgRef = useRef(cfg);
+    useEffect(() => { cfgRef.current = cfg; }, [cfg]);
+    const rpc = (fn, body) => sbFetch(cfgRef.current, "rpc/" + fn, { method: "POST", body: JSON.stringify(body) });
+    const toMap = list => { const m = {}; (list || []).forEach(r => { m[r.id] = { kind: r.kind, data: r.data, at: r.updated_at, by: r.updated_by }; }); return m; };
+    const errOf = e => /PGRST202|PGRST205|med_list|med_put|could not find|HTTP 404/i.test(String((e && e.message) || e)) ? "setup" : "net";
+    const lock = useCallback(() => {
+        pinRef.current = null;
+        queue.current = [];
+        setSt({ locked: true, items: {}, err: null, busy: false, pending: 0 });
+    }, []);
+    const unlock = useCallback(async pin => {
+        if (!cfgRef.current) {
+            setSt(s => ({ ...s, err: "nocfg" }));
+            return false;
+        }
+        setSt(s => ({ ...s, busy: true, err: null }));
+        try {
+            const r = await rpc("med_list", { p_team: cfgRef.current.team, p_pin: pin });
+            if (!r || !r.ok) {
+                setSt(s => ({ ...s, busy: false, err: (r && r.error) || "pin" }));
+                return false;
+            }
+            pinRef.current = pin;
+            lastAct.current = Date.now();
+            setSt({ locked: false, items: toMap(r.items), err: null, busy: false, pending: 0 });
+            return true;
+        }
+        catch (e) {
+            setSt(s => ({ ...s, busy: false, err: errOf(e) }));
+            return false;
+        }
+    }, []);
+    const refresh = useCallback(async () => {
+        if (!pinRef.current || !cfgRef.current || queue.current.length)
+            return;
+        try {
+            const r = await rpc("med_list", { p_team: cfgRef.current.team, p_pin: pinRef.current });
+            if (r && r.ok)
+                setSt(s => ({ ...s, items: toMap(r.items) }));
+            else if (r && r.error === "pin")
+                lock();
+        }
+        catch (e) { }
+    }, [lock]);
+    const send = useCallback(async by => {
+        if (!queue.current.length || !pinRef.current)
+            return true;
+        const batch = queue.current.slice();
+        try {
+            const r = await rpc("med_put", { p_team: cfgRef.current.team, p_pin: pinRef.current, p_items: batch, p_by: by || null });
+            if (!r || !r.ok)
+                throw new Error((r && r.error) || "fehler");
+            queue.current = queue.current.slice(batch.length);
+            setSt(s => ({ ...s, pending: queue.current.length }));
+            return true;
+        }
+        catch (e) {
+            setSt(s => ({ ...s, pending: queue.current.length }));
+            return false;
+        }
+    }, []);
+    const put = useCallback((list, by) => {
+        lastAct.current = Date.now();
+        setSt(s => {
+            const items = { ...s.items };
+            list.forEach(x => { if (x.deleted)
+                delete items[x.id];
+            else
+                items[x.id] = { kind: x.kind, data: x.data, at: new Date().toISOString(), by }; });
+            return { ...s, items, pending: queue.current.length + list.length };
+        });
+        queue.current = [...queue.current, ...list];
+        return send(by);
+    }, [send]);
+    const setPin = useCallback(async (oldPin, newPin) => {
+        try {
+            const r = await rpc("med_set_pin", { p_team: cfgRef.current.team, p_old: oldPin, p_new: newPin });
+            if (r && r.ok) {
+                pinRef.current = newPin;
+                return "ok";
+            }
+            return (r && r.error) || "fehler";
+        }
+        catch (e) {
+            return errOf(e);
+        }
+    }, []);
+    const touch = useCallback(() => { lastAct.current = Date.now(); }, []);
+    // Automatisch sperren nach 20 Minuten ohne Bedienung; Daten jede Minute nachladen
+    useEffect(() => {
+        if (st.locked)
+            return;
+        const iv = setInterval(() => {
+            if (Date.now() - lastAct.current > 20 * 60 * 1000)
+                lock();
+            else if (document.visibilityState === "visible")
+                refresh();
+        }, 60 * 1000);
+        return () => clearInterval(iv);
+    }, [st.locked, lock, refresh]);
+    useEffect(() => { if (!cfg && !st.locked)
+        lock(); }, [cfg]);
+    return { ...st, unlock, lock, put, refresh, touch, setPin, retry: send };
+}
+/* ---------- Sperrbildschirm ---------- */
+function MedLock({ med, cfg, copyText }) {
+    const [code, setCode] = useState("");
+    const LEN = 6;
+    useEffect(() => {
+        if (code.length < LEN)
+            return;
+        med.unlock(code).then(ok => { if (!ok)
+            setTimeout(() => setCode(""), 500); });
+    }, [code]);
+    const tap = d => setCode(c => c.length >= LEN ? c : c + d);
+    const errText = {
+        pin: "Falsche PIN.",
+        locked: "Zu viele Fehlversuche. Der Zugang ist 15 Minuten gesperrt.",
+        nopin: "Für euer Team ist noch keine Medizin-PIN festgelegt.",
+        setup: "Der Medizin-Bereich ist in Supabase noch nicht eingerichtet.",
+        net: "Keine Verbindung zum Server. Bitte gleich noch einmal versuchen.",
+        nocfg: "Nur mit Team-Verbindung verfügbar.",
+    }[med.err];
+    if (!cfg)
+        return oh("div", { className: "card med-lock" },
+            oh("h3", null, "Medizin"),
+            oh("p", { className: "med-p" }, "Akten liegen nur auf dem Team-Server. Öffne die App über den Team-Link (mit # in der Adresse), dann ist der Bereich verfügbar."));
+    const setupSql = medSetupSql(cfg.team);
+    return oh("div", { className: "med-lock" },
+        oh("div", { className: "med-lockhead" },
+            oh("span", { className: "med-cross", "aria-hidden": "true" }, oh(Icon, { d: I.cross || I.plus, size: 22 })),
+            oh("h3", null, "Medizin-Bereich"),
+            oh("p", { className: "med-p" }, "Diagnosen und Befunde. Eigene Medizin-PIN, geprüft auf dem Server.")),
+        oh("div", { className: "pindots" + (med.err === "pin" ? " err" : ""), style: { margin: "18px 0 20px" } }, Array.from({ length: LEN }, (_, i) => oh("i", { key: i, className: code.length > i ? "on" : "" }))),
+        errText && oh("p", { className: "med-err" }, errText),
+        (med.err === "setup" || med.err === "nopin") && oh("div", { className: "card", style: { margin: "0 0 16px" } },
+            oh("p", { className: "med-p", style: { marginTop: 0 } }, "Einmalig im SQL-Editor von Supabase ausführen. In der letzten Zeile vorher DEINE-PIN durch eine 6- bis 12-stellige Zahl ersetzen:"),
+            oh("div", { className: "og-sql", style: { maxHeight: 180, overflow: "auto" } }, setupSql),
+            oh("button", { className: "btn sm", style: { marginTop: 10 }, onClick: () => copyText(setupSql, "SQL kopiert – in Supabase einfügen, PIN ersetzen, ausführen.") }, oh(Icon, { d: I.copy, size: 15 }), " SQL kopieren")),
+        oh("div", { className: "numpad", "aria-busy": med.busy },
+            [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => oh("button", { key: n, onClick: () => tap(String(n)), disabled: med.busy }, n)),
+            oh("button", { style: { opacity: 0 }, disabled: true, "aria-hidden": "true" }),
+            oh("button", { onClick: () => tap("0"), disabled: med.busy }, "0"),
+            oh("button", { onClick: () => setCode(c => c.slice(0, -1)), "aria-label": "Löschen" }, oh(Icon, { d: I.back, size: 20 }))));
+}
+/* ---------- Phasen-Anzeige ---------- */
+function PhaseBar({ v }) {
+    const n = Number(v) || 1;
+    const col = n >= 6 ? "var(--good)" : n >= 5 ? "var(--warn)" : n >= 3 ? "var(--serious)" : "var(--crit)";
+    return oh("span", { className: "med-phase", title: medPhase(n).l },
+        oh("span", { className: "med-bar" }, MED_PHASES.map(p => oh("i", { key: p.v, style: { background: p.v <= n ? col : undefined } }))),
+        oh("span", { className: "med-phs" }, medPhase(n).s));
+}
+/* ---------- Fall bearbeiten ---------- */
+function MedCaseForm({ c, player, me, pname, onSave, onDelete, onCancel }) {
+    const [f, setF] = useState(() => ({ status: "open", phase: 1, side: "", mech: "", notes: [], ...c }));
+    const [note, setNote] = useState("");
+    const [armed, setArmed] = useState(false);
+    const set = (k, v) => setF(x => ({ ...x, [k]: v }));
+    const lab = t => oh("span", { className: "eyebrow" }, t);
+    const fld = (t, el, wide) => oh("label", { className: "med-fld" + (wide ? " med-wide" : "") }, lab(t), el);
+    const inp = (k, ph, type) => oh("input", { id: "mc-" + k, className: "sel og-in", type: type || "text", placeholder: ph || "", value: f[k] || "", onChange: e => set(k, e.target.value) });
+    const ta = (k, ph) => oh("textarea", { id: "mc-" + k, className: "sel og-in", rows: 2, placeholder: ph || "", value: f[k] || "", onChange: e => set(k, e.target.value) });
+    const addNote = () => {
+        const t = note.trim();
+        if (!t)
+            return;
+        set("notes", [...(f.notes || []), { d: localIso(), t, by: me || null }]);
+        setNote("");
+    };
+    const save = extra => {
+        let out = { ...f, ...(extra || {}) };
+        const t = note.trim();
+        if (t)
+            out.notes = [...(out.notes || []), { d: localIso(), t, by: me || null }];
+        onSave(out);
+    };
+    return oh("div", { className: "med-form" },
+        oh("div", { className: "med-grid" },
+            fld("Seit", inp("opened", "", "date")),
+            fld("Region", oh("select", { id: "mc-region", className: "sel og-in", value: f.region || "", onChange: e => set("region", e.target.value) },
+                oh("option", { value: "" }, "Bitte wählen"), (f.region && !MED_REGIONS.includes(f.region) ? [f.region, ...MED_REGIONS] : MED_REGIONS).map(r => oh("option", { key: r, value: r }, r)))),
+            fld("Seite", oh("select", { id: "mc-side", className: "sel og-in", value: f.side || "", onChange: e => set("side", e.target.value) },
+                MED_SIDES.map(r => oh("option", { key: r, value: r }, r || "–")))),
+            fld("Entstanden", oh("select", { id: "mc-mech", className: "sel og-in", value: f.mech || "", onChange: e => set("mech", e.target.value) },
+                MED_MECH.map(r => oh("option", { key: r, value: r }, r || "–")))),
+            fld("Diagnose", ta("diagnosis", "z. B. Muskelfaserriss M. biceps femoris, Grad II"), true),
+            fld("Bildgebung / Befunde", ta("imaging", "MRT, Ultraschall, Röntgen – Datum und Ergebnis"), true),
+            fld("Behandlung / Behandler", inp("treater", "z. B. Physio Knospe 2× pro Woche")),
+            fld("Medikation", inp("meds", "")),
+            oh("div", { className: "med-fld med-wide" }, lab("Reha-Phase"),
+                oh("div", { className: "med-phases" }, MED_PHASES.map(p => oh("button", { key: p.v, type: "button", "aria-pressed": Number(f.phase) === p.v, onClick: () => set("phase", p.v) },
+                    oh("b", null, p.v), oh("span", null, p.s))))),
+            fld("Training ab (Prognose)", inp("returnTraining", "", "date")),
+            fld("Spielfähig ab (Prognose)", inp("returnMatch", "", "date")),
+            fld("Erlaubt", inp("allowed", "z. B. Laufen, Rad, Oberkörper")),
+            fld("Nicht erlaubt", inp("notAllowed", "z. B. Sprints, Zweikämpfe, Schüsse")),
+            fld("Nächster Termin", inp("nextDate", "", "date")),
+            fld("Termin wofür", inp("nextWhat", "z. B. Kontroll-MRT"))),
+        oh("div", { className: "med-fld med-wide" }, lab("Verlauf"),
+            (f.notes || []).length ? oh("div", { className: "med-notes" }, f.notes.slice().reverse().map((n, i) => oh("div", { key: i, className: "med-note" },
+                oh("span", { className: "og-mono" }, fmtDate(n.d)), oh("span", { style: { flex: 1, minWidth: 0 } }, n.t), n.by && oh("span", { className: "med-by" }, pname(n.by)))))
+                : oh("div", { className: "og-empty" }, "Noch keine Einträge."),
+            oh("div", { className: "med-addnote" },
+                oh("textarea", { id: "mc-note", className: "sel og-in", rows: 2, placeholder: "Neuer Eintrag, z. B. Befund, Fortschritt, Absprache", value: note, onChange: e => setNote(e.target.value) }),
+                oh("button", { type: "button", className: "btn sm ghost", onClick: addNote }, "Hinzufügen"))),
+        oh("div", { className: "med-actions" },
+            c.id && oh("button", { type: "button", className: "btn sm ghost", style: { color: "var(--crit)" }, onClick: () => armed ? onDelete(f) : setArmed(true) }, armed ? "Wirklich löschen?" : "Löschen"),
+            c.id && medIsOpen(f) && oh("button", { type: "button", className: "btn sm ghost", onClick: () => save({ status: "closed", closed: localIso(), phase: 6 }) }, "Fall abschließen"),
+            c.id && !medIsOpen(f) && oh("button", { type: "button", className: "btn sm ghost", onClick: () => save({ status: "open", closed: "" }) }, "Wieder öffnen"),
+            oh("div", { style: { flex: 1 } }),
+            oh("button", { type: "button", className: "btn sm ghost", onClick: onCancel }, "Abbrechen"),
+            oh("button", { type: "button", className: "btn sm", onClick: () => save() }, "Speichern")));
+}
+/* ---------- Akte eines Spielers ---------- */
+function MedFile({ player, cases, entries, me, pname, prefill, onSaveCase, onDeleteCase, onClose }) {
+    const [edit, setEdit] = useState(() => prefill ? { pid: player.id, opened: localIso(), phase: 1, ...prefill } : null);
+    const mine = cases.filter(c => c.pid === player.id).sort((a, b) => (medIsOpen(b) - medIsOpen(a)) || String(b.opened || "").localeCompare(String(a.opened || "")));
+    const since = addDays(localIso(), -60);
+    const reports = (entries || []).filter(e => e.playerId === player.id && e.date >= since && (isInjured(e) || (e.pains || []).length))
+        .sort((a, b) => a.date < b.date ? 1 : -1).slice(0, 20);
+    const repLine = e => {
+        if (isInjured(e)) {
+            const j = e.injury || {};
+            return "Verletzt gemeldet: " + (j.region || "?") + (j.level ? " (" + PAIN_LVL[j.level] + ")" : "") + " · " + labelOf(INJ_ACTIVITY, j.activity);
+        }
+        return "Beschwerden: " + e.pains.map(p => (p.region || "?") + (p.level ? " " + PAIN_LVL[p.level] : "")).join(", ");
+    };
+    const save = c => { onSaveCase({ ...c, pid: player.id }); setEdit(null); };
+    return oh("div", { className: "ov", onClick: onClose },
+        oh("div", { className: "sheet mx-sheet", onClick: e => e.stopPropagation() },
+            oh("div", { className: "mx-head" },
+                oh("div", { style: { flex: 1, minWidth: 0 } },
+                    oh("div", { className: "eyebrow" }, "Akte" + (player.nr ? " · Nr. " + player.nr : "") + (player.gk ? " · Torwart" : "")),
+                    oh("div", { className: "og-opp" }, pName(player))),
+                oh("button", { className: "icon-btn", onClick: onClose, "aria-label": "Schließen" }, oh(Icon, { d: I.x, size: 16 }))),
+            edit ? oh(MedCaseForm, { c: edit, player, me, pname, onSave: save, onDelete: c => { onDeleteCase(c); setEdit(null); }, onCancel: () => setEdit(null) })
+                : oh("div", { className: "mx-body" },
+                    oh("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 } },
+                        oh("div", { className: "eyebrow" }, mine.length ? mine.length + (mine.length === 1 ? " Fall" : " Fälle") : "Keine Fälle"),
+                        oh("button", { className: "btn sm", onClick: () => setEdit({ pid: player.id, opened: localIso(), phase: 1 }) }, oh(Icon, { d: I.plus, size: 15 }), " Neuer Fall")),
+                    mine.map(c => oh("button", { key: c.id, className: "med-case" + (medIsOpen(c) ? "" : " med-closed"), onClick: () => setEdit(c) },
+                        oh("div", { className: "med-casetop" },
+                            oh("span", { className: "med-where" }, medWhere(c)),
+                            medIsOpen(c) ? oh(PhaseBar, { v: c.phase }) : oh("span", { className: "pill" }, "abgeschlossen " + (c.closed ? fmtDate(c.closed) : ""))),
+                        c.diagnosis && oh("div", { className: "med-diag" }, c.diagnosis),
+                        oh("div", { className: "med-sub" }, "seit " + (c.opened ? fmtDate(c.opened) : "–") + (medIsOpen(c) ? " · " + medPrognose(c) : "") + (c.mech ? " · " + c.mech : "")))),
+                    oh("div", { className: "eyebrow", style: { marginTop: 6 } }, "Selbstmeldungen des Spielers (60 Tage)"),
+                    reports.length ? oh("div", { className: "med-notes" }, reports.map(e => oh("div", { key: e.id, className: "med-note" },
+                        oh("span", { className: "og-mono" }, fmtDate(e.date)), oh("span", { style: { flex: 1, minWidth: 0 } }, repLine(e)))))
+                        : oh("div", { className: "og-empty" }, "Keine Beschwerden gemeldet."))));
+}
+/* ---------- Hauptbereich ---------- */
+function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, copyText }) {
+    const today = localIso();
+    const [view, setView] = useState(() => store.get("med.view", "briefing"));
+    useEffect(() => { store.set("med.view", view); }, [view]);
+    const [me, setMe] = useState(() => store.get("med.me", ""));
+    useEffect(() => { store.set("med.me", me); }, [me]);
+    const [file, setFile] = useState(null);
+    const [lines, setLines] = useState({});
+    const [general, setGeneral] = useState("");
+    const [loadedCall, setLoadedCall] = useState(null);
+    const [showPast, setShowPast] = useState(null);
+    const [pinForm, setPinForm] = useState(null);
+    const [q, setQ] = useState("");
+    if (med.locked)
+        return oh(MedLock, { med, cfg, copyText });
+    const all = Object.entries(med.items);
+    const cases = all.filter(([, v]) => v.kind === "case").map(([k, v]) => ({ ...v.data, id: k }));
+    const calls = all.filter(([, v]) => v.kind === "call").map(([k, v]) => ({ ...v.data, id: k })).sort((a, b) => a.date < b.date ? 1 : -1);
+    const sq = sortSquad(squad || []);
+    const byPid = Object.fromEntries(sq.map(p => [p.id, p]));
+    const pname = id => { const p = (persons || []).find(x => x.id === id); return p ? (p.name || p.role) : (id || ""); };
+    const mByPid = Object.fromEntries((metrics || []).map(m => [m.player.id, m]));
+    const openCases = cases.filter(medIsOpen);
+    const todayCall = calls.find(c => c.date === today);
+    const lastCall = calls.find(c => c.date < today);
+    const snap = (lastCall && lastCall.snapshot) || {};
+    if (loadedCall !== (todayCall ? todayCall.id + (todayCall.savedAt || "") : "none")) {
+        setLoadedCall(todayCall ? todayCall.id + (todayCall.savedAt || "") : "none");
+        setLines(todayCall ? { ...(todayCall.lines || {}) } : {});
+        setGeneral(todayCall ? todayCall.general || "" : "");
+    }
+    const nextFx = (fixtures || []).filter(f => f.date >= today).sort((a, b) => a.date < b.date ? -1 : 1)[0];
+    const fxDate = nextFx ? nextFx.date : addDays(today, 7);
+    const change = c => {
+        const s = snap[c.id];
+        if (!lastCall)
+            return null;
+        if (!s)
+            return { t: "NEU", tone: "var(--s1)" };
+        if (Number(c.phase) > Number(s.phase))
+            return { t: "Phase ↑", tone: "var(--good)" };
+        if (Number(c.phase) < Number(s.phase))
+            return { t: "Phase ↓", tone: "var(--crit)" };
+        if ((c.returnMatch || "") !== (s.returnMatch || ""))
+            return s.returnMatch && c.returnMatch && c.returnMatch < s.returnMatch ? { t: "Prognose früher", tone: "var(--good)" } : { t: "Prognose verschoben", tone: "var(--warn)" };
+        return null;
+    };
+    const saveCase = c => {
+        const id = c.id || "case:" + Date.now().toString(36);
+        const data = { ...c };
+        delete data.id;
+        med.put([{ id, kind: "case", data }], me).then(ok => toast(ok ? "Akte gespeichert." : "Nicht gespeichert – keine Verbindung. Wird erneut versucht."));
+    };
+    const deleteCase = c => { med.put([{ id: c.id, kind: "case", data: {}, deleted: true }], me).then(() => toast("Fall gelöscht.")); };
+    const curSnap = () => Object.fromEntries(cases.map(c => [c.id, { phase: c.phase, returnMatch: c.returnMatch || "", status: c.status || "open" }]));
+    const saveCall = () => {
+        const clean = Object.fromEntries(Object.entries(lines).filter(([, v]) => v && v.trim()));
+        med.put([{ id: "call:" + today, kind: "call", data: { date: today, lines: clean, general: general.trim(), snapshot: curSnap(), by: me || null, savedAt: Date.now() } }], me)
+            .then(ok => toast(ok ? "Protokoll gespeichert." : "Nicht gespeichert – keine Verbindung."));
+    };
+    /* Gruppen fürs Briefing */
+    const rowFor = c => ({ c, p: byPid[c.pid], st: medStatusFor(c, fxDate), ch: change(c) });
+    const openRows = openCases.filter(c => byPid[c.pid]).map(rowFor);
+    const out = openRows.filter(r => r.st && r.st.key === "out");
+    const doubt = openRows.filter(r => r.st && r.st.key === "doubt");
+    const fitOpen = openRows.filter(r => !r.st);
+    const backSince = lastCall ? lastCall.date : addDays(today, -7);
+    const closedRecent = cases.filter(c => !medIsOpen(c) && c.closed && c.closed >= backSince && byPid[c.pid]).map(c => ({ c, p: byPid[c.pid], ch: null }));
+    const withCase = new Set(openCases.map(c => c.pid));
+    const observe = sq.filter(p => !withCase.has(p.id)).map(p => {
+        const m = mByPid[p.id];
+        if (!m)
+            return null;
+        const k = m.status && m.status.key;
+        if (k === "injured")
+            return { p, why: (m.status.reasons || [])[0], tone: "var(--crit)", prefill: { region: (m.injury && m.injury.injury || {}).region || "" } };
+        if (m.worstPain && m.worstPain.level >= 2)
+            return { p, why: "Schmerz " + (m.worstPain.region || "") + " " + PAIN_LVL[m.worstPain.level] + " · an " + m.painDays + " Tag" + (m.painDays === 1 ? "" : "en"), tone: "var(--warn)", prefill: { region: m.worstPain.region || "" } };
+        if (k === "red")
+            return { p, why: "Ampel rot: " + ((m.status.reasons || [])[0] || ""), tone: "var(--crit)" };
+        if (k === "ill")
+            return { p, why: (m.status.reasons || [])[0], tone: "var(--serious)" };
+        return null;
+    }).filter(Boolean);
+    const lineInput = pid => oh("input", { id: "ml-" + pid, className: "sel og-in med-line", placeholder: "Beschluss, z. B. Do Belastungstest, dann Entscheidung",
+        value: lines[pid] || "", onChange: e => setLines(l => ({ ...l, [pid]: e.target.value })) });
+    const caseRow = r => oh("div", { key: r.c.id, className: "med-row" },
+        oh("button", { className: "med-rowmain", onClick: () => setFile({ p: r.p }) },
+            oh("div", { className: "med-rowtop" },
+                oh("span", { className: "mx-pn" }, pName(r.p)),
+                r.ch && oh("span", { className: "med-chg", style: { color: r.ch.tone, borderColor: r.ch.tone } }, r.ch.t),
+                oh("span", { style: { flex: 1 } }),
+                oh(PhaseBar, { v: r.c.phase })),
+            oh("div", { className: "med-sub" }, medWhere(r.c) + (r.c.diagnosis ? " · " + r.c.diagnosis : "")),
+            oh("div", { className: "med-sub" }, medPrognose(r.c) + (r.c.nextDate ? " · Termin " + fmtDate(r.c.nextDate) + (r.c.nextWhat ? " " + r.c.nextWhat : "") : "")),
+            (r.c.allowed || r.c.notAllowed) && oh("div", { className: "med-free" },
+                r.c.allowed && oh("span", { style: { color: "var(--good)" } }, "✓ " + r.c.allowed),
+                r.c.notAllowed && oh("span", { style: { color: "var(--crit)" } }, "✕ " + r.c.notAllowed))),
+        lineInput(r.p.id));
+    const group = (title, list, tone, render) => list.length > 0 && oh("section", { className: "med-group" },
+        oh("div", { className: "eyebrow", style: { color: tone } }, title + " (" + list.length + ")"),
+        list.map(render || caseRow));
+    const briefText = () => {
+        const L = ["*Medizin-Briefing " + DAY_SHORT[dow(today)] + " " + fmtDate(today) + "*" + (nextFx ? " · nächstes Spiel " + DAY_SHORT[dow(nextFx.date)] + " " + fmtDate(nextFx.date) + " " + (nextFx.home ? "vs. " : "bei ") + nextFx.opp : "")];
+        const add = (t, list) => { if (!list.length)
+            return; L.push("", t); list.forEach(r => L.push("• " + pName(r.p) + " – " + medPhase(r.c.phase).s + ", " + medPrognose(r.c) + (lines[r.p.id] ? " → " + lines[r.p.id] : ""))); };
+        add("Fällt aus:", out);
+        add("Fraglich:", doubt);
+        if (closedRecent.length || fitOpen.length) {
+            L.push("", "Zurück:");
+            [...fitOpen, ...closedRecent].forEach(r => L.push("• " + pName(r.p) + (lines[r.p.id] ? " → " + lines[r.p.id] : "")));
+        }
+        const obs = observe.filter(o => lines[o.p.id]);
+        if (obs.length) {
+            L.push("", "Beobachten:");
+            obs.forEach(o => L.push("• " + pName(o.p) + " → " + lines[o.p.id]));
+        }
+        if (general.trim())
+            L.push("", general.trim());
+        return L.join("\n");
+    };
+    const renderBriefing = () => oh(React.Fragment, null,
+        oh("div", { className: "card med-head" },
+            oh("div", { style: { flex: "1 1 240px", minWidth: 0 } },
+                oh("div", { className: "eyebrow" }, "Medizin-Briefing · " + ORGA_DAYS_LONG[odx(today)] + ", " + fmtDate(today)),
+                oh("div", { className: "og-opp", style: { marginTop: 2 } }, out.length + " fallen aus · " + doubt.length + " fraglich"),
+                oh("div", { className: "med-sub" }, (nextFx ? "Nächstes Spiel: " + DAY_SHORT[dow(nextFx.date)] + " " + fmtDate(nextFx.date) + " " + (nextFx.home ? "vs. " : "bei ") + nextFx.opp : "Kein Spiel angesetzt")
+                    + (lastCall ? " · Änderungen seit " + fmtDate(lastCall.date) : " · erster Call – Änderungen ab dem nächsten"))),
+            todayCall && oh("span", { className: "pill", style: { color: "var(--good)" } }, "Protokoll gespeichert")),
+        !openRows.length && !observe.length && !closedRecent.length && oh("div", { className: "card" },
+            oh("h3", null, "Keine offenen Fälle"),
+            oh("p", { className: "med-p" }, "Fälle legst du unter „Akten“ pro Spieler an. Spieler, die selbst Beschwerden melden, erscheinen hier automatisch unter „Beobachten“.")),
+        group("Fällt aus", out, "var(--crit)"),
+        group("Fraglich fürs nächste Spiel", doubt, "var(--warn)"),
+        group("Beobachten – aus Spielermeldungen", observe, "var(--warn)", o => oh("div", { key: o.p.id, className: "med-row" },
+            oh("div", { className: "med-rowmain med-obs" },
+                oh("div", { className: "med-rowtop" }, oh("span", { className: "mx-pn" }, pName(o.p)), oh("span", { style: { flex: 1 } }),
+                    oh("button", { className: "linkbtn", onClick: () => setFile({ p: o.p, prefill: o.prefill || {} }) }, "Fall anlegen")),
+                oh("div", { className: "med-sub", style: { color: o.tone } }, o.why || "")),
+            lineInput(o.p.id))),
+        group("Zurück / voll belastbar", [...fitOpen, ...closedRecent], "var(--good)", r => oh("div", { key: r.c.id, className: "med-row" },
+            oh("button", { className: "med-rowmain", onClick: () => setFile({ p: r.p }) },
+                oh("div", { className: "med-rowtop" }, oh("span", { className: "mx-pn" }, pName(r.p)), oh("span", { style: { flex: 1 } }),
+                    oh("span", { className: "pill", style: { color: "var(--good)" } }, medIsOpen(r.c) ? "voll belastbar" : "abgeschlossen " + fmtDate(r.c.closed))),
+                oh("div", { className: "med-sub" }, medWhere(r.c) + (r.c.diagnosis ? " · " + r.c.diagnosis : ""))),
+            lineInput(r.p.id))),
+        oh("div", { className: "card", style: { marginTop: 12 } },
+            oh("div", { className: "eyebrow", style: { marginBottom: 6 } }, "Allgemein / Absprachen"),
+            oh("textarea", { id: "ml-general", className: "sel og-in", rows: 3, placeholder: "z. B. Physio-Zeiten Do ab 18 Uhr, MRT-Termine, Ausrüstung", value: general, onChange: e => setGeneral(e.target.value) }),
+            oh("div", { className: "med-actions", style: { marginTop: 12 } },
+                oh("button", { className: "btn sm ghost", onClick: () => copyText(briefText(), "Kurzfassung kopiert (ohne Diagnosen).") }, oh(Icon, { d: I.copy, size: 15 }), " Kurzfassung kopieren"),
+                oh("div", { style: { flex: 1 } }),
+                oh("button", { className: "btn sm", onClick: saveCall }, todayCall ? "Protokoll aktualisieren" : "Protokoll speichern"))),
+        calls.filter(c => c.date !== today).length > 0 && oh("div", { className: "card", style: { marginTop: 12 } },
+            oh("div", { className: "eyebrow", style: { marginBottom: 8 } }, "Frühere Calls"),
+            calls.filter(c => c.date !== today).slice(0, 12).map(c => oh("div", { key: c.id },
+                oh("button", { className: "og-tpl", style: { width: "100%" }, onClick: () => setShowPast(showPast === c.id ? null : c.id) },
+                    oh("span", { className: "og-mono og-when" }, DAY_SHORT[dow(c.date)] + " " + fmtDate(c.date)),
+                    oh("span", { style: { flex: 1, textAlign: "left" } }, Object.keys(c.lines || {}).length + " Beschlüsse" + (c.by ? " · " + pname(c.by) : ""))),
+                showPast === c.id && oh("div", { className: "med-notes", style: { margin: "6px 0 10px" } },
+                    Object.entries(c.lines || {}).map(([pid, t]) => oh("div", { key: pid, className: "med-note" }, oh("span", { className: "mx-pn", style: { minWidth: 110 } }, byPid[pid] ? pName(byPid[pid]) : "?"), oh("span", { style: { flex: 1, minWidth: 0 } }, t))),
+                    c.general && oh("div", { className: "med-note" }, oh("span", { style: { flex: 1 } }, c.general)))))));
+    const renderFiles = () => {
+        const list = sq.filter(p => !q || pName(p).toLowerCase().includes(q.toLowerCase()));
+        return oh(React.Fragment, null,
+            oh("div", { className: "filterrow" },
+                oh("input", { id: "med-q", className: "sel og-in", style: { maxWidth: 320, marginTop: 0 }, placeholder: "Spieler suchen", value: q, onChange: e => setQ(e.target.value) })),
+            oh("div", { className: "med-files" }, list.map(p => {
+                const mine = cases.filter(c => c.pid === p.id);
+                const open = mine.filter(medIsOpen).sort((a, b) => Number(a.phase) - Number(b.phase))[0];
+                return oh("button", { key: p.id, className: "med-filerow", onClick: () => setFile({ p }) },
+                    p.nr ? oh("span", { className: "mx-nr" }, p.nr) : null,
+                    oh("span", { className: "mx-pn", style: { flex: 1, minWidth: 0, textAlign: "left" } }, pName(p)),
+                    open ? oh(PhaseBar, { v: open.phase }) : oh("span", { className: "med-sub" }, mine.length ? mine.length + " abgeschl." : "–"),
+                    oh(Icon, { d: I.right || I.back, size: 16 }));
+            })));
+    };
+    return oh("div", { className: "med-area", onPointerDown: med.touch, onKeyDown: med.touch },
+        oh("div", { className: "filterrow med-top" },
+            oh("div", { className: "viewswitch" },
+                oh("button", { "aria-pressed": view === "briefing", onClick: () => setView("briefing") }, "Briefing"),
+                oh("button", { "aria-pressed": view === "akten", onClick: () => setView("akten") }, "Akten")),
+            oh("select", { id: "med-me", className: "sel", value: me, onChange: e => setMe(e.target.value), "aria-label": "Wer bist du?" },
+                oh("option", { value: "" }, "Ich bin …"), (persons || []).map(p => oh("option", { key: p.id, value: p.id }, p.name || p.role))),
+            oh("div", { style: { flex: 1 } }),
+            oh("button", { className: "togglechip", onClick: () => setPinForm({ o: "", n: "" }) }, "PIN ändern"),
+            oh("button", { className: "btn sm ghost", onClick: med.lock }, oh(Icon, { d: I.lock, size: 15 }), " Sperren")),
+        med.pending > 0 && oh("div", { className: "card med-warn" },
+            oh("span", { style: { flex: 1 } }, med.pending + (med.pending === 1 ? " Änderung" : " Änderungen") + " noch nicht gespeichert."),
+            oh("button", { className: "btn sm", onClick: () => med.retry(me) }, "Erneut senden")),
+        pinForm && oh("div", { className: "card med-pinform" },
+            oh("input", { id: "med-old", className: "sel og-in", type: "password", inputMode: "numeric", placeholder: "Aktuelle PIN", value: pinForm.o, onChange: e => setPinForm({ ...pinForm, o: e.target.value.replace(/\D/g, "") }) }),
+            oh("input", { id: "med-new", className: "sel og-in", type: "password", inputMode: "numeric", placeholder: "Neue PIN (6–12 Ziffern)", value: pinForm.n, onChange: e => setPinForm({ ...pinForm, n: e.target.value.replace(/\D/g, "") }) }),
+            oh("button", { className: "btn sm ghost", onClick: () => setPinForm(null) }, "Abbrechen"),
+            oh("button", { className: "btn sm", onClick: async () => {
+                    const r = await med.setPin(pinForm.o, pinForm.n);
+                    toast(r === "ok" ? "Medizin-PIN geändert – gilt sofort für alle." : r === "format" ? "Die neue PIN braucht 6 bis 12 Ziffern." : r === "locked" ? "Zu viele Fehlversuche, bitte 15 Minuten warten." : "Aktuelle PIN stimmt nicht.");
+                    if (r === "ok")
+                        setPinForm(null);
+                } }, "Ändern")),
+        view === "briefing" ? renderBriefing() : renderFiles(),
+        file && oh(MedFile, { key: file.p.id, player: file.p, prefill: file.prefill, cases, entries, me, pname, onSaveCase: saveCase, onDeleteCase: deleteCase, onClose: () => setFile(null) }));
+}
+/* ---------- „Mehr“-Tab (iOS: höchstens fünf Tabs) ---------- */
+const MORE_ICON = React.createElement(React.Fragment, null,
+    React.createElement("circle", { cx: "5", cy: "12", r: "1.6", fill: "currentColor", stroke: "none" }),
+    React.createElement("circle", { cx: "12", cy: "12", r: "1.6", fill: "currentColor", stroke: "none" }),
+    React.createElement("circle", { cx: "19", cy: "12", r: "1.6", fill: "currentColor", stroke: "none" }));
+function MoreView({ setTab }) {
+    const rows = [
+        ["input", I.edit2, "Spieler-Eingabe", "Rückmeldung für Spieler ohne Handy eintragen"],
+        ["report", I.file, "Wochenbericht", "Zusammenfassung für Trainerteam und Spieler"],
+    ];
+    return oh("div", { className: "card med-more" }, rows.map(([k, ic, t, d]) => oh("button", { key: k, className: "med-morerow", onClick: () => setTab(k) },
+        oh("span", { className: "med-moreic" }, oh(Icon, { d: ic, size: 18 })),
+        oh("span", { style: { flex: 1, minWidth: 0, textAlign: "left" } }, oh("span", { className: "mx-pn", style: { display: "block" } }, t), oh("span", { className: "med-sub" }, d)),
+        oh(Icon, { d: I.right || I.back, size: 16 }))));
+}
+function BackToMore({ setTab }) {
+    return oh("button", { className: "med-back", onClick: () => setTab("more") }, oh(Icon, { d: I.back, size: 18 }), "Mehr");
+}
+
 /* ---------- Vereinslogo mit SVG-Fallback ---------- */
 function ClubLogo({ size = 40 }) {
     const [failed, setFailed] = useState(false);
@@ -23000,6 +23595,19 @@ function App() {
     const [sync, setSync] = useState({ state: "off", msg: "", at: null, schema: null });
     const orgaOn = mode === "coach" || mode === "orga";
     const orga = useOrga(orgaOn ? cfg : null, orgaOn);
+    const med = useMed(mode === "coach" ? cfg : null);
+    useEffect(() => { if (mode !== "coach" && !med.locked)
+        med.lock(); }, [mode]);
+    const medCases = useMemo(() => {
+        const m = {};
+        Object.values(med.items).filter(v => v.kind === "case" && v.data && v.data.status !== "closed").forEach(v => {
+            const c = v.data;
+            if (!m[c.pid] || Number(c.phase) < Number(m[c.pid].phase))
+                m[c.pid] = c;
+        });
+        return med.locked ? null : m;
+    }, [med.items, med.locked]);
+    const orgaPersons = useMemo(() => Object.values(orga.items).filter(v => v.kind === "person" && !v._del).map(v => v.data).sort((a, b) => (a.order || 0) - (b.order || 0)), [orga.items]);
     const metaOk = useRef(false);
     const calendar = useMemo(() => [...sessions].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0), [sessions]);
     const toast = useCallback(t => { setMsg(t); setTimeout(() => setMsg(null), 2800); }, []);
@@ -23331,11 +23939,11 @@ function App() {
         toast("Alle Einheiten und Eingaben gelöscht.");
     };
     const COACH_TABS = [
-        { key: "input", label: "Eingabe", short: "Eingabe", icon: I.edit2 },
         { key: "dash", label: "Dashboard", short: "Dashboard", icon: I.chart },
         { key: "resp", label: "Rückmeldungen", short: "Meldungen", icon: I.users },
-        { key: "report", label: "Wochenbericht", short: "Bericht", icon: I.file },
+        { key: "med", label: "Medizin", short: "Medizin", icon: I.cross },
         { key: "orga", label: "Orga", short: "Orga", icon: I.check },
+        { key: "more", label: "Mehr", short: "Mehr", icon: MORE_ICON },
     ];
     const PLAYER_TABS = [
         { key: "input", label: "Einheit eintragen", short: "Eintragen", icon: I.edit2 },
@@ -23413,15 +24021,18 @@ function App() {
                             " SQL kopieren"),
                         React.createElement("button", { className: "btn sm ghost", onClick: () => { flush().then(pull); toast("Wird geprüft …"); } }, "Erneut pr\u00FCfen")),
                     React.createElement("p", { style: { margin: "10px 0 0", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.55 } }, "Bis dahin bleiben die Angaben auf diesem Ger\u00E4t erhalten \u2013 sie werden beim Abgleich nicht mehr \u00FCberschrieben."))))),
-        React.createElement("div", { className: "tabs", role: "tablist" }, TABS.map(t => (React.createElement("button", { key: t.key, role: "tab", "aria-selected": tab === t.key, onClick: () => setTab(t.key) },
+        React.createElement("div", { className: "tabs", role: "tablist" }, TABS.map(t => (React.createElement("button", { key: t.key, role: "tab", "aria-selected": tab === t.key || (t.key === "more" && !isPlayer && (tab === "input" || tab === "report")), onClick: () => setTab(t.key) },
             React.createElement(Icon, { d: t.icon, size: 17 }),
             React.createElement("span", { className: "lbl-long" }, t.label),
             React.createElement("span", { className: "lbl-short" }, t.short))))),
         isPlayer && React.createElement(PlayerArea, { squad: squad, calendar: calendar, entries: entries, today: today, metrics: metrics, submitted: submitted, onSave: saveEntry, toast: toast, sub: tab, setSub: setTab, meId: meId, setMeId: setMeId, connected: !!cfg }),
+        !isPlayer && (tab === "input" || tab === "report") && React.createElement(BackToMore, { setTab: setTab }),
+        !isPlayer && tab === "more" && React.createElement(MoreView, { setTab: setTab }),
+        !isPlayer && tab === "med" && React.createElement(MedArea, { med: med, cfg: cfg, squad: squad, entries: entries, metrics: metrics, fixtures: orgaFixtures, persons: orgaPersons, toast: toast, copyText: copyText }),
         !isPlayer && tab === "input" && React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: saveEntry, toast: toast, onManage: () => setPlanner(true) }),
         !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: entries, today: today, metrics: metrics, calendar: calendar, hist: hist, onOpenPlayer: setOpenPlayer, onDownload: download, onToast: toast }),
         !isPlayer && tab === "resp" && React.createElement(ResponsesView, { squad: squad, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: cfg ? cfgToLink(cfg) : "", onCopy: copyText, onDownload: download }),
-        !isPlayer && tab === "orga" && React.createElement(OrgaArea, { orga: orga, feedInfo: feed, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: false, coach: true, metrics: metrics, squad: squad, submitted: submitted, onOpenTab: setTab, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
+        !isPlayer && tab === "orga" && React.createElement(OrgaArea, { orga: orga, feedInfo: feed, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: false, coach: true, medCases: medCases, metrics: metrics, squad: squad, submitted: submitted, onOpenTab: setTab, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
         !isPlayer && tab === "report" && React.createElement(ReportView, { report: report, shortReport: shortReport, allReports: m => buildAllPlayerReports({ squad, entries, metrics, calendar, today, mode: m }), onCopy: copyReport, onDownload: (t, v) => { download(t, "bericht_KW" + isoWeek(today) + "_" + v + ".txt", "text/plain;charset=utf-8"); toast("Bericht gesichert."); } }),
         openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: entries, calendar: calendar, today: today, onCopy: copyText, onClose: () => setOpenPlayer(null) }),
         planner && React.createElement(SessionSheet, { sessions: sessions, entries: entries, today: today, onSave: saveSession, onDelete: deleteSession, onClose: () => setPlanner(false) }),
