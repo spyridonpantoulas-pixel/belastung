@@ -484,6 +484,60 @@ button:focus-visible,.og-name:focus-visible{outline:2px solid var(--s1);outline-
 .og-addp{border-style:dashed}
 
 .og-teamgrid > .card,.og-catgrid > .card,.og-top > .card{margin:0}
+
+/* ---------- Spiel-Ansicht ---------- */
+.mx-sheet{max-width:760px}
+.mx-head{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.mx-tabs{margin-bottom:14px;display:flex;width:100%}
+.mx-tabs button{flex:1}
+.mx-body{display:flex;flex-direction:column;gap:12px}
+.mx-field{display:flex;flex-direction:column;gap:2px}
+.mx-hist{display:flex;gap:6px;flex-wrap:wrap}
+.mx-links{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.mx-link{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--surface-2);border-radius:8px;padding:7px 10px;font-size:13.5px}
+.mx-link a{color:var(--s1);font-weight:600;overflow-wrap:anywhere}
+.mx-linkadd{display:grid;grid-template-columns:1fr 1.6fr auto;gap:8px;align-items:end;margin-top:6px}
+.mx-linkadd .og-in{margin-top:0}
+@media(max-width:560px){ .mx-linkadd{grid-template-columns:1fr} .mx-linkadd .btn{justify-self:start} }
+.mx-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media(max-width:480px){ .mx-sum{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.mx-sum .tile{padding:10px}
+.mx-sum .tile .lab{min-height:0}
+.mx-note{font-size:12.5px;color:var(--warn);font-weight:600}
+.mx-hint{font-size:12px;color:var(--muted);line-height:1.5}
+.mx-group{display:flex;flex-direction:column;gap:5px}
+.mx-prow{display:flex;gap:10px;align-items:center;padding:7px 9px;background:var(--surface-2);border-radius:9px}
+.mx-nr{width:22px;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--muted);flex:0 0 auto}
+.mx-pn{font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;flex-wrap:wrap;overflow-wrap:anywhere}
+.mx-sub{font-size:11.5px;color:var(--muted);line-height:1.4}
+.mx-sel{max-width:150px;font-size:12px;padding-top:6px;padding-bottom:6px}
+.og-avline{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;font-weight:650;margin-top:4px}
+.og-fxbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.og-fxbtns .togglechip{padding:5px 10px;font-size:12px}
+.mx-len{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:650}
+.mx-len .og-in{width:70px;margin-top:0}
+.mr-list{display:flex;flex-direction:column;gap:5px}
+.mr-row{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 9px}
+.mr-row.mr-S{border-left:3px solid var(--good)}
+.mr-row.mr-B{border-left:3px solid var(--s1)}
+.mr-row.mr-N{opacity:.75}
+.mr-top{display:flex;gap:8px;align-items:center}
+.mr-min{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2);min-width:30px;text-align:right}
+.mr-seg{padding:2px}
+.mr-seg button{padding:4px 9px;font-size:12px}
+.mr-det{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 2px 30px}
+.mr-num{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);font-weight:600}
+.mr-num .og-in{width:62px;margin-top:0;padding:6px 8px}
+.mr-goals{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:650}
+.mr-goals .icon-btn{width:28px;height:28px;border-radius:8px}
+.mr-cards{display:inline-flex;gap:5px}
+.mr-card{min-width:34px;height:28px;border-radius:6px;font-size:11.5px;font-weight:750;border:1px solid var(--line);background:var(--surface);color:var(--muted);padding:0 6px}
+.mr-y[aria-pressed="true"]{background:#f5c518;color:#1a1400;border-color:#f5c518}
+.mr-gr[aria-pressed="true"]{background:linear-gradient(135deg,#f5c518 50%,#d03b3b 50%);color:#fff;border-color:#d03b3b}
+.mr-r[aria-pressed="true"]{background:var(--crit);color:#fff;border-color:var(--crit)}
+@media(max-width:480px){ .mr-det{margin-left:0} .mr-seg button{padding:4px 7px} }
+
+.mr-bar{margin:0;position:sticky;top:-18px;z-index:2;background:var(--surface);padding:8px 0;border-bottom:1px solid var(--line-soft)}
 </style>
 </head>
 <body>
@@ -21325,15 +21379,15 @@ const ORGA_SEED = (() => {
         ["t09", "Material richten: Bälle, Leibchen, Hütchen, Minitore", "log", "betreuer", "tr", 0, "", ""],
         ["t10", "Abwesenheitsliste pflegen (Urlaub, Arbeit, Verletzte)", "kader", "spyro", "wd", 1, "", ""],
         ["t11", "Torwart-Trainingsplan der Woche", "sport", "tw", "wd", 1, "", "Mit Stefan abstimmen, wann die Torhüter ins Teamtraining gehen"],
-        ["t12", "Gegneranalyse: Videoszenen schneiden", "sport", "spyro", "md", -4, "", "Spielaufbau, Pressingauslöser, Standards des Gegners"],
+        ["t12", "Gegneranalyse: Videoszenen schneiden", "sport", "spyro", "md", -4, "", "Spielaufbau, Pressingauslöser, Standards des Gegners", { link: "gegner" }],
         ["t13", "Offene Verletzungen ärztlich abklären", "sport", "arzt", "md", -4, "", "Einsatzfähigkeit bis zum Abschlusstraining melden"],
         ["t14", "Infos an Vorstand: Bedarf, Budget, Termine", "intern", "tm", "wd", 2, "", ""],
         ["t15", "Anreise klären: Abfahrt, Fahrgemeinschaften, Treffpunkt", "log", "tm", "md", -3, "", "", { venue: "away" }],
         ["t16", "Mannschaftskasse: offene Strafen einsammeln", "kader", "tm", "wd", 3, "", ""],
         ["t17", "Fitnessstand pro Spieler an Trainerteam", "sport", "physio", "md", -2, "21:00", "Wer ist voll belastbar, wer eingeschränkt"],
         ["t18", "Standards einstudieren", "sport", "spyro", "lt", 0, "", "Ecken, Freistöße, Einwürfe – offensiv und defensiv"],
-        ["t19", "Gegneranalyse in der Mannschaftssitzung zeigen", "sport", "stefan", "lt", 0, "", "Höchstens 10 Minuten"],
-        ["t20", "Kader nominieren und in der Teamgruppe posten", "kader", "stefan", "lt", 0, "21:30", ""],
+        ["t19", "Gegneranalyse in der Mannschaftssitzung zeigen", "sport", "stefan", "lt", 0, "", "Höchstens 10 Minuten", { link: "gegner" }],
+        ["t20", "Kader nominieren und in der Teamgruppe posten", "kader", "stefan", "lt", 0, "21:30", "", { link: "kader" }],
         ["t21", "Funktionsteam-Check-in: Wer übernimmt was am Spieltag?", "intern", "spyro", "lt", 0, "", "5 Minuten nach dem Abschlusstraining"],
         ["t22", "Spielbericht im DFBnet vorbereiten, SR-Ansetzung prüfen", "log", "tm", "md", -2, "", ""],
         ["t23", "Leibchen und Bälle nach dem Training zählen", "log", "betreuer", "tr", 0, "", ""],
@@ -21348,6 +21402,7 @@ const ORGA_SEED = (() => {
         ["t32", "Torhüter-Aufwärmen", "sport", "tw", "md", 0, "", ""],
         ["t33", "RPE-Abfrage nach dem Spiel in die Gruppe", "sport", "spyro", "md", 0, "", "Für das Belastungs-Dashboard", { link: "resp" }],
         ["t34", "Wochenbericht ans Trainerteam schicken", "intern", "spyro", "wd", 0, "", "", { link: "report" }],
+        ["t36", "Spielbericht ausfüllen: Aufstellung, Wechsel, Tore, Karten", "sport", "tm", "md", 1, "20:00", "Grundlage für Spielminuten, Sperren und Ausgleichstraining", { link: "bericht" }],
         ["t35", "Teamabend zum Hinrundenabschluss planen", "kader", "tm", "wd", 3, "", "Termin, Ort, Kasse", { recurring: false, week: ORGA_SEED_FROM }],
     ];
     // Oberliga Hamburg 2026/27 – Stand 19.10.2026 (landkreis-fussball.de / fussball.de)
@@ -21371,7 +21426,7 @@ const ORGA_SEED = (() => {
         const id = "fx2627-" + String(f[0]).padStart(2, "0");
         items["fixture:" + id] = { kind: "fixture", data: { id, st: f[0], date: f[1], time: f[2], home: f[3], opp: f[4], res: f[5], comp: "Liga" } };
     });
-    items["settings:main"] = { kind: "settings", data: { trainingDays: [1, 3], defaultMatchDay: 5, migrations: ["p-robert"] } };
+    items["settings:main"] = { kind: "settings", data: { trainingDays: [1, 3], defaultMatchDay: 5, migrations: ["p-robert", "match-links"], yellowLimit: 5, grBan: 1 } };
     return items;
 })();
 const orgaApi = {
@@ -21668,7 +21723,7 @@ const whenLabel = t => t.anchor === "wd" ? ORGA_DAYS_LONG[t.off || 0]
             : (t.off === 0 ? "Spieltag" : "MD" + (t.off > 0 ? "+" : "") + t.off);
 const parseRes = r => { const m = String(r || "").match(/(\d+)\s*[:\-]\s*(\d+)/); return m ? [Number(m[1]), Number(m[2])] : null; };
 /* ---------- Bausteine ---------- */
-function OrgaTask({ inst, done, owner, multiFix, onToggle, onEdit, onLink, showDay, late, doneBy }) {
+function OrgaTask({ inst, done, owner, multiFix, onToggle, onEdit, onLink, onMatch, showDay, late, doneBy }) {
     const t = inst.task;
     const c = ORGA_CATS[t.cat] || ORGA_CATS.intern;
     return oh("div", { className: "og-task" + (done ? " og-done" : "") + (late ? " og-late" : ""), style: { "--cat": c.color } },
@@ -21684,7 +21739,8 @@ function OrgaTask({ inst, done, owner, multiFix, onToggle, onEdit, onLink, showD
                 multiFix && inst.fixture && oh("span", null, "vs. " + inst.fixture.opp),
                 t.recurring === false && oh("span", { className: "og-badge" }, "einmalig"),
                 done && doneBy && oh("span", { className: "og-by" }, "✓ " + doneBy),
-                onLink && t.link && oh("button", { className: "linkbtn", onClick: () => onLink(t.link) }, ORGA_LINKS[t.link] + " öffnen")),
+                MATCH_LINKS[t.link] && inst.fixture && onMatch && oh("button", { className: "linkbtn", onClick: () => onMatch(inst.fixture, t.link) }, MATCH_LINKS[t.link] + " öffnen"),
+                ORGA_LINKS[t.link] && onLink && oh("button", { className: "linkbtn", onClick: () => onLink(t.link) }, ORGA_LINKS[t.link] + " öffnen")),
             t.note && oh("div", { className: "og-note" }, t.note)));
 }
 function OrgaSchemaCard({ st, onCopy, onRetry }) {
@@ -21737,8 +21793,10 @@ function OrgaTaskSheet({ task, persons, coach, weekMon, onSave, onDelete, onClos
                 (anchor === "md" || anchor === "lt") && field("Bei welchen Spielen", oh("select", { id: "og-venue", className: "sel og-in", value: f.venue || "", onChange: e => set("venue", e.target.value) },
                     oh("option", { value: "" }, "Heim und auswärts"), oh("option", { value: "home" }, "Nur Heimspiele"), oh("option", { value: "away" }, "Nur Auswärtsspiele"))),
                 field("Notiz", oh("textarea", { id: "og-note", className: "sel og-in", rows: 2, value: f.note || "", onChange: e => set("note", e.target.value) })),
-                coach && field("Verknüpfung zur Belastungssteuerung", oh("select", { id: "og-link", className: "sel og-in", value: f.link || "", onChange: e => set("link", e.target.value) },
-                    oh("option", { value: "" }, "Keine"), Object.entries(ORGA_LINKS).map(([k, v]) => oh("option", { key: k, value: k }, v)))),
+                field("Verknüpfung", oh("select", { id: "og-link", className: "sel og-in", value: f.link || "", onChange: e => set("link", e.target.value) },
+                    oh("option", { value: "" }, "Keine"),
+                    oh("optgroup", { label: "Spiel (bei Spieltags-Aufgaben)" }, Object.entries(MATCH_LINKS).map(([k, v]) => oh("option", { key: k, value: k }, v))),
+                    coach && oh("optgroup", { label: "Belastungssteuerung" }, Object.entries(ORGA_LINKS).map(([k, v]) => oh("option", { key: k, value: k }, v))))),
                 oh("button", { className: "togglechip", "aria-pressed": f.recurring !== false, onClick: () => set("recurring", f.recurring === false) },
                     oh(Icon, { d: f.recurring !== false ? I.check : I.minus, size: 14 }), f.recurring !== false ? " Jede Woche wiederholen" : " Nur in der gewählten Woche")),
             oh("div", { style: { display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" } },
@@ -21843,6 +21901,9 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
     const [showPrev, setShowPrev] = useState(true);
     const [me, setMe] = useState(() => store.get("orga.me", ""));
     const [newP, setNewP] = useState({ name: "", role: "" });
+    const [matchId, setMatchId] = useState(null);
+    const [matchTab, setMatchTab] = useState("gegner");
+    const openMatch = (f, t) => { setMatchId(f.id); setMatchTab(t || (f.date <= today ? "bericht" : "kader")); };
     const [armedDel, setArmedDel] = useState(null);
     useEffect(() => { store.set("orga.me", me); }, [me]);
     const list = kind => Object.values(items).filter(v => v.kind === kind && !v._del).map(v => v.data);
@@ -21855,11 +21916,24 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
         if ((cfg && orga.st.state !== "ok" && orga.st.schema !== false) || !items["settings:main"])
             return;
         const mig = settings.migrations || [];
-        if (mig.includes("p-robert"))
-            return;
-        if (!items["person:robert"])
-            put("person:robert", "person", { id: "robert", role: "Videoanalyst", name: "Robert", order: 7 });
-        put("settings:main", "settings", { ...settings, migrations: [...mig, "p-robert"] });
+        const add = [];
+        if (!mig.includes("p-robert")) {
+            if (!items["person:robert"])
+                put("person:robert", "person", { id: "robert", role: "Videoanalyst", name: "Robert", order: 7 });
+            add.push("p-robert");
+        }
+        if (!mig.includes("match-links")) {
+            [["t12", "gegner"], ["t19", "gegner"], ["t20", "kader"]].forEach(([id, link]) => {
+                const t = items["task:" + id] && !items["task:" + id]._del ? items["task:" + id].data : null;
+                if (t && !t.link)
+                    put("task:" + id, "task", { ...t, link });
+            });
+            if (!items["task:t36"])
+                put("task:t36", "task", { ...ORGA_SEED["task:t36"].data, from: mondayOf(localIso()) });
+            add.push("match-links");
+        }
+        if (add.length)
+            put("settings:main", "settings", { ...settings, migrations: [...mig, ...add], yellowLimit: settings.yellowLimit || 5, grBan: settings.grBan || 1 });
     }, [orga.st.state, items]);
     const addPerson = () => {
         const name = newP.name.trim(), role = newP.role.trim();
@@ -21876,6 +21950,15 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
         if (who === p.id)
             setWho("all");
         toast((p.name || p.role) + " entfernt. Zugeteilte Aufgaben stehen jetzt auf „offen“.");
+    };
+    const eng = useMemo(() => cardEngine(fixtures, items, settings), [fixtures, items, settings]);
+    const mByPid = useMemo(() => coach && metrics ? Object.fromEntries(metrics.map(m => [m.player.id, m])) : null, [coach, metrics]);
+    const sq = squad || [];
+    const nextTrainingAfter = d => {
+        const cands = [];
+        [mondayOf(d), addDays(mondayOf(d), 7)].forEach(m => trainingDates(m, sessions, settings, fixtures).dates.forEach(x => { if (x > d)
+            cands.push(x); }));
+        return cands.sort()[0] || addDays(d, 1);
     };
     const isDone = key => !!(items[key] && !items[key]._del && items[key].data && items[key].data.done);
     const pname = id => { const p = persons.find(x => x.id === id); return p ? (p.name || p.role) : "offen"; };
@@ -21897,7 +21980,7 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
         const when = at ? ORGA_DAYS[(at.getDay() + 6) % 7] + " " + String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0") : "";
         return (d.by ? pname(d.by) + (when ? " · " : "") : "") + when;
     };
-    const taskEl = (x, extra = {}) => oh(OrgaTask, { key: x.key, inst: x, done: isDone(x.key), late: isLate(x), doneBy: doneBy(x), owner: pname(x.task.owner), multiFix: weekFx.length > 1, onToggle: () => toggle(x), onEdit: () => setEditTask(x.task), onLink, ...extra });
+    const taskEl = (x, extra = {}) => oh(OrgaTask, { key: x.key, inst: x, done: isDone(x.key), late: isLate(x), doneBy: doneBy(x), owner: pname(x.task.owner), multiFix: weekFx.length > 1, onToggle: () => toggle(x), onEdit: () => setEditTask(x.task), onLink, onMatch: openMatch, ...extra });
     const weekOf = m => weekInstances(m, tasks, fixtures, sessions, settings);
     const inst = useMemo(() => weekOf(mon), [mon, tasks, fixtures, sessions, settings]);
     const vis = inst.filter(i => (who === "all" || i.task.owner === who) && !(hideDone && isDone(i.key)));
@@ -21973,7 +22056,10 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
                 p.name || p.role, oh("span", { className: "og-n" + (late ? " og-n-late" : "") }, late ? late + "!" : open));
         }));
     const renderTrainingPrompt = tr => {
-        if (!onAddSessions || tr.planned || !tr.dates.length || mon < thisMon)
+        if (!onAddSessions || tr.planned || mon < thisMon)
+            return null;
+        tr = { ...tr, dates: tr.dates.filter(d => d >= today) };
+        if (!tr.dates.length)
             return null;
         return oh("div", { className: "card og-prompt" },
             oh("div", { style: { flex: "1 1 260px", minWidth: 0 } },
@@ -21981,6 +22067,26 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
                 oh("p", { style: { margin: "3px 0 0", fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55 } },
                     tr.dates.map(d => ORGA_DAYS[odx(d)] + " " + fmtDate(d)).join(" · ") + " – ohne Einheit können die Spieler kein RPE eintragen. Die geplante Intensität kommt aus dem MD-Plan.")),
             oh("button", { className: "btn sm", onClick: () => onAddSessions(trainingSessionsFor(tr.dates, fixtures)) }, "Als Einheiten anlegen"));
+    };
+    const renderComp = () => {
+        if (mon !== thisMon || !sq.length)
+            return null;
+        const last = fixtures.filter(f => f.date < today && f.date >= addDays(today, -6) && reportOf(items, f.id)).pop();
+        if (!last)
+            return null;
+        const comp = compensationFor(reportOf(items, last.id), sq, coach ? mByPid : null);
+        if (!comp.length)
+            return null;
+        const nt = nextTrainingAfter(last.date);
+        const has = sessions.some(x => x.id === "ag-" + last.id);
+        return oh("div", { className: "card og-prompt" },
+            oh("div", { style: { flex: "1 1 260px", minWidth: 0 } },
+                oh("h3", { style: { fontSize: 14.5 } }, "Ausgleichstraining nach " + (last.home ? "dem Heimspiel gegen " : "dem Spiel bei ") + last.opp),
+                oh("p", { style: { margin: "3px 0 0", fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55 } }, comp.map(c => pName(c.p) + " (" + c.why + ")").join(" · "))),
+            oh("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+                oh("button", { className: "btn sm ghost", onClick: () => copyText("Ausgleichstraining " + DAY_SHORT[dow(nt)] + " " + fmtDate(nt) + ": " + comp.map(c => pName(c.p)).join(", "), "Liste kopiert.") }, "Kopieren"),
+                coach && onAddSessions && !has && oh("button", { className: "btn sm", onClick: () => onAddSessions([{ id: "ag-" + last.id, date: nt, type: "Training", minutes: 60, planRpe: 7, label: "Ausgleichstraining" }]) }, "Einheit " + DAY_SHORT[dow(nt)] + " " + fmtDate(nt) + " anlegen"),
+                has && oh("span", { className: "pill", style: { color: "var(--good)" } }, "Einheit angelegt")));
     };
     const renderPrevOpen = () => {
         if (mon !== thisMon)
@@ -22018,7 +22124,17 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
                         oh("div", { style: { minWidth: 0 } },
                             oh("div", { className: "eyebrow" }, fixLine(f) + " · " + fixWhere(f)),
                             oh("div", { className: "og-opp" }, f.opp),
-                            oh("div", { style: { fontSize: 12.5, color: "var(--ink-2)" } }, ORGA_DAYS_LONG[odx(f.date)] + ", " + fmtDate(f.date) + (f.time ? " · " + f.time + " Uhr" : "") + (f.res ? " · Ergebnis " + f.res : ""))))) :
+                            oh("div", { style: { fontSize: 12.5, color: "var(--ink-2)" } }, ORGA_DAYS_LONG[odx(f.date)] + ", " + fmtDate(f.date) + (f.time ? " · " + f.time + " Uhr" : "") + (f.res ? " · Ergebnis " + f.res : "")),
+                            sq.length > 0 && f.date >= today && (() => {
+                                const av = availabilityFor(f, sq, reportOf(items, f.id), eng, mByPid, coach);
+                                const c = k => av.filter(x => x.key === k).length;
+                                return oh("div", { className: "og-avline" },
+                                    oh("span", { style: { color: "var(--good)" } }, c("ok") + " verfügbar"),
+                                    c("doubt") > 0 && oh("span", { style: { color: "var(--warn)" } }, c("doubt") + " fraglich"),
+                                    c("out") > 0 && oh("span", { style: { color: "var(--crit)" } }, c("out") + " fallen aus"),
+                                    c("susp") > 0 && oh("span", { style: { color: "var(--crit)" } }, c("susp") + " gesperrt"));
+                            })(),
+                            oh("div", { className: "og-fxbtns" }, MATCH_TABS.map(([k, l]) => oh("button", { key: k, className: "togglechip", onClick: () => openMatch(f, k) }, l)))))) :
                         oh("div", null, oh("div", { className: "eyebrow" }, "Kein Pflichtspiel"), oh("div", { className: "og-opp" }, "Spielfreie Woche"),
                             oh("div", { style: { fontSize: 12.5, color: "var(--muted)" } }, "Spieltags-Aufgaben entfallen. Spiel nachtragen im Tab Saison."))),
                 oh("div", { className: "card og-prog" },
@@ -22048,6 +22164,7 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
                 oh("button", { className: "btn sm ghost", onClick: () => setShare(true) }, "Wochenplan teilen"),
                 oh("button", { className: "btn sm", onClick: () => openNewTask() }, oh(Icon, { d: I.plus, size: 15 }), " Aufgabe")),
             renderTrainingPrompt(tr),
+            renderComp(),
             renderPrevOpen(),
             oh("div", { className: "og-days" }, ORGA_DAYS.map((d, i) => {
                 const date = addDays(mon, i);
@@ -22087,7 +22204,8 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
                 oh("div", { style: { flex: "1 1 220px", minWidth: 0 } },
                     oh("div", { className: "eyebrow" }, "Nächstes Spiel · " + fixLine(next) + " · " + fixWhere(next)),
                     oh("div", { className: "og-opp", style: { fontSize: 26, marginTop: 4 } }, next.opp),
-                    oh("div", { style: { fontSize: 13, color: "var(--ink-2)", marginTop: 2 } }, ORGA_DAYS_LONG[odx(next.date)] + ", " + fmtDate(next.date) + (next.time ? " · " + next.time + " Uhr" : ""))),
+                    oh("div", { style: { fontSize: 13, color: "var(--ink-2)", marginTop: 2 } }, ORGA_DAYS_LONG[odx(next.date)] + ", " + fmtDate(next.date) + (next.time ? " · " + next.time + " Uhr" : "")),
+                    oh("div", { className: "og-fxbtns" }, MATCH_TABS.map(([k, l]) => oh("button", { key: k, className: "togglechip", onClick: () => openMatch(next, k) }, l)))),
                 oh("div", null, oh("div", { className: "val" }, daysTo === 0 ? "Heute" : daysTo), daysTo !== 0 && oh("div", { className: "eyebrow" }, daysTo === 1 ? "Tag" : "Tage"))),
             oh("div", { className: "tiles four" },
                 oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Spiele gewertet"), oh("span", { className: "v" }, played.length), oh("span", { className: "d" }, "von " + fixtures.filter(f => f.comp === "Liga").length + " angesetzten")),
@@ -22096,7 +22214,7 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
                 oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Orga-Quote Saison"), oh("span", { className: "v" }, pct === null ? "–" : pct + " %"), oh("span", { className: "d" }, seasonStats.done + " von " + seasonStats.due + " fälligen Aufgaben"))),
             oh("div", { className: "card", style: { marginTop: 12 } },
                 oh("div", { className: "card-head" },
-                    oh("div", null, oh("h3", null, "Spielplan 2026/27"), oh("p", null, "Antippen öffnet die Woche. " + (feedInfo && feedInfo.updated
+                    oh("div", null, oh("h3", null, "Spielplan 2026/27"), oh("p", null, "Antippen öffnet Gegner, Kader und Spielbericht. " + (feedInfo && feedInfo.updated
                         ? "Automatischer Abgleich jeden Montag, zuletzt " + new Date(feedInfo.updated).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + " Uhr. Von Hand geänderte Spiele bleiben, wie ihr sie eingetragen habt."
                         : "Spieltag " + (lastSt + 1) + " ff. nachtragen, sobald der HFV ansetzt."))),
                     oh("div", { className: "spacer" }),
@@ -22109,7 +22227,7 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
                             const res = r ? (r[0] > r[1] ? "S" : r[0] === r[1] ? "U" : "N") : null;
                             const m = mondayOf(f.date);
                             const p = m <= thisMon ? wkPct(m) : null;
-                            return oh("tr", { key: f.id, className: "og-row" + (next && next.id === f.id ? " og-next" : ""), onClick: () => { setMon(m); setView("woche"); } },
+                            return oh("tr", { key: f.id, className: "og-row" + (next && next.id === f.id ? " og-next" : ""), onClick: () => openMatch(f) },
                                 oh("td", { className: "num" }, f.comp === "Liga" ? f.st : f.comp.slice(0, 1)),
                                 oh("td", null, DAY_SHORT[dow(f.date)] + " " + fmtDate(f.date)),
                                 oh("td", { className: "num" }, f.time || "–"),
@@ -22118,7 +22236,8 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
                                 oh("td", { className: "num" }, f.res ? oh("span", { className: "og-res og-res-" + res }, f.res) : "–"),
                                 oh("td", { className: "num" }, p === null ? "–" : p + " %"),
                                 oh("td", null, oh("button", { className: "linkbtn", onClick: e => { e.stopPropagation(); setEditFx(f); } }, "Bearbeiten")));
-                        }))))));
+                        }))))),
+            oh(SquadStats, { squad: sq, eng, nextFx: next }));
     };
     /* ---------- Aufgaben (Vorlagen nach Bereich) ---------- */
     const renderTasks = () => oh("div", { className: "og-catgrid" }, Object.entries(ORGA_CATS).map(([k, c]) => {
@@ -22172,6 +22291,15 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
                                 put("settings:main", "settings", { ...settings, trainingDays: td });
                             } }, d);
                     }))),
+                oh("div", { style: { display: "flex", gap: 12, flexWrap: "wrap" } },
+                    oh("label", { style: { display: "block", width: 200 } }, oh("span", { className: "eyebrow" }, "Gelbsperre nach … Gelben"),
+                        oh("input", { id: "og-ylim", className: "sel og-in", type: "number", min: 2, max: 15, defaultValue: settings.yellowLimit || 5,
+                            onBlur: e => { const v = Number(e.target.value); if (v >= 2 && v !== (settings.yellowLimit || 5))
+                                put("settings:main", "settings", { ...settings, yellowLimit: v }); } })),
+                    oh("label", { style: { display: "block", width: 200 } }, oh("span", { className: "eyebrow" }, "Sperre nach Gelb-Rot (Spiele)"),
+                        oh("input", { id: "og-grban", className: "sel og-in", type: "number", min: 1, max: 5, defaultValue: settings.grBan || 1,
+                            onBlur: e => { const v = Number(e.target.value); if (v >= 1 && v !== (settings.grBan || 1))
+                                put("settings:main", "settings", { ...settings, grBan: v }); } }))),
                 setOrgaPin && oh("label", { style: { display: "block", maxWidth: 220 } },
                     oh("span", { className: "eyebrow" }, "Orga-PIN auf diesem Gerät"),
                     oh("input", { id: "og-pin", className: "sel og-in", inputMode: "numeric", maxLength: 4, defaultValue: orgaPin,
@@ -22188,8 +22316,419 @@ function OrgaArea({ orga, feedInfo, cfg, sessions, toast, copyText, navBar, coac
         view === "aufgaben" && oh(React.Fragment, null, oh("div", { className: "filterrow" }, peopleChips), renderTasks()),
         view === "team" && renderTeam(),
         editTask && oh(OrgaTaskSheet, { task: editTask, persons, coach, weekMon: mon, onSave: saveTask, onDelete: deleteTask, onClose: () => setEditTask(null) }),
+        matchId && fixtures.find(f => f.id === matchId) && oh(MatchSheet, { key: matchId, fx: fixtures.find(f => f.id === matchId), tab: matchTab, setTab: setMatchTab, items, put, squad: sq, fixtures, eng, mByPid, coach, me, pname,
+            onWeek: () => { const f = fixtures.find(x => x.id === matchId); setMon(mondayOf(f.date)); setView("woche"); setMatchId(null); },
+            onAddSessions, nextTrainingAfter, toast, copyText, onClose: () => setMatchId(null) }),
         share && oh(OrgaShareSheet, { mon, inst, persons, weekFx, isDone, pname, initialWho: who, copyText, onClose: () => setShare(false) }),
         editFx && oh(OrgaFixtureSheet, { fx: editFx, onSave: saveFx, onDelete: deleteFx, onClose: () => setEditFx(null) }));
+}
+
+/* ============================================================
+   13) SPIEL – Gegnerprofil, Kader/Verfügbarkeit, Spielbericht
+   Daten in orga_items: report:<Spiel-ID>, opp:<Gegner>
+   ============================================================ */
+const MATCH_LINKS = { gegner: "Gegnerprofil", kader: "Kader & Verfügbarkeit", bericht: "Spielbericht" };
+const MATCH_TABS = [["gegner", "Gegner"], ["kader", "Kader"], ["bericht", "Spielbericht"]];
+const oppSlug = n => String(n || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "gegner";
+const pName = p => (typeof displayName === "function" ? displayName(p) : p.name) || p.name || "?";
+const sortSquad = sq => sq.slice().sort((a, b) => typeof byNr === "function" ? byNr(a, b) : String(a.name).localeCompare(String(b.name), "de"));
+const numOrNull = v => v === "" || v === null || v === undefined || isNaN(Number(v)) ? null : Number(v);
+// Einsatzminuten aus Startelf/Einwechslung
+function playMinutes(r, L) {
+    if (!r)
+        return 0;
+    const len = L || 90;
+    const out = numOrNull(r.out);
+    if (r.r === "S")
+        return Math.max(0, Math.min(len, out === null ? len : out));
+    if (r.r === "B") {
+        const inn = numOrNull(r.in);
+        if (inn === null)
+            return 0;
+        return Math.max(0, Math.min(len, out === null ? len : out) - inn);
+    }
+    return 0;
+}
+const OUT_WHY = [["sport", "Nicht nominiert"], ["verletzt", "Verletzt / krank"], ["abwesend", "Abwesend"], ["gesperrt", "Gesperrt"]];
+const AVAIL_WHY = ["Urlaub", "Arbeit", "Privat", "Krank", "Verletzt", "Sonstiges"];
+// Karten über die Saison: Gelbsperre nach jeder n-ten Gelben (HFV: 5.), Gelb-Rot und Rot
+// sperren für die nächsten Ligaspiele. Nur Ligaspiele zählen.
+function cardEngine(fixtures, items, settings) {
+    const thr = Math.max(2, Number(settings.yellowLimit) || 5);
+    const grBan = Math.max(1, Number(settings.grBan) || 1);
+    const league = fixtures.filter(f => (f.comp || "Liga") === "Liga").sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+    const yellows = {}, queue = {}, susp = {}, stats = {};
+    league.forEach(f => {
+        // erst absitzen …
+        Object.keys(queue).forEach(pid => {
+            if (!queue[pid].length)
+                return;
+            (susp[f.id] || (susp[f.id] = {}))[pid] = queue[pid].shift();
+        });
+        // … dann neue Karten aus diesem Spiel
+        const rep = items["report:" + f.id] && !items["report:" + f.id]._del ? items["report:" + f.id].data : null;
+        if (!rep || !rep.players)
+            return;
+        Object.entries(rep.players).forEach(([pid, r]) => {
+            const q = queue[pid] || (queue[pid] = []);
+            if (r.y) {
+                yellows[pid] = (yellows[pid] || 0) + 1;
+                if (yellows[pid] % thr === 0)
+                    q.push(yellows[pid] + ". Gelbe Karte");
+            }
+            if (r.gr)
+                for (let i = 0; i < grBan; i++)
+                    q.push("Gelb-Rot vs. " + f.opp);
+            if (r.rc) {
+                const n = Math.max(1, Number(r.ban) || 1);
+                for (let i = 0; i < n; i++)
+                    q.push("Rot vs. " + f.opp + (n > 1 ? " (" + (i + 1) + "/" + n + ")" : ""));
+            }
+        });
+    });
+    // Saisonstatistik (alle Wettbewerbe für Minuten/Tore, Karten nur Liga)
+    fixtures.forEach(f => {
+        const rep = items["report:" + f.id] && !items["report:" + f.id]._del ? items["report:" + f.id].data : null;
+        if (!rep || !rep.players)
+            return;
+        Object.entries(rep.players).forEach(([pid, r]) => {
+            const s = stats[pid] || (stats[pid] = { apps: 0, starts: 0, min: 0, goals: 0, y: 0, gr: 0, rc: 0, kader: 0 });
+            const m = playMinutes(r, rep.len);
+            if (r.r === "S" || r.r === "B")
+                s.kader++;
+            if (m > 0)
+                s.apps++;
+            if (r.r === "S")
+                s.starts++;
+            s.min += m;
+            s.goals += Number(r.g) || 0;
+            if ((f.comp || "Liga") === "Liga") {
+                if (r.y)
+                    s.y++;
+                if (r.gr)
+                    s.gr++;
+                if (r.rc)
+                    s.rc++;
+            }
+        });
+    });
+    const pending = {};
+    Object.entries(queue).forEach(([pid, q]) => { if (q.length)
+        pending[pid] = q.slice(); });
+    return { thr, yellows, susp, stats, pending };
+}
+// Verfügbarkeit für ein Spiel. Gesundheitsangaben (Verletzung, Ampel) nur im Trainerbereich.
+function availabilityFor(fx, squad, rep, eng, mByPid, coach) {
+    const avail = (rep && rep.avail) || {};
+    const sp = (eng.susp[fx.id]) || {};
+    const isFuture = fx.date >= localIso();
+    return sortSquad(squad).map(p => {
+        const man = avail[p.id] || null;
+        const y = eng.yellows[p.id] || 0;
+        const atRisk = (fx.comp || "Liga") === "Liga" && !sp[p.id] && y % eng.thr === eng.thr - 1;
+        const base = { p, man, atRisk, y };
+        if (sp[p.id])
+            return { ...base, key: "susp", label: "Gesperrt", note: sp[p.id] };
+        if (man && man.s === "out")
+            return { ...base, key: "out", label: "Fällt aus", note: man.n || "" };
+        if (coach && isFuture && mByPid) {
+            const m = mByPid[p.id];
+            const k = m && m.status && m.status.key;
+            if (k === "injured")
+                return { ...base, key: "out", label: "Verletzt", note: (m.status.reasons || [])[0] || "", health: true };
+            if (k === "ill")
+                return { ...base, key: "out", label: "Krank", note: (m.status.reasons || [])[0] || "", health: true };
+            if (k === "away")
+                return { ...base, key: "doubt", label: "Abgemeldet", note: (m.status.reasons || [])[0] || "", health: true };
+            if (man && man.s === "doubt")
+                return { ...base, key: "doubt", label: "Fraglich", note: man.n || "" };
+            if (k === "red")
+                return { ...base, key: "doubt", label: "Belastung senken", note: (m.status.reasons || [])[0] || "", health: true };
+            if (k === "amber")
+                return { ...base, key: "ok", label: "Beobachten", note: "", health: true, warn: true };
+        }
+        if (man && man.s === "doubt")
+            return { ...base, key: "doubt", label: "Fraglich", note: man.n || "" };
+        return { ...base, key: "ok", label: "Verfügbar", note: "" };
+    });
+}
+// Wer braucht nach einem Spiel ein Ausgleichstraining? Bank mit < 45 Min. und nicht Nominierte.
+function compensationFor(rep, squad, mByPid) {
+    if (!rep || !rep.players)
+        return [];
+    return sortSquad(squad).map(p => {
+        const r = rep.players[p.id];
+        if (!r)
+            return null;
+        const m = mByPid && mByPid[p.id];
+        if (m && m.status && (m.status.key === "injured" || m.status.key === "ill"))
+            return null;
+        const min = playMinutes(r, rep.len);
+        if (r.r === "B" && min < 45)
+            return { p, min, why: min ? min + " Min." : "nicht eingesetzt" };
+        if (r.r === "N" && r.why === "sport")
+            return { p, min: 0, why: "nicht im Kader" };
+        return null;
+    }).filter(Boolean);
+}
+const reportOf = (items, fid) => items["report:" + fid] && !items["report:" + fid]._del ? items["report:" + fid].data : null;
+/* ---------- Spiel-Ansicht ---------- */
+function MatchSheet(props) {
+    const { fx, tab, setTab, items, put, squad, fixtures, eng, mByPid, coach, me, pname, onWeek, onAddSessions, nextTrainingAfter, toast, copyText, onClose } = props;
+    const rep = reportOf(items, fx.id) || { id: fx.id, players: {}, avail: {}, len: 90 };
+    const r = parseRes(fx.res);
+    const resTone = r ? (r[0] > r[1] ? "S" : r[0] === r[1] ? "U" : "N") : null;
+    return oh("div", { className: "ov", onClick: onClose },
+        oh("div", { className: "sheet mx-sheet", onClick: e => e.stopPropagation() },
+            oh("div", { className: "mx-head" },
+                oh("span", { className: "og-ha " + (fx.home ? "og-home" : "og-away") }, fx.home ? "H" : "A"),
+                oh("div", { style: { flex: 1, minWidth: 0 } },
+                    oh("div", { className: "eyebrow" }, fixLine(fx) + " · " + fixWhere(fx) + " · " + DAY_SHORT[dow(fx.date)] + " " + fmtDate(fx.date) + (fx.time ? " " + fx.time : "")),
+                    oh("div", { className: "og-opp" }, fx.opp)),
+                fx.res && oh("span", { className: "og-res og-res-" + resTone, style: { fontSize: 15 } }, fx.res),
+                oh("button", { className: "icon-btn", onClick: onClose, "aria-label": "Schließen" }, oh(Icon, { d: I.x, size: 16 }))),
+            oh("div", { className: "viewswitch mx-tabs" },
+                MATCH_TABS.map(([k, l]) => oh("button", { key: k, "aria-pressed": tab === k, onClick: () => setTab(k) }, l)),
+            ),
+            tab === "gegner" && oh(OppProfile, { fx, items, put, fixtures, me, pname }),
+            tab === "kader" && oh(SquadAvail, { fx, rep, put, squad, eng, mByPid, coach, copyText }),
+            tab === "bericht" && oh(MatchReport, { fx, rep, put, squad, eng, mByPid, coach, toast, copyText, onAddSessions, nextTrainingAfter }),
+            oh("div", { style: { display: "flex", justifyContent: "flex-end", marginTop: 14 } },
+                oh("button", { className: "btn sm ghost", onClick: onWeek }, "Woche dieses Spiels öffnen"))));
+}
+function OppProfile({ fx, items, put, fixtures, me, pname }) {
+    const slug = oppSlug(fx.opp);
+    const key = "opp:" + slug;
+    const prof = (items[key] && !items[key]._del ? items[key].data : null) || { id: slug, name: fx.opp, links: [] };
+    const [lt, setLt] = useState("");
+    const [lu, setLu] = useState("");
+    const save = patch => put(key, "opp", { ...prof, ...patch, name: prof.name || fx.opp, updated: Date.now(), by: me || null });
+    const F = [
+        ["system", "Grundordnung", "z. B. 4-2-3-1, gegen den Ball 4-4-2"],
+        ["mitBall", "Mit Ball / Spielaufbau", "Wie bauen sie auf? Wohin spielen sie?"],
+        ["gegenBall", "Gegen den Ball / Pressing", "Pressinghöhe, Auslöser, Restverteidigung"],
+        ["standards", "Standards", "Ecken, Freistöße, Einwürfe – offensiv und defensiv"],
+        ["stark", "Stärken", ""],
+        ["schwach", "Schwächen / Ansatzpunkte", ""],
+        ["spieler", "Schlüsselspieler", "Nummer, Position, Besonderheit"],
+    ];
+    const hist = fixtures.filter(f => oppSlug(f.opp) === slug).sort((a, b) => a.date < b.date ? -1 : 1);
+    const links = prof.links || [];
+    const addLink = () => {
+        let u = lu.trim();
+        if (!u)
+            return;
+        if (!/^https?:\/\//i.test(u))
+            u = "https://" + u;
+        save({ links: [...links, { t: lt.trim() || u.replace(/^https?:\/\//, "").slice(0, 40), u }] });
+        setLt("");
+        setLu("");
+    };
+    return oh("div", { className: "mx-body" },
+        oh("div", { className: "mx-hist" },
+            hist.map(f => oh("span", { key: f.id, className: "pill", title: fmtDate(f.date) },
+                (f.home ? "H " : "A ") + fmtDate(f.date) + (f.res ? " · " + f.res : "")))),
+        F.map(([k, l, ph]) => oh("label", { key: k + "|" + (prof[k] || ""), className: "mx-field" },
+            oh("span", { className: "eyebrow" }, l),
+            oh("textarea", { id: "opp-" + k, className: "sel og-in", rows: k === "system" ? 1 : 2, placeholder: ph, defaultValue: prof[k] || "",
+                onBlur: e => { const v = e.target.value.trim(); if (v !== (prof[k] || ""))
+                    save({ [k]: v }); } }))),
+        oh("div", { className: "mx-field" },
+            oh("span", { className: "eyebrow" }, "Videos & Links"),
+            links.length ? oh("div", { className: "mx-links" }, links.map((x, i) => oh("div", { key: i, className: "mx-link" },
+                oh("a", { href: x.u, target: "_blank", rel: "noopener" }, x.t),
+                oh("button", { className: "linkbtn", onClick: () => save({ links: links.filter((_, j) => j !== i) }) }, "Entfernen"))))
+                : oh("div", { className: "og-empty" }, "Noch keine Links – z. B. Spielmitschnitt, Szenen-Playlist, Analyse-Dokument."),
+            oh("div", { className: "mx-linkadd" },
+                oh("input", { id: "opp-lt", className: "sel og-in", placeholder: "Titel", value: lt, onChange: e => setLt(e.target.value) }),
+                oh("input", { id: "opp-lu", className: "sel og-in", placeholder: "Link (YouTube, Drive, …)", value: lu, onChange: e => setLu(e.target.value), onKeyDown: e => { if (e.key === "Enter")
+                        addLink(); } }),
+                oh("button", { className: "btn sm", onClick: addLink }, "Hinzufügen"))),
+        prof.updated && oh("div", { style: { fontSize: 11.5, color: "var(--muted)" } },
+            "Zuletzt bearbeitet " + new Date(prof.updated).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + (prof.by ? " von " + pname(prof.by) : "")),
+        oh("div", { style: { fontSize: 11.5, color: "var(--muted)" } }, "Gilt für alle Spiele gegen " + fx.opp + " – beim Rückspiel liegt alles wieder bereit."));
+}
+function SquadAvail({ fx, rep, put, squad, eng, mByPid, coach, copyText }) {
+    if (!squad || !squad.length)
+        return oh("div", { className: "og-empty" }, "Kein Kader angelegt.");
+    const list = availabilityFor(fx, squad, rep, eng, mByPid, coach);
+    const by = k => list.filter(x => x.key === k);
+    const setMan = (pid, s, n) => {
+        const avail = { ...(rep.avail || {}) };
+        if (!s)
+            delete avail[pid];
+        else
+            avail[pid] = { s, n: n || "" };
+        put("report:" + fx.id, "report", { ...rep, id: fx.id, avail });
+    };
+    const groups = [["out", "Fällt aus", "var(--crit)"], ["susp", "Gesperrt", "var(--crit)"], ["doubt", "Fraglich", "var(--warn)"], ["ok", "Verfügbar", "var(--good)"]];
+    const risk = list.filter(x => x.atRisk);
+    const text = () => {
+        const n = x => pName(x.p);
+        const L = ["*Kader " + fixLine(fx) + " " + (fx.home ? "vs. " : "bei ") + fx.opp + "* (" + DAY_SHORT[dow(fx.date)] + " " + fmtDate(fx.date) + ")"];
+        L.push("✅ Verfügbar (" + by("ok").length + "): " + by("ok").map(n).join(", "));
+        if (by("doubt").length)
+            L.push("❔ Fraglich: " + by("doubt").map(n).join(", "));
+        if (by("out").length)
+            L.push("❌ Fällt aus: " + by("out").map(n).join(", "));
+        if (by("susp").length)
+            L.push("🟥 Gesperrt: " + by("susp").map(n).join(", "));
+        if (risk.length)
+            L.push("⚠️ Eine Gelbe vor der Sperre: " + risk.map(n).join(", "));
+        return L.join("\n");
+    };
+    return oh("div", { className: "mx-body" },
+        oh("div", { className: "mx-sum" }, groups.map(([k, l, c]) => oh("div", { key: k, className: "tile" },
+            oh("span", { className: "lab" }, l), oh("span", { className: "v", style: { color: by(k).length && k !== "ok" ? c : undefined } }, by(k).length)))),
+        risk.length > 0 && oh("div", { className: "mx-note" }, "⚠️ Eine Gelbe vor der Sperre (" + (eng.thr - 1) + " Gelbe): " + risk.map(x => pName(x.p)).join(", ")),
+        !coach && oh("div", { className: "mx-hint" }, "Verletzungen und Ampel aus der Belastungssteuerung sieht nur das Trainerteam. Hier stehen Sperren und eure eigenen Einträge."),
+        groups.map(([k, l, c]) => by(k).length > 0 && oh("div", { key: k, className: "mx-group" },
+            oh("div", { className: "eyebrow", style: { color: k === "ok" ? undefined : c } }, l + " · " + by(k).length),
+            by(k).map(x => oh("div", { key: x.p.id, className: "mx-prow" },
+                x.p.nr ? oh("span", { className: "mx-nr" }, x.p.nr) : null,
+                oh("div", { style: { flex: 1, minWidth: 0 } },
+                    oh("div", { className: "mx-pn" }, pName(x.p), x.warn && oh("span", { className: "dot", style: { background: "var(--warn)", marginLeft: 6 } })),
+                    (x.label !== l || x.note) && oh("div", { className: "mx-sub" }, (x.label !== l ? x.label + (x.note ? " · " : "") : "") + (x.note || ""))),
+                x.key !== "susp" && oh("select", { id: "av-" + x.p.id, className: "sel mx-sel", "aria-label": "Status " + pName(x.p),
+                    value: x.man ? x.man.s + "|" + (x.man.n || "") : "",
+                    onChange: e => { const [s, n] = e.target.value.split("|"); setMan(x.p.id, s, n); } },
+                    oh("option", { value: "" }, x.man ? "Zurücksetzen" : "Eintragen …"),
+                    oh("optgroup", { label: "Fraglich" }, AVAIL_WHY.map(w => oh("option", { key: w, value: "doubt|" + w }, w))),
+                    oh("optgroup", { label: "Fällt aus" }, AVAIL_WHY.map(w => oh("option", { key: w, value: "out|" + w }, w)))))))),
+        oh("div", { style: { display: "flex", justifyContent: "flex-end" } },
+            oh("button", { className: "btn sm ghost", onClick: () => copyText(text(), "Kaderübersicht kopiert.") }, oh(Icon, { d: I.copy, size: 15 }), " Übersicht kopieren")));
+}
+function MatchReport({ fx, rep, put, squad, eng, mByPid, coach, toast, copyText, onAddSessions, nextTrainingAfter }) {
+    const [draft, setDraft] = useState(() => JSON.parse(JSON.stringify(rep.players || {})));
+    const [len, setLen] = useState(rep.len || 90);
+    const [dirty, setDirty] = useState(false);
+    const [open, setOpen] = useState(null);
+    if (!squad || !squad.length)
+        return oh("div", { className: "og-empty" }, "Kein Kader angelegt.");
+    const sp = eng.susp[fx.id] || {};
+    const upd = (pid, patch) => {
+        setDraft(d => {
+            const cur = d[pid] || {};
+            const n = { ...cur, ...patch };
+            if (n.r !== "S" && n.r !== "B") {
+                delete n.in;
+                delete n.out;
+            }
+            if (n.r === "S")
+                delete n.in;
+            return { ...d, [pid]: n };
+        });
+        setDirty(true);
+    };
+    const pre = () => {
+        // Vorbelegung: Gesperrte "nicht im Kader – gesperrt", Rest leer
+        const d = { ...draft };
+        Object.keys(sp).forEach(pid => { if (!d[pid])
+            d[pid] = { r: "N", why: "gesperrt" }; });
+        setDraft(d);
+        setDirty(true);
+    };
+    const save = () => {
+        const clean = {};
+        Object.entries(draft).forEach(([pid, r]) => { if (r && r.r)
+            clean[pid] = r; });
+        put("report:" + fx.id, "report", { ...rep, id: fx.id, players: clean, len: Number(len) || 90, updated: Date.now() });
+        setDirty(false);
+        toast("Spielbericht gespeichert.");
+    };
+    const rows = sortSquad(squad);
+    const cnt = k => rows.filter(p => (draft[p.id] || {}).r === k).length;
+    const goals = rows.reduce((a, p) => a + (Number((draft[p.id] || {}).g) || 0), 0);
+    const used = rows.filter(p => playMinutes(draft[p.id], len) > 0).length;
+    const comp = compensationFor({ players: draft, len }, squad, coach ? mByPid : null);
+    const r = parseRes(fx.res);
+    const isPast = fx.date <= localIso();
+    const compText = () => "Ausgleichstraining nach dem Spiel gegen " + fx.opp + ": " + comp.map(c => pName(c.p) + " (" + c.why + ")").join(", ");
+    const nt = nextTrainingAfter ? nextTrainingAfter(fx.date) : addDays(fx.date, 1);
+    return oh("div", { className: "mx-body" },
+        !isPast && oh("div", { className: "mx-hint" }, "Das Spiel liegt in der Zukunft. Startelf und Kader kannst du schon vorbereiten, Minuten und Karten nach dem Spiel."),
+        oh("div", { className: "mx-sum" },
+            oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Startelf"), oh("span", { className: "v", style: { color: cnt("S") && cnt("S") !== 11 ? "var(--warn)" : undefined } }, cnt("S") + "/11")),
+            oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Bank"), oh("span", { className: "v" }, cnt("B"))),
+            oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Eingesetzt"), oh("span", { className: "v" }, used)),
+            oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Tore eingetragen"), oh("span", { className: "v", style: { color: r && goals !== r[0] ? "var(--warn)" : undefined } }, goals + (r ? "/" + r[0] : "")))),
+        rows.some(p => sp[p.id] && ["S", "B"].includes((draft[p.id] || {}).r)) && oh("div", { className: "mx-note", style: { color: "var(--crit)" } },
+            "Achtung: " + rows.filter(p => sp[p.id] && ["S", "B"].includes((draft[p.id] || {}).r)).map(pName).join(", ") + " ist für dieses Spiel gesperrt."),
+        oh("div", { className: "filterrow mr-bar" },
+            oh("label", { className: "mx-len" }, "Spieldauer", oh("input", { id: "mr-len", className: "sel og-in", type: "number", min: 60, max: 130, value: len, onChange: e => { setLen(e.target.value); setDirty(true); } }), "Min."),
+            Object.keys(sp).length > 0 && oh("button", { className: "togglechip", onClick: pre }, "Gesperrte eintragen"),
+            oh("div", { style: { flex: 1 } }),
+            dirty && oh("span", { style: { fontSize: 12, color: "var(--warn)", fontWeight: 650 } }, "Nicht gespeichert"),
+            oh("button", { className: "btn sm", onClick: save }, "Speichern")),
+        oh("div", { className: "mr-list" }, rows.map(p => {
+            const x = draft[p.id] || {};
+            const min = playMinutes(x, len);
+            const isOpen = open === p.id || x.r === "S" || x.r === "B";
+            return oh("div", { key: p.id, className: "mr-row" + (x.r ? " mr-" + x.r : "") },
+                oh("div", { className: "mr-top" },
+                    p.nr ? oh("span", { className: "mx-nr" }, p.nr) : null,
+                    oh("span", { className: "mx-pn", style: { flex: 1, minWidth: 0 } }, pName(p), sp[p.id] && oh("span", { className: "og-latebadge", style: { marginLeft: 6 } }, "gesperrt")),
+                    oh("span", { className: "mr-min" }, x.r === "S" || x.r === "B" ? min + "′" : ""),
+                    oh("div", { className: "viewswitch mr-seg" },
+                        [["S", "Start"], ["B", "Bank"], ["N", "—"]].map(([k, l]) => oh("button", { key: k, "aria-pressed": x.r === k, title: k === "N" ? "Nicht im Kader" : l,
+                            onClick: () => upd(p.id, { r: x.r === k ? "" : k }) }, l)))),
+                x.r === "N" && oh("div", { className: "mr-det" },
+                    oh("select", { id: "mr-why-" + p.id, className: "sel mx-sel", value: x.why || "", onChange: e => upd(p.id, { why: e.target.value }) },
+                        oh("option", { value: "" }, "Grund …"), OUT_WHY.map(([k, l]) => oh("option", { key: k, value: k }, l)))),
+                isOpen && (x.r === "S" || x.r === "B") && oh("div", { className: "mr-det" },
+                    x.r === "B" && oh("label", { className: "mr-num" }, "rein", oh("input", { id: "mr-in-" + p.id, className: "sel og-in", type: "number", inputMode: "numeric", min: 0, max: len, placeholder: "–", value: x.in == null ? "" : x.in, onChange: e => upd(p.id, { in: e.target.value }) })),
+                    oh("label", { className: "mr-num" }, "raus", oh("input", { id: "mr-out-" + p.id, className: "sel og-in", type: "number", inputMode: "numeric", min: 0, max: len, placeholder: "–", value: x.out == null ? "" : x.out, onChange: e => upd(p.id, { out: e.target.value }) })),
+                    oh("div", { className: "mr-goals" },
+                        oh("button", { className: "icon-btn", "aria-label": "Tor abziehen", onClick: () => upd(p.id, { g: Math.max(0, (Number(x.g) || 0) - 1) }) }, oh(Icon, { d: I.minus, size: 14 })),
+                        oh("span", null, "⚽ " + (Number(x.g) || 0)),
+                        oh("button", { className: "icon-btn", "aria-label": "Tor hinzufügen", onClick: () => upd(p.id, { g: (Number(x.g) || 0) + 1 }) }, oh(Icon, { d: I.plus, size: 14 }))),
+                    oh("div", { className: "mr-cards" },
+                        oh("button", { className: "mr-card mr-y", "aria-pressed": !!x.y, title: "Gelbe Karte", onClick: () => upd(p.id, { y: !x.y }) }, "G"),
+                        oh("button", { className: "mr-card mr-gr", "aria-pressed": !!x.gr, title: "Gelb-Rote Karte", onClick: () => upd(p.id, { gr: !x.gr }) }, "G/R"),
+                        oh("button", { className: "mr-card mr-r", "aria-pressed": !!x.rc, title: "Rote Karte", onClick: () => upd(p.id, { rc: !x.rc, ban: x.rc ? undefined : (x.ban || 1) }) }, "R")),
+                    x.rc && oh("label", { className: "mr-num" }, "Sperre", oh("input", { id: "mr-ban-" + p.id, className: "sel og-in", type: "number", min: 1, max: 20, value: x.ban || 1, onChange: e => upd(p.id, { ban: e.target.value }) }), "Spiele")));
+        })),
+        oh("div", { className: "mx-hint" }, "Gelbe Karten zählen nur in der Liga. Nach der " + eng.thr + ". Gelben ist der Spieler für das nächste Ligaspiel gesperrt, nach Gelb-Rot ebenfalls. Bei Rot die Sperre laut Urteil eintragen."),
+        comp.length > 0 && isPast && oh("div", { className: "card og-prompt", style: { margin: 0 } },
+            oh("div", { style: { flex: "1 1 260px", minWidth: 0 } },
+                oh("h3", { style: { fontSize: 14.5 } }, "Ausgleichstraining für " + comp.length + " Spieler"),
+                oh("p", { style: { margin: "3px 0 0", fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55 } }, comp.map(c => pName(c.p) + " (" + c.why + ")").join(" · "))),
+            oh("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+                oh("button", { className: "btn sm ghost", onClick: () => copyText(compText(), "Liste kopiert.") }, "Kopieren"),
+                coach && onAddSessions && oh("button", { className: "btn sm", onClick: () => onAddSessions([{ id: "ag-" + fx.id, date: nt, type: "Training", minutes: 60, planRpe: 7, label: "Ausgleichstraining" }]) }, "Einheit " + DAY_SHORT[dow(nt)] + " " + fmtDate(nt) + " anlegen"))));
+}
+/* ---------- Saisonstatistik ---------- */
+function SquadStats({ squad, eng, nextFx }) {
+    if (!squad || !squad.length)
+        return null;
+    const rows = sortSquad(squad).map(p => ({ p, s: eng.stats[p.id] || { apps: 0, starts: 0, min: 0, goals: 0, y: 0, gr: 0, rc: 0, kader: 0 } }));
+    if (!rows.some(x => x.s.kader))
+        return oh("div", { className: "card", style: { marginTop: 12 } },
+            oh("div", { className: "card-head" }, oh("div", null, oh("h3", null, "Kaderstatistik"), oh("p", null, "Füllt sich mit jedem Spielbericht: Einsätze, Minuten, Tore, Karten und Sperren."))));
+    const sp = nextFx ? (eng.susp[nextFx.id] || {}) : {};
+    const hasNr = rows.some(x => x.p.nr);
+    const H = [hasNr && ["Nr", 1], ["Spieler", 0], ["Einsätze", 1], ["Startelf", 1], ["Min.", 1], ["Ø Min.", 1], ["Tore", 1], ["Gelb", 1], ["G/R", 1], ["Rot", 1], ["", 0]].filter(Boolean);
+    return oh("div", { className: "card", style: { marginTop: 12 } },
+        oh("div", { className: "card-head" }, oh("div", null, oh("h3", null, "Kaderstatistik"), oh("p", null, "Aus den Spielberichten. Karten nur Liga."))),
+        oh("div", { className: "tblwrap", style: { overflowX: "auto" } },
+            oh("table", { className: "dtable" },
+                oh("thead", null, oh("tr", null, H.map(([h, n], i) => oh("th", { key: i, style: n ? { textAlign: "right" } : null }, h)))),
+                oh("tbody", null, rows.map(({ p, s }) => {
+                    const yRisk = s.y % eng.thr === eng.thr - 1;
+                    return oh("tr", { key: p.id },
+                        hasNr && oh("td", { className: "num" }, p.nr || ""),
+                        oh("td", { className: "nm" }, pName(p)),
+                        oh("td", { className: "num" }, s.apps),
+                        oh("td", { className: "num" }, s.starts),
+                        oh("td", { className: "num" }, s.min),
+                        oh("td", { className: "num" }, s.apps ? Math.round(s.min / s.apps) : "–"),
+                        oh("td", { className: "num" }, s.goals || ""),
+                        oh("td", { className: "num", style: { color: yRisk ? "var(--warn)" : undefined } }, s.y || ""),
+                        oh("td", { className: "num" }, s.gr || ""),
+                        oh("td", { className: "num" }, s.rc || ""),
+                        oh("td", null, sp[p.id] ? oh("span", { className: "og-latebadge" }, "gesperrt") : yRisk ? oh("span", { style: { color: "var(--warn)", fontSize: 11.5, fontWeight: 650 } }, "1 Gelbe vor Sperre") : ""));
+                })))));
 }
 
 function App() {
@@ -22578,7 +23117,7 @@ function App() {
                 React.createElement("span", { className: "modebadge" }, "Orga"),
                 React.createElement("button", { className: "icon-btn", onClick: leaveMode, "aria-label": "Bereich verlassen" },
                     React.createElement(Icon, { d: I.exit, size: 17 }))),
-            React.createElement(OrgaArea, { orga: orga, feedInfo: feed, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: true, coach: false, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
+            React.createElement(OrgaArea, { orga: orga, feedInfo: feed, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: true, coach: false, squad: squad, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
             msg && React.createElement("div", { className: "toast" }, React.createElement(Icon, { d: I.check, size: 15 }), " ", msg)));
     return (React.createElement("div", { className: "app" },
         React.createElement("div", { className: "topbar" },
