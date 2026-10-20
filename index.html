@@ -18679,7 +18679,27 @@ function readCfgFromHash() {
     catch (e) { /* ungültiger Hash wird ignoriert */ }
     return null;
 }
+/* ---------- Kurzer Team-Link ---------- */
+const SHORT_CFG = {"s":"my3CaVFefwVvBCtg00i1ig==","i":"nbAHVQrpxaD88qDr","c":"O4EVcyOwlQm+fPvA18CkhpBlFsp6OWRDTe2dE19ItKpdODxNdtJJ2QYBJTEXtQpHTjdWDNj0RSiSxJW1/spVqcULXhJ/xe0LNcrBG3J1c/eECiq/ivEFJxLtbERtW6uruvJv4dqbh1WuieSuEK0m1Q5f4c+pt6iXQH7kruVktjXcnDU73lmZRBE1mh8h3lQYDUpMfdQiqYuKbBSVKBDROvpt/l5eYOIaz3m3Kw+pvuVysk8stM/w0r+ja7VJrfUZXfgzou0Bg//kD0E8FxMd4Vq+BQcA1hqZ/JYf2Z76VGqhPDcCeCrikwjTp7DvF9yLtLsUVIUulnD1hBeDJMHISjOfro9aggu1vozO/0rhqHo/do/e3IA7LPh6EzZWiFHoO+0nNZ8j"};
+const SHORT_TEAM = "fcs-liga";
+const shortToken = () => { const h = (location.hash || "").replace(/^#/, ""); return /^[A-Za-z0-9]{12}$/.test(h) ? h : null; };
+const b64bytes = s => Uint8Array.from(atob(s), ch => ch.charCodeAt(0));
+async function decryptShortCfg(token) {
+    try {
+        const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(token), "PBKDF2", false, ["deriveKey"]);
+        const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: b64bytes(SHORT_CFG.s), iterations: 210000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+        const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64bytes(SHORT_CFG.i) }, key, b64bytes(SHORT_CFG.c));
+        const c = JSON.parse(new TextDecoder().decode(plain));
+        return c && c.u && c.k && c.t ? { url: c.u, key: c.k, team: c.t } : null;
+    }
+    catch (e) {
+        return null;
+    }
+}
 const cfgToLink = cfg => {
+    const st = store.get("short", null);
+    if (st && cfg && cfg.team === SHORT_TEAM)
+        return location.origin + location.pathname + "#" + st;
     const base = location.origin + location.pathname;
     return base + "#" + CFG_KEY + "=" + b64url.enc({ u: cfg.url.replace(/\/+$/, ""), k: cfg.key, t: cfg.team });
 };
@@ -23728,6 +23748,18 @@ function App() {
     const [msg, setMsg] = useState(null);
     const [cfg, setCfg] = useState(() => readCfgFromHash() || store.get("cfg", null));
     const [sync, setSync] = useState({ state: "off", msg: "", at: null, schema: null });
+    // Kurzer Link (#xxxxxxxxxxxx): Verbindung entschlüsseln und auf dem Gerät merken
+    useEffect(() => {
+        const t = shortToken();
+        if (!t)
+            return;
+        decryptShortCfg(t).then(c => {
+            if (!c)
+                return;
+            store.set("short", t);
+            setCfg(old => old && old.url === c.url && old.key === c.key && old.team === c.team ? old : c);
+        });
+    }, []);
     const orgaOn = mode === "coach" || mode === "orga" || mode === "med";
     const orga = useOrga(orgaOn ? cfg : null, orgaOn);
     const med = useMed(cfg);
