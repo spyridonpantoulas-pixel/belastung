@@ -623,6 +623,22 @@ button:focus-visible,.og-name:focus-visible{outline:2px solid var(--s1);outline-
   .mt-date{grid-column:4;margin-top:-4px}
 }
 
+/* ---------- Rückgängig ---------- */
+.med-undo{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));z-index:70;
+  width:min(520px,calc(100% - 32px));display:flex;align-items:center;gap:12px;padding:6px 6px 6px 16px;
+  background:rgba(44,44,46,0.96);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-radius:14px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.5);font-size:15px;color:var(--ink)}
+.med-undo button{min-height:44px;padding:0 14px;color:var(--s1);font-weight:600;font-size:15px;border-radius:10px}
+.med-undo button:active{background:var(--fill)}
+.btn:disabled{opacity:0.4}
+.mt-recent{background:var(--surface);border-radius:16px;padding:4px 14px}
+.mt-recent summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:15px;font-weight:500;color:var(--s1);list-style:none}
+.mt-recent summary::-webkit-details-marker{display:none}
+.mt-recent summary::before{content:"›";display:inline-block;margin-right:8px;transition:transform .15s}
+.mt-recent[open] summary::before{transform:rotate(90deg)}
+.mt-recentrow{display:flex;align-items:center;gap:10px;min-height:52px;border-top:0.5px solid var(--line-soft);flex-wrap:wrap;padding:4px 0}
+.sheet .mt-recent{background:var(--surface-2)}
+
 /* ==========================================================================
    iOS DARK MODE · Apple Human Interface Guidelines
    Systemfarben (Dark), SF-Systemschrift, 44pt-Touch-Ziele, Tab-Bar mit Blur
@@ -23136,7 +23152,10 @@ function medPrognose(c) {
 }
 /* ---------- Zustand: entsperren, laden, speichern ---------- */
 function useMed(cfg) {
-    const [st, setSt] = useState({ locked: true, items: {}, err: null, busy: false, pending: 0 });
+    const [st, setSt] = useState({ locked: true, items: {}, err: null, busy: false, pending: 0, undoStack: [] });
+    const itemsRef = useRef({});
+    const undoRef = useRef([]);
+    useEffect(() => { itemsRef.current = st.items; }, [st.items]);
     const pinRef = useRef(null);
     const lastAct = useRef(Date.now());
     const queue = useRef([]);
@@ -23148,7 +23167,9 @@ function useMed(cfg) {
     const lock = useCallback(() => {
         pinRef.current = null;
         queue.current = [];
-        setSt({ locked: true, items: {}, err: null, busy: false, pending: 0 });
+        itemsRef.current = {};
+        undoRef.current = [];
+        setSt({ locked: true, items: {}, err: null, busy: false, pending: 0, undoStack: [] });
     }, []);
     const unlock = useCallback(async pin => {
         if (!cfgRef.current) {
@@ -23164,7 +23185,8 @@ function useMed(cfg) {
             }
             pinRef.current = pin;
             lastAct.current = Date.now();
-            setSt({ locked: false, items: toMap(r.items), err: null, busy: false, pending: 0 });
+            undoRef.current = [];
+            setSt({ locked: false, items: toMap(r.items), err: null, busy: false, pending: 0, undoStack: [] });
             return true;
         }
         catch (e) {
@@ -23201,19 +23223,41 @@ function useMed(cfg) {
             return false;
         }
     }, []);
-    const put = useCallback((list, by) => {
+    // Jede Änderung: vorherigen Stand im Fall sichern (frühere Stände) und auf den Rückgängig-Stapel legen
+    const put = useCallback((list, by, label, opts) => {
         lastAct.current = Date.now();
-        setSt(s => {
-            const items = { ...s.items };
-            list.forEach(x => { if (x.deleted)
-                delete items[x.id];
-            else
-                items[x.id] = { kind: x.kind, data: x.data, at: new Date().toISOString(), by }; });
-            return { ...s, items, pending: queue.current.length + list.length };
+        const isUndo = opts && opts.isUndo;
+        const cur = itemsRef.current;
+        const before = list.map(x => ({ id: x.id, kind: x.kind, before: cur[x.id] ? cur[x.id].data : null }));
+        const out = list.map(x => {
+            if (isUndo || x.deleted || x.kind !== "case" || !cur[x.id])
+                return x;
+            const prev = { ...cur[x.id].data };
+            const hist = prev.history || [];
+            delete prev.history;
+            return { ...x, data: { ...x.data, history: [{ at: Date.now(), by: by || null, data: prev }, ...hist].slice(0, 15) } };
         });
-        queue.current = [...queue.current, ...list];
+        const items = { ...cur };
+        out.forEach(x => { if (x.deleted)
+            delete items[x.id];
+        else
+            items[x.id] = { kind: x.kind, data: x.data, at: new Date().toISOString(), by }; });
+        itemsRef.current = items;
+        if (!isUndo)
+            undoRef.current = [...undoRef.current, { label: label || "Änderung", at: Date.now(), before }].slice(-30);
+        const undoNow = undoRef.current.slice();
+        setSt(s => ({ ...s, items, pending: queue.current.length + out.length, undoStack: undoNow }));
+        queue.current = [...queue.current, ...out];
         return send(by);
     }, [send]);
+    const undo = useCallback(by => {
+        const step = undoRef.current[undoRef.current.length - 1];
+        if (!step)
+            return Promise.resolve(null);
+        undoRef.current = undoRef.current.slice(0, -1);
+        const list = step.before.map(b => b.before ? { id: b.id, kind: b.kind, data: b.before } : { id: b.id, kind: b.kind, data: {}, deleted: true });
+        return put(list, by, null, { isUndo: true }).then(ok => ok ? step.label : false);
+    }, [put]);
     const setPin = useCallback(async (oldPin, newPin) => {
         try {
             const r = await rpc("med_set_pin", { p_team: cfgRef.current.team, p_old: oldPin, p_new: newPin });
@@ -23242,7 +23286,7 @@ function useMed(cfg) {
     }, [st.locked, lock, refresh]);
     useEffect(() => { if (!cfg && !st.locked)
         lock(); }, [cfg]);
-    return { ...st, unlock, lock, put, refresh, touch, setPin, retry: send };
+    return { ...st, unlock, lock, put, undo, refresh, touch, setPin, retry: send };
 }
 /* ---------- Sperrbildschirm ---------- */
 function MedLock({ med, cfg, copyText }) {
@@ -23294,7 +23338,7 @@ function PhaseBar({ v }) {
         oh("span", { className: "med-phs" }, medPhase(n).s));
 }
 /* ---------- Fall bearbeiten ---------- */
-function MedCaseForm({ c, player, me, pname, onSave, onDelete, onCancel }) {
+function MedCaseForm({ c, player, me, pname, onSave, onDelete, onCancel, onRestore }) {
     const [f, setF] = useState(() => ({ status: "open", phase: 1, side: "", mech: "", notes: [], ...c }));
     const [note, setNote] = useState("");
     const [armed, setArmed] = useState(false);
@@ -23348,16 +23392,24 @@ function MedCaseForm({ c, player, me, pname, onSave, onDelete, onCancel }) {
             oh("div", { className: "med-addnote" },
                 oh("textarea", { id: "mc-note", className: "sel og-in", rows: 2, placeholder: "Neuer Eintrag, z. B. Befund, Fortschritt, Absprache", value: note, onChange: e => setNote(e.target.value) }),
                 oh("button", { type: "button", className: "btn sm ghost", onClick: addNote }, "Hinzufügen"))),
+        c.id && (c.history || []).length > 0 && oh("details", { className: "med-fld med-wide mt-recent" },
+            oh("summary", null, "Frühere Stände (" + c.history.length + ")"),
+            c.history.map((h, i) => oh("div", { key: i, className: "mt-recentrow" },
+                oh("span", { className: "og-mono" }, new Date(h.at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })),
+                oh("span", { className: "med-sub", style: { flex: 1, minWidth: 0 } },
+                    (h.data.status === "closed" ? "abgeschlossen" : medPhase(h.data.phase).s) + (h.data.diagnosis ? " · " + String(h.data.diagnosis).slice(0, 50) : "") + (h.by ? " · " + pname(h.by) : "")),
+                oh("button", { type: "button", className: "btn sm ghost", onClick: () => onRestore(h.data) }, "Wiederherstellen")))),
         oh("div", { className: "med-actions" },
             c.id && oh("button", { type: "button", className: "btn sm ghost", style: { color: "var(--crit)" }, onClick: () => armed ? onDelete(f) : setArmed(true) }, armed ? "Wirklich löschen?" : "Löschen"),
-            c.id && medIsOpen(f) && oh("button", { type: "button", className: "btn sm ghost", onClick: () => save({ status: "closed", closed: localIso(), phase: 6 }) }, "Fall abschließen"),
-            c.id && !medIsOpen(f) && oh("button", { type: "button", className: "btn sm ghost", onClick: () => save({ status: "open", closed: "" }) }, "Wieder öffnen"),
+            c.id && medIsOpen(f) && oh("button", { type: "button", className: "btn sm ghost", onClick: () => save({ status: "closed", closed: localIso(), phase: 6, phaseBeforeClose: Number(f.phase) || 1 }) }, "Fall abschließen"),
+            c.id && !medIsOpen(f) && oh("button", { type: "button", className: "btn sm ghost", onClick: () => save({ status: "open", closed: "", phase: Number(f.phaseBeforeClose) || Number(f.phase) || 1 }) }, "Wieder öffnen"),
             oh("div", { style: { flex: 1 } }),
             oh("button", { type: "button", className: "btn sm ghost", onClick: onCancel }, "Abbrechen"),
             oh("button", { type: "button", className: "btn sm", onClick: () => save() }, "Speichern")));
 }
 /* ---------- Akte eines Spielers ---------- */
 function MedFile({ player, cases, entries, me, pname, prefill, onSaveCase, onDeleteCase, onClose }) {
+    const restore = (c, data) => { onSaveCase({ ...data, id: c.id, pid: player.id }, "Früheren Stand wiederhergestellt"); setEdit(null); };
     const [edit, setEdit] = useState(() => prefill ? { pid: player.id, opened: localIso(), phase: 1, ...prefill } : null);
     const mine = cases.filter(c => c.pid === player.id).sort((a, b) => (medIsOpen(b) - medIsOpen(a)) || String(b.opened || "").localeCompare(String(a.opened || "")));
     const since = addDays(localIso(), -60);
@@ -23378,7 +23430,7 @@ function MedFile({ player, cases, entries, me, pname, prefill, onSaveCase, onDel
                     oh("div", { className: "eyebrow" }, "Akte" + (player.nr ? " · Nr. " + player.nr : "") + (player.gk ? " · Torwart" : "")),
                     oh("div", { className: "og-opp" }, pName(player))),
                 oh("button", { className: "icon-btn", onClick: onClose, "aria-label": "Schließen" }, oh(Icon, { d: I.x, size: 16 }))),
-            edit ? oh(MedCaseForm, { c: edit, player, me, pname, onSave: save, onDelete: c => { onDeleteCase(c); setEdit(null); }, onCancel: () => setEdit(null) })
+            edit ? oh(MedCaseForm, { c: edit, player, me, pname, onSave: save, onRestore: d => restore(edit, d), onDelete: c => { onDeleteCase(c); setEdit(null); }, onCancel: () => setEdit(null) })
                 : oh("div", { className: "mx-body" },
                     oh("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 } },
                         oh("div", { className: "eyebrow" }, mine.length ? mine.length + (mine.length === 1 ? " Fall" : " Fälle") : "Keine Fälle"),
@@ -23426,13 +23478,14 @@ function MedTable({ med, cases, sq, byPid, mByPid, me, toast, onOpenFile }) {
     const open = cases.filter(c => medIsOpen(c) && byPid[c.pid])
         .sort((a, b) => pName(byPid[a.pid]).localeCompare(pName(byPid[b.pid]), "de"));
     const latest = id => { const it = med.items[id]; return it ? { ...it.data, id } : null; };
-    const write = (c, patch, note) => {
+    const write = (c, patch, note, label) => {
         const cur = latest(c.id) || c;
         const data = { ...cur, ...patch };
         delete data.id;
         if (note)
             data.notes = [...(cur.notes || []), { d: today, t: note, by: me || null }];
-        return med.put([{ id: c.id, kind: "case", data }], me).then(ok => {
+        const who = byPid[c.pid] ? pName(byPid[c.pid]) : "";
+        return med.put([{ id: c.id, kind: "case", data }], me, (label || "Änderung") + (who ? " – " + who : "")).then(ok => {
             setFlash(f => ({ ...f, [c.id]: ok ? "ok" : "err" }));
             setTimeout(() => setFlash(f => { const n = { ...f }; delete n[c.id]; return n; }), 1800);
             if (!ok)
@@ -23441,7 +23494,7 @@ function MedTable({ med, cases, sq, byPid, mByPid, me, toast, onOpenFile }) {
     };
     const commit = c => (k, t) => {
         const label = (MED_COLS.find(x => x[0] === k) || [k, k])[1];
-        write(c, { [k]: t }, t ? label + ": " + t : null);
+        write(c, { [k]: t }, t ? label + ": " + t : null, label + " geändert");
     };
     const add = pid => {
         if (!pid)
@@ -23449,7 +23502,7 @@ function MedTable({ med, cases, sq, byPid, mByPid, me, toast, onOpenFile }) {
         const m = mByPid && mByPid[pid];
         const reg = (m && m.injury && m.injury.injury && m.injury.injury.region) || (m && m.worstPain && m.worstPain.region) || "";
         const id = "case:" + Date.now().toString(36);
-        med.put([{ id, kind: "case", data: { pid, opened: today, phase: 1, status: "open", region: reg, notes: [] } }], me);
+        med.put([{ id, kind: "case", data: { pid, opened: today, phase: 1, status: "open", region: reg, notes: [] } }], me, "Spieler hinzugefügt – " + pName(byPid[pid] || { name: "" }));
         setAdding("");
     };
     const withCase = new Set(open.map(c => c.pid));
@@ -23473,19 +23526,31 @@ function MedTable({ med, cases, sq, byPid, mByPid, me, toast, onOpenFile }) {
                     oh("button", { className: "mt-name", onClick: () => onOpenFile(p) }, pName(p)),
                     oh("input", { id: "mt-reg-" + c.id.replace(/\W/g, ""), className: "sel og-in mt-reg", placeholder: "Körperstelle", defaultValue: medWhere(c) === "ohne Angabe" ? "" : medWhere(c),
                         onBlur: e => { const t = e.target.value.trim(); if (t !== (medWhere(c) === "ohne Angabe" ? "" : medWhere(c)))
-                            write(c, { region: t, side: "" }); } }),
+                            write(c, { region: t, side: "" }, null, "Körperstelle geändert"); } }),
                     oh("div", { className: "mt-meta" },
                         fl === "ok" ? oh("span", { style: { color: "var(--good)" } }, "✓ in Akte gespeichert")
                             : fl === "err" ? oh("span", { style: { color: "var(--crit)" } }, "nicht gespeichert")
                                 : oh("span", null, "seit " + (c.opened ? fmtDate(c.opened) : "–")),
-                        oh("button", { className: "linkbtn", onClick: () => write(c, { status: "closed", closed: today, phase: 6 }, "Wieder fit – Fall abgeschlossen") }, "Wieder fit"))),
+                        oh("button", { className: "linkbtn", onClick: () => write(c, { status: "closed", closed: today, phase: 6, phaseBeforeClose: Number(c.phase) || 1 }, "Wieder fit – Fall abgeschlossen", "Wieder fit") }, "Wieder fit"))),
                 MED_COLS.map(([k, l, ph]) => oh(MedCell, { key: k, c, k, label: l, ph, onCommit: commit(c) })),
                 oh("label", { className: "mt-date" },
                     oh("span", { className: "mt-lab" }, "Spielfähig ab (für die Kaderplanung)"),
                     oh("input", { id: "mt-rm-" + c.id.replace(/\W/g, ""), className: "sel og-in", type: "date", defaultValue: c.returnMatch || "",
                         onBlur: e => { if ((e.target.value || "") !== (c.returnMatch || ""))
-                            write(c, { returnMatch: e.target.value }, e.target.value ? "Spielfähig ab " + fmtDate(e.target.value) : null); } })));
+                            write(c, { returnMatch: e.target.value }, e.target.value ? "Spielfähig ab " + fmtDate(e.target.value) : null, "Spielfähig-ab geändert"); } })));
         }),
+        (() => {
+            const recent = cases.filter(c => !medIsOpen(c) && c.closed && c.closed >= addDays(today, -14) && byPid[c.pid])
+                .sort((a, b) => String(b.closed).localeCompare(String(a.closed)));
+            if (!recent.length)
+                return null;
+            return oh("details", { className: "mt-recent" },
+                oh("summary", null, "Kürzlich abgeschlossen (" + recent.length + ")"),
+                recent.map(c => oh("div", { key: c.id, className: "mt-recentrow" },
+                    oh("span", { className: "mx-pn", style: { flex: 1, minWidth: 0 } }, pName(byPid[c.pid])),
+                    oh("span", { className: "med-sub" }, "fit seit " + fmtDate(c.closed)),
+                    oh("button", { className: "btn sm ghost", onClick: () => write(c, { status: "open", closed: "", phase: Number(c.phaseBeforeClose) || 1 }, "Fall wieder geöffnet", "Wieder geöffnet") }, "Wieder öffnen"))));
+        })(),
         oh("div", { className: "mt-add" },
             oh("select", { id: "mt-add", className: "sel og-in", value: adding, onChange: e => { setAdding(e.target.value); add(e.target.value); } },
                 oh("option", { value: "" }, "+ Spieler hinzufügen"),
@@ -23506,6 +23571,19 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
     const [showPast, setShowPast] = useState(null);
     const [pinForm, setPinForm] = useState(null);
     const [q, setQ] = useState("");
+    const [undoBar, setUndoBar] = useState(null);
+    const lastStep = med.undoStack && med.undoStack.length ? med.undoStack[med.undoStack.length - 1] : null;
+    useEffect(() => {
+        if (!lastStep)
+            return;
+        setUndoBar(lastStep);
+        const t = setTimeout(() => setUndoBar(b => b === lastStep ? null : b), 8000);
+        return () => clearTimeout(t);
+    }, [lastStep && lastStep.at]);
+    const doUndo = () => {
+        setUndoBar(null);
+        med.undo(me).then(l => toast(l ? "Rückgängig gemacht: " + l : l === false ? "Rückgängig nicht gespeichert – keine Verbindung." : "Nichts mehr rückgängig zu machen."));
+    };
     if (med.locked)
         return oh(MedLock, { med, cfg, copyText });
     const all = Object.entries(med.items);
@@ -23540,17 +23618,20 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
             return s.returnMatch && c.returnMatch && c.returnMatch < s.returnMatch ? { t: "Prognose früher", tone: "var(--good)" } : { t: "Prognose verschoben", tone: "var(--warn)" };
         return null;
     };
-    const saveCase = c => {
+    const who = pid => byPid[pid] ? " – " + pName(byPid[pid]) : "";
+    const saveCase = (c, label) => {
         const id = c.id || "case:" + Date.now().toString(36);
         const data = { ...c };
         delete data.id;
-        med.put([{ id, kind: "case", data }], me).then(ok => toast(ok ? "Akte gespeichert." : "Nicht gespeichert – keine Verbindung. Wird erneut versucht."));
+        med.put([{ id, kind: "case", data }], me, (label || (c.id ? "Akte geändert" : "Neuer Fall")) + who(c.pid))
+            .then(ok => { if (!ok)
+            toast("Nicht gespeichert – keine Verbindung. Wird erneut versucht."); });
     };
-    const deleteCase = c => { med.put([{ id: c.id, kind: "case", data: {}, deleted: true }], me).then(() => toast("Fall gelöscht.")); };
+    const deleteCase = c => { med.put([{ id: c.id, kind: "case", data: {}, deleted: true }], me, "Fall gelöscht" + who(c.pid)); };
     const curSnap = () => Object.fromEntries(cases.map(c => [c.id, { phase: c.phase, returnMatch: c.returnMatch || "", status: c.status || "open" }]));
     const saveCall = () => {
         const clean = Object.fromEntries(Object.entries(lines).filter(([, v]) => v && v.trim()));
-        med.put([{ id: "call:" + today, kind: "call", data: { date: today, lines: clean, general: general.trim(), snapshot: curSnap(), by: me || null, savedAt: Date.now() } }], me)
+        med.put([{ id: "call:" + today, kind: "call", data: { date: today, lines: clean, general: general.trim(), snapshot: curSnap(), by: me || null, savedAt: Date.now() } }], me, "Protokoll gespeichert")
             .then(ok => toast(ok ? "Protokoll gespeichert." : "Nicht gespeichert – keine Verbindung."));
     };
     /* Gruppen fürs Briefing */
@@ -23681,7 +23762,11 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
                 oh("option", { value: "" }, "Ich bin …"), (persons || []).map(p => oh("option", { key: p.id, value: p.id }, p.name || p.role))),
             oh("div", { style: { flex: 1 } }),
             oh("button", { className: "togglechip", onClick: () => setPinForm({ o: "", n: "" }) }, "PIN ändern"),
+            oh("button", { className: "btn sm ghost", onClick: doUndo, disabled: !lastStep, title: lastStep ? "Rückgängig: " + lastStep.label : "Nichts rückgängig zu machen", "aria-label": "Rückgängig" }, oh(Icon, { d: UNDO_ICON, size: 16 }), " Rückgängig"),
             oh("button", { className: "btn sm ghost", onClick: med.lock }, oh(Icon, { d: I.lock, size: 15 }), " Sperren")),
+        undoBar && oh("div", { className: "med-undo", role: "status" },
+            oh("span", { style: { flex: 1, minWidth: 0 } }, undoBar.label),
+            oh("button", { onClick: doUndo }, "Rückgängig")),
         med.pending > 0 && oh("div", { className: "card med-warn" },
             oh("span", { style: { flex: 1 } }, med.pending + (med.pending === 1 ? " Änderung" : " Änderungen") + " noch nicht gespeichert."),
             oh("button", { className: "btn sm", onClick: () => med.retry(me) }, "Erneut senden")),
@@ -23698,6 +23783,9 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
         view === "tabelle" ? oh(MedTable, { med, cases, sq, byPid, mByPid, me, toast, onOpenFile: p => setFile({ p }) }) : view === "briefing" ? renderBriefing() : renderFiles(),
         file && oh(MedFile, { key: file.p.id, player: file.p, prefill: file.prefill, cases, entries, me, pname, onSaveCase: saveCase, onDeleteCase: deleteCase, onClose: () => setFile(null) }));
 }
+const UNDO_ICON = React.createElement(React.Fragment, null,
+    React.createElement("path", { d: "M9 14 4 9l5-5" }),
+    React.createElement("path", { d: "M4 9h10.5a5.5 5.5 0 0 1 0 11H11" }));
 /* ---------- „Mehr“-Tab (iOS: höchstens fünf Tabs) ---------- */
 const MORE_ICON = React.createElement(React.Fragment, null,
     React.createElement("circle", { cx: "5", cy: "12", r: "1.6", fill: "currentColor", stroke: "none" }),
