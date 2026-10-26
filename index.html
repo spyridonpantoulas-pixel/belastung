@@ -19359,9 +19359,12 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
 /* ============================================================
    7b) RÜCKMELDE-ÜBERSICHT (Trainer)
    ============================================================ */
-function ResponseOverview({ squad, calendar, entries, submitted, today, shareLink, onCopy }) {
+function ResponseOverview({ squad, calendar, entries, submitted, today, shareLink, onCopy, focus, onlyIds }) {
     const [showAll, setShowAll] = useState(false);
-    const past = calendar.filter(s => s.date <= today);
+    const past0 = calendar.filter(s => s.date <= today);
+    // gewählte Einheit steht links und ist Grundlage für Quote und "Es fehlen"
+    const fi = focus ? past0.findIndex(s => s.id === focus.id) : -1;
+    const past = fi >= 0 ? past0.slice(0, fi + 1) : past0;
     const cols = past.slice(-6).reverse(); // neueste Einheit links
     const done = useMemo(() => {
         const set = new Set();
@@ -19401,7 +19404,7 @@ function ResponseOverview({ squad, calendar, entries, submitted, today, shareLin
         ? squad.filter(p => recent.every(c => !has(p.id, c.id))).sort(byNr)
         : [];
     const rank = p => !has(p.id, latest.id) ? 0 : injAt(p.id, latest.id) ? 1 : awayAt(p.id, latest.id) ? 2 : 3;
-    const rows = [...squad].sort((a, b) => (rank(a) - rank(b)) || byNr(a, b));
+    const rows = squad.filter(p => !onlyIds || onlyIds.has(p.id)).sort((a, b) => (rank(a) - rank(b)) || byNr(a, b));
     const visible = showAll ? rows : rows.slice(0, 10);
     const reminder = "⚽ " + CLUB + " – kurze Erinnerung\n\n" +
         "Für „" + latest.label + "“ (" + fmtDay(latest.date) + " " + fmtDate(latest.date) + ") fehlen noch " +
@@ -19527,20 +19530,30 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
     const [sort, setSort] = useState("name");
     const [open, setOpen] = useState({});
     const [allOpen, setAllOpen] = useState(false);
+    const [sess, setSess] = useState("all"); // einzelne Einheit
+    const [resp, setResp] = useState("all"); // all | yes | no
     const past = calendar.filter(s => s.date <= today);
     const lastSession = past.length ? past[past.length - 1] : null;
-    const people = useMemo(() => squad.filter(p => (group === "all" || (group === "gk" ? p.gk : !p.gk)) && (who === "all" || p.id === who)), [squad, group, who]);
+    const selSession = sess !== "all" ? past.find(c => c.id === sess) || null : null;
+    const scopeSession = selSession || (range === "last" ? lastSession : null);
+    const basePeople = useMemo(() => squad.filter(p => (group === "all" || (group === "gk" ? p.gk : !p.gk)) && (who === "all" || p.id === who)), [squad, group, who]);
+    // Einheit bzw. Zeitraum – Grundlage für "Rückmeldung / keine Rückmeldung"
+    const inScope = e => scopeSession ? e.sessionId === scopeSession.id
+        : range === "all" ? true : e.date >= addDays(today, -(parseInt(range) - 1));
+    const responded = useMemo(() => {
+        const set = new Set(entries.filter(inScope).map(e => e.playerId));
+        if (scopeSession)
+            (submitted || []).forEach(x => { if (x.sessionId === scopeSession.id)
+                set.add(x.playerId); });
+        return set;
+    }, [entries, submitted, range, today, scopeSession]);
+    const people = useMemo(() => resp === "all" ? basePeople
+        : basePeople.filter(p => resp === "yes" ? responded.has(p.id) : !responded.has(p.id)), [basePeople, resp, responded]);
     const peopleIds = new Set(people.map(p => p.id));
     const byId = useMemo(() => Object.fromEntries(squad.map(p => [p.id, p])), [squad]);
     const sessById = useMemo(() => Object.fromEntries(calendar.map(c => [c.id, c])), [calendar]);
     const rows = useMemo(() => {
-        let list = entries.filter(e => peopleIds.has(e.playerId));
-        if (range === "last")
-            list = list.filter(e => lastSession && e.sessionId === lastSession.id);
-        else if (range !== "all") {
-            const from = addDays(today, -(parseInt(range) - 1));
-            list = list.filter(e => e.date >= from);
-        }
+        let list = entries.filter(e => peopleIds.has(e.playerId) && inScope(e));
         if (kind !== "all")
             list = list.filter(e => e.type === kind);
         if (onlyPain)
@@ -19557,9 +19570,9 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             list = list.filter(isOut);
         return list.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1
             : displayName(byId[a.playerId] || { name: "" }).localeCompare(displayName(byId[b.playerId] || { name: "" }), "de"));
-    }, [entries, peopleIds, range, kind, onlyPain, stat, today, lastSession, byId]);
+    }, [entries, peopleIds, range, kind, onlyPain, stat, today, lastSession, scopeSession, byId]);
     const perPlayer = useMemo(() => {
-        const contentFilter = onlyPain || stat !== "all";
+        const contentFilter = (onlyPain || stat !== "all") && resp !== "no";
         const list = people.map(p => {
             const es = rows.filter(e => e.playerId === p.id);
             const trained = es.filter(e => !isOut(e));
@@ -19589,7 +19602,7 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             absent: (a, b) => b.abs - a.abs,
         }[sort] || ((a, b) => byNr(a.p, b.p));
         return [...list].sort((a, b) => cmp(a, b) || byNr(a.p, b.p));
-    }, [people, rows, sort, onlyPain, stat]);
+    }, [people, rows, sort, onlyPain, stat, resp]);
     const kinds = useMemo(() => [...new Set(calendar.map(c => c.type))], [calendar]);
     const painRows = rows.filter(e => (e.pains || []).length > 0);
     const sl = rows.filter(e => e.sleep > 0).map(e => e.sleep);
@@ -19597,13 +19610,15 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
     const rangeLabel = (RANGES.find(r => r.key === range) || {}).label;
     const head = [
         "RÜCKMELDUNGEN · " + CLUB,
-        "Zeitraum: " + rangeLabel + (range === "last" && lastSession ? " (" + lastSession.label + ", " + fmtDate(lastSession.date) + ")" : "")
+        (selSession ? "Einheit: " + selSession.label + " (" + fmtDay(selSession.date) + " " + fmtDate(selSession.date) + ")"
+            : "Zeitraum: " + rangeLabel + (range === "last" && lastSession ? " (" + lastSession.label + ", " + fmtDate(lastSession.date) + ")" : ""))
             + " · Stand " + fmtDateFull(today),
         "Filter: " + (group === "all" ? "gesamter Kader" : group === "gk" ? "nur Torhüter" : "nur Feldspieler")
             + (who !== "all" && byId[who] ? " · " + byId[who].name : "")
             + (kind !== "all" ? " · nur " + kind : "")
             + (onlyPain ? " · nur mit Beschwerden" : "")
-            + (stat !== "all" ? " · Status: " + ({ trained: "mitgemacht", out: "alle Ausfälle", injured: "verletzt", ill: "krank", away: "abgemeldet" }[stat]) : ""),
+            + (stat !== "all" ? " · Status: " + ({ trained: "mitgemacht", out: "alle Ausfälle", injured: "verletzt", ill: "krank", away: "abgemeldet" }[stat]) : "")
+            + (resp === "yes" ? " · nur mit Rückmeldung" : resp === "no" ? " · nur ohne Rückmeldung" : ""),
         rows.length + " Rückmeldungen · Ø RPE " + (rows.filter(e => !isOut(e)).length ? nf1(mean(rows.filter(e => !isOut(e)).map(e => e.rpe))) : "–")
             + " · Ø Schlaf " + (sl.length ? nf1(mean(sl)) : "–") + "/5"
             + " · Ø Stress " + (st.length ? nf1(mean(st)) : "–") + "/5"
@@ -19643,7 +19658,10 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
             });
             L.push("");
         });
-        if (!rows.length)
+        if (resp === "no") {
+            L.push("Ohne Rückmeldung (" + people.length + "): " + (people.length ? people.slice().sort(byNr).map(p => displayName(p)).join(", ") : "niemand"));
+        }
+        else if (!rows.length)
             L.push("Keine Rückmeldungen im gewählten Zeitraum.");
         return L.join("\n");
     };
@@ -19674,10 +19692,18 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
     };
     const LIMIT = 150;
     const shown = rows.slice(0, LIMIT);
-    const stamp = range === "all" ? "gesamt" : range === "last" ? "letzte_einheit" : range + "tage";
+    const stamp = selSession ? "einheit_" + selSession.date : range === "all" ? "gesamt" : range === "last" ? "letzte_einheit" : range + "tage";
+    const sessOptions = past.slice().reverse().slice(0, 60);
     return (React.createElement("div", null,
         React.createElement("div", { className: "filterrow" },
-            React.createElement("select", { className: "sel", value: range, onChange: e => setRange(e.target.value), "aria-label": "Zeitraum" }, RANGES.map(r => React.createElement("option", { key: r.key, value: r.key }, r.label))),
+            React.createElement("select", { className: "sel", value: sess, onChange: e => setSess(e.target.value), "aria-label": "Einheit" },
+                React.createElement("option", { value: "all" }, "Alle Einheiten"),
+                sessOptions.map(c => React.createElement("option", { key: c.id, value: c.id }, fmtDay(c.date) + " " + fmtDate(c.date) + " · " + c.label))),
+            React.createElement("select", { className: "sel", value: range, disabled: !!selSession, title: selSession ? "Eine Einheit ist gewählt – der Zeitraum gilt dann nicht." : undefined, onChange: e => setRange(e.target.value), "aria-label": "Zeitraum" }, RANGES.map(r => React.createElement("option", { key: r.key, value: r.key }, r.label))),
+            React.createElement("select", { className: "sel", value: resp, onChange: e => setResp(e.target.value), "aria-label": "Rückmeldung" },
+                React.createElement("option", { value: "all" }, "Rückmeldung: alle"),
+                React.createElement("option", { value: "yes" }, "Mit Rückmeldung"),
+                React.createElement("option", { value: "no" }, "Keine Rückmeldung")),
             React.createElement("select", { className: "sel", value: group, onChange: e => { setGroup(e.target.value); setWho("all"); }, "aria-label": "Gruppe" },
                 React.createElement("option", { value: "all" }, "Gesamter Kader"),
                 React.createElement("option", { value: "field" }, "Nur Feldspieler"),
@@ -19698,7 +19724,7 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
                 React.createElement("option", { value: "injured" }, "Nur verletzt"),
                 React.createElement("option", { value: "ill" }, "Nur krank"),
                 React.createElement("option", { value: "away" }, "Nur abgemeldet"))),
-        React.createElement(ResponseOverview, { squad: people, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: shareLink, onCopy: onCopy }),
+        React.createElement(ResponseOverview, { squad: basePeople, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: shareLink, onCopy: onCopy, focus: selSession, onlyIds: resp === "all" ? null : peopleIds }),
         React.createElement("div", { className: "tiles four", style: { marginTop: 12 } },
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "R\u00FCckmeldungen"),
@@ -21373,6 +21399,7 @@ function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose }) {
                         count(x.id),
                         " R\u00FCckmeldung",
                         count(x.id) === 1 ? "" : "en",
+                        x.auto === "fx" ? " · automatisch aus Spielplan" : "",
                         x.date === today ? " · heute" : "")),
                 React.createElement("button", { className: "icon-btn", style: { width: 32, height: 30 }, onClick: () => edit(x), "aria-label": "Bearbeiten" },
                     React.createElement(Icon, { d: I.pen, size: 14 })),
@@ -22018,10 +22045,47 @@ const fixSessionId = f => "fx-" + f.id;
 const fixSessionLabel = f => (f.comp === "Liga" || !f.comp ? (f.st ? f.st + ". Spieltag" : "Punktspiel") : f.comp) + " · " + (f.home ? "vs. " : "bei ") + f.opp;
 // Spielplan -> Einheiten: legt für kommende Spiele eine Einheit an und hält Datum/Gegner aktuell.
 // Vergangene Spiele bekommen keine neue Einheit (sonst sinkt die Rücklaufquote rückwirkend).
-function planFixtureSessions(sessions, fixtures, entries, today, allowRemove) {
+// Trainings aus dem Spielplan: Freitagsspiel -> Mo, Di, Do; Spiel am Wochenende -> Mo, Di, Do, Fr
+// (jeweils in der Spielwoche). Angelegt wird für Spiele der nächsten zwei Wochen.
+const AUTO_TR_DAYS = { 4: [0, 1, 3], 5: [0, 1, 3, 4], 6: [0, 1, 3, 4] };
+const AUTO_TR_HORIZON = 13;
+function autoTrainingDates(fixtures, today) {
+    const fx = new Set(fixtures.map(f => f.date));
+    const out = new Set();
+    fixtures.forEach(f => {
+        if (!f.date || f.date < today || f.date > addDays(today, AUTO_TR_HORIZON))
+            return;
+        const offs = AUTO_TR_DAYS[odx(f.date)];
+        if (!offs)
+            return;
+        const mon = mondayOf(f.date);
+        offs.map(i => addDays(mon, i)).forEach(d => { if (d >= today && d < f.date && !fx.has(d))
+            out.add(d); });
+    });
+    return Array.from(out).sort();
+}
+function planFixtureSessions(sessions, fixtures, entries, today, allowRemove, skipTr) {
     let out = sessions.slice();
     let changed = false;
     const byId = new Map(out.map(s => [s.id, s]));
+    // Automatische Trainings: fehlende anlegen, nicht mehr passende (Spiel verlegt, noch ohne Rückmeldung) entfernen
+    const skip = new Set(skipTr || []);
+    const want = autoTrainingDates(fixtures, today);
+    const wantSet = new Set(want);
+    const add = trainingSessionsFor(want.filter(d => !byId.has("tr-" + d) && !skip.has("tr-" + d)
+        && !out.some(x => x.date === d && ORGA_TRAIN_TYPES.includes(x.type))), fixtures).map(s => ({ ...s, auto: "fx" }));
+    if (add.length) {
+        out = out.concat(add);
+        changed = true;
+    }
+    if (allowRemove) {
+        const used = new Set((entries || []).map(e => e.sessionId));
+        const kept = out.filter(x => !(x.auto === "fx" && x.date > today && !wantSet.has(x.date) && !used.has(x.id)));
+        if (kept.length !== out.length) {
+            out = kept;
+            changed = true;
+        }
+    }
     fixtures.forEach(f => {
         const id = fixSessionId(f);
         const type = f.comp === "Testspiel" ? "Testspiel" : "Spiel";
@@ -24026,7 +24090,8 @@ function App() {
             return;
         if (cfg && (!metaOk.current || orga.st.state !== "ok"))
             return;
-        const next = planFixtureSessions(sessions, orgaFixtures, entries, today, mode === "coach");
+        const ost = (orga.items["settings:main"] && orga.items["settings:main"].data) || {};
+        const next = planFixtureSessions(sessions, orgaFixtures, entries, today, mode === "coach", ost.skipTr);
         if (next)
             applySessions(next);
     }, [orgaOn, cfg, orgaFixtures, sessions, sync.at, orga.st.state]);
@@ -24115,6 +24180,13 @@ function App() {
         setEntries(list => list.filter(e => e.sessionId !== sn.id));
         toast("Einheit gelöscht" + (n ? " – inkl. " + n + " Rückmeldung" + (n === 1 ? "" : "en") : "") + ".");
         pushMeta(squad, next);
+        // Automatisch angelegtes Training bewusst gelöscht -> nicht wieder anlegen
+        if (sn.auto === "fx" && orga.items["settings:main"]) {
+            const ost = orga.items["settings:main"].data || {};
+            const skipTr = (ost.skipTr || []).filter(id => id.slice(3) >= addDays(today, -60));
+            if (!skipTr.includes(sn.id))
+                orga.put("settings:main", "settings", { ...ost, skipTr: [...skipTr, sn.id] });
+        }
     };
     const applySquad = next => { setSquad(next); pushMeta(next, sessions); };
     const copyText = async (text, okMsg) => {
