@@ -2,8 +2,8 @@
  "team": "FC Süderelbe",
  "league": "Oberliga Hamburg",
  "season": "2026/27",
- "source": "https://www.landkreis-fussball.de/verein/fc_suederelbe/spielplan_liga/2026",
- "updated": "2026-10-19T16:49:55+00:00",
+ "source": "https://www.fussball.de/mannschaft/suederelbe-1hr-suederelbe-hamburg/-/saison/2627/team-id/011MIFC4S0000000VTVG0001VTR8C1K7",
+ "updated": "2026-10-26T06:05:57+00:00",
  "note": "Ergebnisse aus Sicht des FC Süderelbe (eigene Tore zuerst). id bleibt pro Begegnung stabil.",
  "fixtures": [
   {
@@ -133,7 +133,7 @@
    "time": "13:00",
    "home": false,
    "opp": "TuS Dassendorf",
-   "res": "",
+   "res": "2:1",
    "comp": "Liga"
   },
   {
@@ -143,6 +143,56 @@
    "time": "19:30",
    "home": true,
    "opp": "FC Teutonia 05",
+   "res": "",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-15",
+   "st": 15,
+   "date": "2026-11-06",
+   "time": "19:00",
+   "home": false,
+   "opp": "SC Concordia Hamburg",
+   "res": "",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-16",
+   "st": 16,
+   "date": "2026-11-13",
+   "time": "19:30",
+   "home": true,
+   "opp": "ETSV Hamburg",
+   "res": "",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-17",
+   "st": 17,
+   "date": "2026-11-22",
+   "time": "14:00",
+   "home": false,
+   "opp": "TSV Buchholz 08",
+   "res": "",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-18",
+   "st": 18,
+   "date": "2026-11-28",
+   "time": "15:30",
+   "home": false,
+   "opp": "Altona 93",
+   "res": "",
+   "comp": "Liga"
+  },
+  {
+   "id": "fx2627-19",
+   "st": 19,
+   "date": "2026-12-04",
+   "time": "19:00",
+   "home": true,
+   "opp": "TuRa Harksheide",
    "res": "",
    "comp": "Liga"
   }
