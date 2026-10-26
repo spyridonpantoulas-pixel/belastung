@@ -19520,6 +19520,111 @@ const SORTS = [
     { key: "injury", label: "Ausfälle zuerst" },
     { key: "absent", label: "Abmeldungen zuerst" },
 ];
+/* ---------- Rückmeldequote je Spieler (Statistik) ---------- */
+const STAT_RANGES = [
+    { key: "all", label: "Saison" },
+    { key: "28", label: "28 Tage" },
+    { key: "14", label: "14 Tage" },
+];
+const STAT_SORTS = [
+    { key: "low", label: "Quote – niedrigste zuerst" },
+    { key: "high", label: "Quote – höchste zuerst" },
+    { key: "nr", label: "Rückennummer" },
+];
+function ResponseStats({ squad, calendar, entries, submitted, today, onCopy, onDownload }) {
+    const [range, setRange] = useState("all");
+    const [sort, setSort] = useState("low");
+    const [showAll, setShowAll] = useState(false);
+    const sess = useMemo(() => calendar.filter(s => s.date <= today
+        && (range === "all" || s.date >= addDays(today, -(parseInt(range) - 1)))), [calendar, today, range]);
+    const stats = useMemo(() => {
+        const sids = new Set(sess.map(s => s.id));
+        const by = {};
+        const add = (pid, sid, e) => {
+            if (!sids.has(sid))
+                return;
+            const m = by[pid] = by[pid] || {};
+            if (e || !m[sid])
+                m[sid] = e || true;
+        };
+        (submitted || []).forEach(x => add(x.playerId, x.sessionId, null));
+        entries.forEach(e => add(e.playerId, e.sessionId, e));
+        const newest = sess.slice().reverse();
+        return squad.map(p => {
+            const m = by[p.id] || {};
+            const got = Object.keys(m).length;
+            const es = Object.values(m).filter(v => v !== true);
+            let streak = 0;
+            for (const s of newest) {
+                if (m[s.id])
+                    break;
+                streak++;
+            }
+            const last = newest.find(s => m[s.id]);
+            return {
+                p, got, total: sess.length,
+                quote: sess.length ? Math.round(got / sess.length * 100) : 0,
+                trained: es.filter(e => !isOut(e)).length,
+                inj: es.filter(isInjured).length,
+                ill: es.filter(isIll).length,
+                away: es.filter(e => isAbsent(e) && !isIll(e)).length,
+                streak, last: last ? last.date : null,
+            };
+        });
+    }, [squad, sess, entries, submitted]);
+    const sorted = useMemo(() => {
+        const cmp = sort === "nr" ? (a, b) => byNr(a.p, b.p)
+            : sort === "high" ? (a, b) => (b.quote - a.quote) || byNr(a.p, b.p)
+                : (a, b) => (a.quote - b.quote) || (b.streak - a.streak) || byNr(a.p, b.p);
+        return stats.slice().sort(cmp);
+    }, [stats, sort]);
+    const qCol = q => q >= 80 ? "var(--good)" : q >= 50 ? "var(--warn)" : "var(--crit)";
+    const teamQuote = stats.length && sess.length ? Math.round(stats.reduce((a, x) => a + x.got, 0) / (stats.length * sess.length) * 100) : 0;
+    const low = stats.filter(x => x.quote < 50).length;
+    const rLabel = (STAT_RANGES.find(r => r.key === range) || {}).label;
+    const text = () => ["RÜCKMELDEQUOTE JE SPIELER · " + CLUB,
+        rLabel + " · " + sess.length + " Einheiten · Stand " + fmtDateFull(today) + " · Mannschaft " + teamQuote + " %", "",
+        ...sorted.map(x => (x.p.nr > 0 ? "#" + x.p.nr + " " : "") + displayName(x.p) + ": " + x.got + "/" + x.total + " (" + x.quote + " %)"
+            + (x.streak >= 2 ? " · zuletzt " + x.streak + "× ohne Rückmeldung" : ""))].join("\n");
+    const csv = () => "﻿" + [["Spieler", "Nummer", "Einheiten", "Rueckmeldungen", "Quote_Prozent", "Mitgemacht", "Verletzt", "Krank", "Abgemeldet", "Letzte_Rueckmeldung", "Zuletzt_ohne_in_Folge"].join(";"),
+        ...sorted.map(x => [x.p.name, x.p.nr || "", x.total, x.got, x.quote, x.trained, x.inj, x.ill, x.away, x.last || "", x.streak].join(";"))].join("\r\n");
+    const visible = showAll ? sorted : sorted.slice(0, 12);
+    return (React.createElement("div", { className: "card", style: { marginTop: 12 } },
+        React.createElement("div", { className: "card-head" },
+            React.createElement("div", null,
+                React.createElement("h3", null, "Rückmeldequote je Spieler"),
+                React.createElement("p", null, "Zu wie vielen Einheiten hat jeder eine Rückmeldung gegeben? Abmeldungen und „verletzt raus“ zählen als Rückmeldung."))),
+        React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 } },
+            React.createElement("div", { className: "viewswitch" }, STAT_RANGES.map(r => React.createElement("button", { key: r.key, "aria-pressed": range === r.key, onClick: () => setRange(r.key) }, r.label))),
+            React.createElement("select", { className: "sel", value: sort, onChange: e => setSort(e.target.value), "aria-label": "Sortierung" }, STAT_SORTS.map(o => React.createElement("option", { key: o.key, value: o.key }, o.label))),
+            React.createElement("div", { style: { flex: 1 } }),
+            React.createElement("button", { className: "btn sm ghost", onClick: () => onCopy(text(), "Statistik kopiert.") },
+                React.createElement(Icon, { d: I.copy, size: 15 }), " Kopieren"),
+            React.createElement("button", { className: "btn sm ghost", onClick: () => onDownload(csv(), "rueckmeldequote_" + range + "_" + today + ".csv", "text/csv;charset=utf-8") },
+                React.createElement(Icon, { d: I.down, size: 15 }), " CSV")),
+        !sess.length ? React.createElement("p", { style: { fontSize: 13, color: "var(--muted)", margin: 0 } }, "Im gewählten Zeitraum gibt es noch keine Einheit.") :
+            React.createElement(React.Fragment, null,
+                React.createElement("div", { style: { display: "flex", gap: 18, flexWrap: "wrap", fontSize: 13, color: "var(--ink-2)", marginBottom: 12 } },
+                    React.createElement("span", null, React.createElement("b", null, sess.length), " Einheiten"),
+                    React.createElement("span", null, "Mannschaft ", React.createElement("b", { style: { color: qCol(teamQuote) } }, teamQuote, " %")),
+                    React.createElement("span", null, React.createElement("b", { style: { color: low ? "var(--crit)" : "var(--good)" } }, low), " Spieler unter 50 %")),
+                React.createElement("div", { className: "rows" }, visible.map(x => React.createElement("div", { key: x.p.id, className: "prow", style: { cursor: "default" } },
+                    x.p.nr > 0 ? React.createElement("span", { className: "nr" }, x.p.nr) : React.createElement("span", { className: "nr" }, "–"),
+                    React.createElement("span", { className: "grow" },
+                        React.createElement("span", { className: "nm" }, displayName(x.p), x.p.gk ? " (TW)" : ""),
+                        React.createElement("span", { className: "sub" },
+                            x.trained + " mitgemacht",
+                            x.inj ? " · " + x.inj + "× verletzt" : "",
+                            x.ill ? " · " + x.ill + "× krank" : "",
+                            x.away ? " · " + x.away + "× abgemeldet" : "",
+                            x.streak >= 2 ? React.createElement("span", { style: { color: "var(--crit)" } }, " · zuletzt " + x.streak + "× ohne Meldung") : null),
+                        React.createElement("div", { className: "meter", style: { marginTop: 6 } },
+                            React.createElement("i", { style: { width: x.quote + "%", background: qCol(x.quote) } }))),
+                    React.createElement("span", { className: "num", style: { minWidth: 54 } }, x.got + "/" + x.total, React.createElement("small", null, "Einheiten")),
+                    React.createElement("span", { className: "num", style: { minWidth: 48, color: qCol(x.quote) } }, x.quote + " %", React.createElement("small", null, "Quote"))))),
+                sorted.length > 12 && React.createElement("div", { style: { display: "flex", justifyContent: "center", marginTop: 10 } },
+                    React.createElement("button", { className: "linkbtn", onClick: () => setShowAll(a => !a) }, showAll ? "Weniger anzeigen" : "Alle " + sorted.length + " Spieler anzeigen")))));
+}
 function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, onCopy, onDownload }) {
     const [range, setRange] = useState("7");
     const [group, setGroup] = useState("all");
@@ -19725,6 +19830,7 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
                 React.createElement("option", { value: "ill" }, "Nur krank"),
                 React.createElement("option", { value: "away" }, "Nur abgemeldet"))),
         React.createElement(ResponseOverview, { squad: basePeople, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: shareLink, onCopy: onCopy, focus: selSession, onlyIds: resp === "all" ? null : peopleIds }),
+        React.createElement(ResponseStats, { squad: basePeople, calendar: calendar, entries: entries, submitted: submitted, today: today, onCopy: onCopy, onDownload: onDownload }),
         React.createElement("div", { className: "tiles four", style: { marginTop: 12 } },
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" }, "R\u00FCckmeldungen"),
