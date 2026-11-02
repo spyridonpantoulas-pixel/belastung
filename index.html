@@ -18737,6 +18737,20 @@ async function sbFetch(cfg, path, opts = {}) {
     const txt = await res.text();
     return txt ? JSON.parse(txt) : null;
 }
+// Supabase liefert pro Anfrage höchstens 1000 Zeilen. Ohne Blättern fehlten ab der
+// 1001. Rückmeldung einfach Einträge in der Anzeige, obwohl sie gespeichert waren.
+const SB_PAGE = 1000;
+async function sbFetchAll(cfg, path) {
+    const out = [];
+    // Weiterblättern, bis eine Seite leer ist – so klappt es auch, wenn der Server weniger pro Seite liefert
+    for (let guard = 0; guard < 1000; guard++) {
+        const rows = (await sbFetch(cfg, path + "&order=id.asc&limit=" + SB_PAGE + "&offset=" + out.length)) || [];
+        if (!rows.length)
+            break;
+        out.push(...rows);
+    }
+    return out;
+}
 const rowToEntry = r => ({
     id: r.id.split("|").slice(1).join("|"), playerId: r.player_id, sessionId: r.session_id,
     date: r.date, type: r.type, rpe: r.rpe, minutes: r.minutes,
@@ -18775,10 +18789,10 @@ const api = {
         method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
         body: JSON.stringify({ team: cfg.team, squad, sessions, updated_at: new Date().toISOString() }),
     }),
-    allEntries: cfg => sbFetch(cfg, "load_entries?team=eq." + encodeURIComponent(cfg.team) + "&select=*"),
-    playerEntries: (cfg, pid) => sbFetch(cfg, "load_entries?team=eq." + encodeURIComponent(cfg.team) +
+    allEntries: cfg => sbFetchAll(cfg, "load_entries?team=eq." + encodeURIComponent(cfg.team) + "&select=*"),
+    playerEntries: (cfg, pid) => sbFetchAll(cfg, "load_entries?team=eq." + encodeURIComponent(cfg.team) +
         "&player_id=eq." + encodeURIComponent(pid) + "&select=*"),
-    submitted: cfg => sbFetch(cfg, "load_entries?team=eq." + encodeURIComponent(cfg.team) + "&select=player_id,session_id"),
+    submitted: cfg => sbFetchAll(cfg, "load_entries?team=eq." + encodeURIComponent(cfg.team) + "&select=id,player_id,session_id"),
     putEntries: async (cfg, rows) => {
         try {
             return await sbFetch(cfg, "load_entries", {
