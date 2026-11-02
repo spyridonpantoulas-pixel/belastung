@@ -21942,7 +21942,7 @@ const ORGA_SEED = (() => {
     return items;
 })();
 const orgaApi = {
-    list: cfg => sbFetch(cfg, "orga_items?team=eq." + encodeURIComponent(cfg.team) + "&select=id,kind,data,updated_at&limit=10000"),
+    list: cfg => sbFetchAll(cfg, "orga_items?team=eq." + encodeURIComponent(cfg.team) + "&select=id,kind,data,updated_at"),
     put: (cfg, rows) => sbFetch(cfg, "orga_items", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(rows) }),
     del: (cfg, id) => sbFetch(cfg, "orga_items?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: { Prefer: "return=minimal" } }),
 };
