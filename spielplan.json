@@ -3,7 +3,7 @@
  "league": "Oberliga Hamburg",
  "season": "2026/27",
  "source": "https://www.fussball.de/ajax.team.matchplan/-/mode/PAGE/team-id/011MIFC4S0000000VTVG0001VTR8C1K7",
- "updated": "2026-11-09T07:12:33+00:00",
+ "updated": "2026-11-09T08:01:45+00:00",
  "note": "Ergebnisse aus Sicht des FC Süderelbe (eigene Tore zuerst). id bleibt pro Begegnung stabil.",
  "fixtures": [
   {
@@ -153,7 +153,7 @@
    "time": "19:00",
    "home": false,
    "opp": "SC Concordia Hamburg",
-   "res": "",
+   "res": "6:2",
    "comp": "Liga"
   },
   {
