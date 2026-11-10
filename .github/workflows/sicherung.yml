@@ -1,9 +1,9 @@
 # Wöchentliche, verschlüsselte Sicherung der Teamdaten aus Supabase.
 # Einmalig einrichten (Settings → Secrets and variables → Actions → New repository secret):
-#   SUPABASE_URL       Project URL aus Supabase
-#   SUPABASE_ANON_KEY  der "anon public"-Schlüssel (NICHT service_role)
 #   BACKUP_PASSWORD    langes eigenes Passwort, mindestens 12 Zeichen – gut aufbewahren!
 #   MED_PIN            optional: Medizin-PIN, dann werden auch die Arztakten gesichert
+# Projekt-Adresse und anon-Schlüssel kommen aus dem Team-Link (t/index.html). Nur wenn sich der
+# Zugang einmal ändert und t/index.html nicht mit, SUPABASE_URL und SUPABASE_ANON_KEY als Secrets setzen.
 # Die Sicherung liegt danach 90 Tage unter Actions → Sicherung → jeweiliger Lauf → Artifacts.
 name: Sicherung
 on:
@@ -27,7 +27,6 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
           MED_PIN: ${{ secrets.MED_PIN }}
-          TEAM: fcs-liga
         run: node scripts/sicherung.mjs
       - uses: actions/upload-artifact@v4
         with:
