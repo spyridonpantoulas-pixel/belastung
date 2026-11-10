@@ -1,9 +1,10 @@
 // Wöchentliche Sicherung der Teamdaten aus Supabase – verschlüsselt.
 //
 // Läuft automatisch über GitHub Actions (.github/workflows/sicherung.yml), geht aber auch lokal:
-//   SUPABASE_URL=… SUPABASE_ANON_KEY=… BACKUP_PASSWORD=… node scripts/sicherung.mjs
-// Optional: TEAM (Standard fcs-liga), MED_PIN (dann werden auch die Arztakten mitgesichert),
-//           OUT (Zielordner, Standard ./sicherung)
+//   BACKUP_PASSWORD=… node scripts/sicherung.mjs
+// Projekt-Adresse, anon-Schlüssel und Team-Kürzel stehen schon im kurzen Team-Link (t/index.html)
+// und werden von dort gelesen. SUPABASE_URL / SUPABASE_ANON_KEY / TEAM überschreiben das bei Bedarf.
+// Optional: MED_PIN (dann werden auch die Arztakten mitgesichert), OUT (Zielordner, Standard ./sicherung)
 //
 // Ergebnis: eine Datei sicherung_<team>_<datum>.json.enc. Sie ist mit AES-256-GCM verschlüsselt,
 // der Schlüssel wird aus BACKUP_PASSWORD abgeleitet (scrypt). Ohne das Passwort ist sie wertlos –
@@ -13,16 +14,25 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const env = k => (process.env[k] || "").trim();
-const URL_ = env("SUPABASE_URL").replace(/\/+$/, "");
-const KEY = env("SUPABASE_ANON_KEY");
-const TEAM = env("TEAM") || "fcs-liga";
+// Zugang aus dem Team-Link lesen – derselbe, den die Spieler auf dem Handy haben (nur anon-Rechte)
+const fromLink = (() => {
+  try {
+    const f = env("TEAM_LINK_FILE") || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "t", "index.html");
+    const m = /#fcs=([A-Za-z0-9_-]+)/.exec(fs.readFileSync(f, "utf8"));
+    return m ? JSON.parse(Buffer.from(m[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")) : {};
+  } catch (e) { return {}; }
+})();
+const URL_ = (env("SUPABASE_URL") || fromLink.u || "").replace(/\/+$/, "");
+const KEY = env("SUPABASE_ANON_KEY") || fromLink.k || "";
+const TEAM = env("TEAM") || fromLink.t || "fcs-liga";
 const PASS = process.env.BACKUP_PASSWORD || "";
 const MED_PIN = env("MED_PIN");
 const OUT = env("OUT") || "sicherung";
 const fail = m => { console.error("FEHLER: " + m); process.exit(1); };
-if (!URL_ || !KEY) fail("SUPABASE_URL und SUPABASE_ANON_KEY fehlen (als Secrets im Repository hinterlegen).");
+if (!URL_ || !KEY) fail("SUPABASE_URL und SUPABASE_ANON_KEY fehlen – weder im Team-Link (t/index.html) noch als Secret gefunden.");
 if (PASS.length < 12) fail("BACKUP_PASSWORD fehlt oder ist kürzer als 12 Zeichen.");
 if (/service_role/.test(Buffer.from((KEY.split(".")[1] || ""), "base64").toString()))
   fail("Das ist der service_role-Schlüssel. Bitte den anon public-Schlüssel verwenden.");
