@@ -4,26 +4,25 @@ Einmal pro Woche (montags früh) holt GitHub alle Teamdaten aus Supabase, versch
 deinem Passwort und legt die Datei 90 Tage lang ab. Ohne das Passwort kann niemand sie lesen –
 auch wenn das Repository öffentlich ist.
 
-## Einrichten (einmalig, etwa 5 Minuten)
+## Einrichten (einmalig, etwa 3 Minuten)
+
+Projekt-Adresse und Zugangsschlüssel liest die Sicherung aus dem kurzen Team-Link (`t/index.html`).
+Du musst nur ein Passwort hinterlegen:
 
 1. Im Repository **belastung** oben auf **Settings**.
 2. Links **Secrets and variables → Actions**, dann **New repository secret**.
-3. Diese drei Einträge anlegen (Name genau so schreiben):
-
-| Name | Inhalt |
-|---|---|
-| `SUPABASE_URL` | Project URL aus Supabase (Project Settings → API), z. B. `https://abc….supabase.co` |
-| `SUPABASE_ANON_KEY` | der Schlüssel **anon public** – niemals `service_role` |
-| `BACKUP_PASSWORD` | ein eigenes, langes Passwort (mindestens 12 Zeichen) |
-
-4. Optional `MED_PIN` mit der Medizin-PIN – dann werden auch Fabians Arztakten mitgesichert.
-   Ohne diesen Eintrag bleiben die Akten außen vor.
+3. **Name:** `BACKUP_PASSWORD` · **Secret:** ein eigenes, langes Passwort (mindestens 12 Zeichen) · **Add secret**.
+4. Optional ein zweites Secret `MED_PIN` mit der Medizin-PIN – dann werden auch Fabians Arztakten
+   mitgesichert. Ohne diesen Eintrag bleiben die Akten außen vor.
 5. Oben auf **Actions → Sicherung → Run workflow**. Nach etwa einer Minute ist der Lauf grün.
    In der App steht danach unter *Kader & Daten*: „Letzte Sicherung: heute“.
 
 **Das Passwort gut aufbewahren** (z. B. im Passwort-Manager und auf Papier im Vereinsheim).
 Wer es verliert, kann keine Sicherung mehr öffnen. GitHub zeigt ein gespeichertes Secret nie
 wieder an.
+
+Ändert sich der Supabase-Zugang einmal und `t/index.html` wird nicht mit erneuert, zusätzlich die
+Secrets `SUPABASE_URL` und `SUPABASE_ANON_KEY` (Schlüssel **anon public**, nie `service_role`) anlegen.
 
 ## Zurückholen
 
@@ -43,8 +42,8 @@ bewusst nicht eingespielt. Wenn sie gebraucht werden, kurz melden – das geht n
 
 ## Wenn etwas klemmt
 
-- **Lauf rot, „SUPABASE_URL und SUPABASE_ANON_KEY fehlen“** – Secrets fehlen oder sind falsch benannt.
-- **„HTTP 401“** – falscher Schlüssel kopiert.
+- **Lauf rot, „BACKUP_PASSWORD fehlt“** – das Secret fehlt, ist falsch benannt oder kürzer als 12 Zeichen.
+- **„HTTP 401“** – der Zugang im Team-Link stimmt nicht mehr; dann die Secrets `SUPABASE_URL` und `SUPABASE_ANON_KEY` setzen (siehe oben).
 - **Keine Läufe mehr** – GitHub pausiert geplante Läufe, wenn ein Repository 60 Tage lang
   keine Änderung bekommt. Unter *Actions → Sicherung* auf **Enable workflow** klicken.
 - **In der App steht „überfällig“** – die letzte Sicherung ist älter als 9 Tage. In *Actions*

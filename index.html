@@ -21838,7 +21838,7 @@ function SettingsSheet({ squad, setSquad, pin, setPin, onClose, onExport, onImpo
                     at ? "Letzte Sicherung: " + (age === 0 ? "heute" : age === 1 ? "gestern" : fmtDay(at) + " " + fmtDate(at) + " (vor " + age + " Tagen)") + "."
                         + (backup.counts ? " " + backup.counts.rueckmeldungen + " Rückmeldungen, " + backup.counts.einheiten + " Einheiten." : "")
                         + (late ? " Die wöchentliche Sicherung ist überfällig – in GitHub unter Actions → Sicherung nachsehen." : "")
-                        : "Noch keine automatische Sicherung gelaufen. Einrichtung: siehe SICHERUNG.md im Repository.");
+                        : "Noch keine automatische Sicherung gelaufen. Einrichtung: in GitHub das Secret BACKUP_PASSWORD anlegen, siehe SICHERUNG.md.");
             })(),
             React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 } },
                 React.createElement("button", { className: "btn sm ghost", onClick: onExport },
