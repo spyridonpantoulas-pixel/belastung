@@ -18437,6 +18437,22 @@ function planRows(calendar, entries, today, back) {
     })
         .sort((a, b) => a.c.date < b.c.date ? 1 : a.c.date > b.c.date ? -1 : 0);
 }
+// Je Kalenderwoche: geplante Belastungspunkte gegen das, was bei voller Teilnahme im Schnitt ankam.
+// Nur Trainings – bei Spielen hängt die Last an der Einsatzzeit, nicht an der Planung.
+function weekPlanRows(calendar, entries, today, weeks) {
+    const dayIx = (dow(today) + 6) % 7;
+    const thisMon = addDays(today, -dayIx);
+    const out = [];
+    for (let i = weeks - 1; i >= 0; i--) {
+        const mon = addDays(thisMon, -7 * i), end = addDays(mon, 6);
+        const rows = planRows(calendar.filter(c => c.date >= mon && c.date <= end && !isMatchType(c.type)), entries, today, 0)
+            .filter(r => r.n > 0 && r.planPts > 0);
+        const plan = sum(rows.map(r => r.planPts)), act = sum(rows.map(r => r.actPts || 0));
+        out.push({ mon, end, kw: isoWeek(mon), n: rows.length, plan, act, running: i === 0,
+            d: plan > 0 ? (act - plan) / plan : null, dRpe: rows.length ? mean(rows.map(r => r.d)) : null });
+    }
+    return out;
+}
 // Trifft die eigene Einschätzung? Je Planstufe der tatsächliche Schnitt.
 function planCalibration(rows) {
     const defs = [
@@ -18640,6 +18656,26 @@ function statusOf(m, today) {
     if (!reasons.length)
         reasons.push("Belastung, Befinden und Beschwerden unauffällig");
     return { ...st, reasons, level };
+}
+/* ---------- Wann zählt eine Einheit als gelaufen? ----------
+   Vergangene Tage immer. Die Einheit von heute erst ab der ersten Rückmeldung, spätestens ab 22 Uhr.
+   Vorher stand das Training von heute Abend schon morgens als "26 fehlen" in der Übersicht
+   und drückte jede Quote. */
+const isMatchType = t => t === "Spiel" || t === "Testspiel";
+const hmNow = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+function sessionDue(s, today, now, hasAny) {
+    if (!s || !s.date || s.date > today)
+        return false;
+    if (s.date < today || hasAny)
+        return true;
+    return now >= "22:00";
+}
+function dueSessions(calendar, today, entries, submitted, now) {
+    const any = new Set();
+    (entries || []).forEach(e => any.add(e.sessionId));
+    (submitted || []).forEach(x => any.add(x.sessionId));
+    const t = now || hmNow();
+    return (calendar || []).filter(s => sessionDue(s, today, t, any.has(s.id)));
 }
 /* ============================================================
    4b) SYNCHRONISATION (Supabase REST, ohne Bibliothek)
@@ -18918,7 +18954,7 @@ const HELP = {
     gleich: "Waren alle Tage der Woche ähnlich hart? Gleichförmige Wochen belasten mehr als Wochen mit klaren harten und lockeren Tagen – auch bei gleicher Gesamtlast.",
     anstrengung: "Durchschnitt aller Anstrengungswerte der Woche auf der Skala 1 bis 10. Ab etwa 8 im Schnitt trainiert die Mannschaft dauerhaft am Limit.",
     einsatz: "Alle Spieler außer verletzt und krank. Abgemeldete zählen als einsatzfähig – sie sind gesund, nur diese eine Einheit nicht da.",
-    quote: "Wie viele Spieler sich zur letzten Einheit gemeldet haben. Unter 75 % wird die Auswertung unzuverlässig – dann fehlen genau die, um die es geht.",
+    quote: "Wie viele Spieler sich zur letzten gelaufenen Einheit gemeldet haben – auch Abmeldungen zählen. Die Einheit von heute zählt erst ab der ersten Rückmeldung, spätestens ab 22 Uhr. Unter 75 % wird die Auswertung unzuverlässig – dann fehlen genau die, um die es geht.",
     schlaf: "Selbsteinschätzung der letzten Nacht, 1 = sehr schlecht bis 5 = sehr gut. Schlaf ist der stärkste Erholungsfaktor, den ein Spieler selbst beeinflussen kann.",
     stress: "Belastung außerhalb des Platzes: Arbeit, Schule, Familie. 1 = sehr entspannt bis 5 = sehr gestresst. Zählt zur Gesamtbelastung dazu, auch wenn sie nichts mit Fußball zu tun hat.",
 };
@@ -19063,6 +19099,68 @@ function LineChart({ points, series }) {
             React.createElement("i", { style: { background: s.color } }),
             s.legend || s.label)))));
 }
+// Zwei Säulen je Gruppe (z. B. geplant / angekommen) auf einer gemeinsamen Achse
+function PairColumns({ data, series, unit = "Punkte" }) {
+    const [ref, W] = useMeasure();
+    const [hover, setHover] = useState(null);
+    const H = 200, mL = 42, mR = 10, mT = 14, mB = 34;
+    const pw = Math.max(60, W - mL - mR), ph = H - mT - mB;
+    const maxV = Math.max(1, ...data.map(d => Math.max(d[series[0].key] || 0, d[series[1].key] || 0)));
+    const ticks = niceTicks(maxV, 4);
+    const top = ticks[ticks.length - 1] || 1;
+    const bw = pw / Math.max(1, data.length);
+    const barW = Math.min(22, Math.max(6, (bw - 14) / 2));
+    const y = v => mT + ph - (v / top) * ph;
+    const cx = i => mL + bw * i + bw / 2;
+    const bar = (x, v, r = 4) => {
+        const yy = y(v), h = mT + ph - yy;
+        if (h <= 0.5)
+            return "";
+        const rr = Math.min(r, h, barW / 2);
+        return `M${x},${yy + h} L${x},${yy + rr} Q${x},${yy} ${x + rr},${yy} L${x + barW - rr},${yy} Q${x + barW},${yy} ${x + barW},${yy + rr} L${x + barW},${yy + h} Z`;
+    };
+    return oh("div", { className: "chartwrap", ref },
+        oh("svg", { viewBox: `0 0 ${Math.max(W, 120)} ${H}`, role: "img", "aria-label": series[0].label + " und " + series[1].label + " je Woche", onPointerLeave: () => setHover(null) },
+            ticks.map((t, i) => oh("g", { key: i },
+                oh("line", { x1: mL, x2: mL + pw, y1: y(t), y2: y(t), stroke: "var(--line)", strokeWidth: "1" }),
+                oh("text", { x: mL - 8, y: y(t) + 3.5, textAnchor: "end", fontSize: "10", fill: "var(--muted)", style: { fontVariantNumeric: "tabular-nums" } }, axisFmt(top)(t)))),
+            data.map((d, i) => oh("g", { key: d.label + i },
+                oh("rect", { x: mL + bw * i, y: mT, width: bw, height: ph, fill: "transparent", onPointerEnter: () => setHover(i), onPointerDown: () => setHover(i), style: { cursor: "pointer" } }),
+                oh("path", { d: bar(cx(i) - barW - 1, d[series[0].key] || 0), fill: series[0].color, opacity: hover === null || hover === i ? 1 : 0.45, style: { pointerEvents: "none", transition: "opacity .12s" } }),
+                oh("path", { d: bar(cx(i) + 1, d[series[1].key] || 0), fill: series[1].color, opacity: hover === null || hover === i ? 1 : 0.45, style: { pointerEvents: "none", transition: "opacity .12s" } }),
+                oh("text", { x: cx(i), y: H - 14, textAnchor: "middle", fontSize: "10.5", fontWeight: "650", fill: hover === i ? "var(--ink)" : "var(--ink-2)", style: { pointerEvents: "none" } }, d.label),
+                bw >= 44 && oh("text", { x: cx(i), y: H - 3, textAnchor: "middle", fontSize: "9", fill: "var(--muted)", style: { pointerEvents: "none" } }, d.sub))),
+            oh("line", { x1: mL, x2: mL + pw, y1: mT + ph, y2: mT + ph, stroke: "var(--line)", strokeWidth: "1" })),
+        hover !== null && data[hover] && oh("div", { className: "tt", style: { left: Math.min(Math.max(cx(hover), 84), Math.max(W - 84, 84)), top: mT + 4 } },
+            oh("div", { className: "tt-t" }, data[hover].full || data[hover].label),
+            series.map(s => oh("div", { className: "tt-r", key: s.key },
+                oh("span", { className: "dot", style: { background: s.color } }), s.label + " ", oh("b", null, nf(data[hover][s.key] || 0), " ", unit))),
+            data[hover].note && oh("div", { className: "tt-r", style: { marginTop: 4, fontSize: 11 } }, data[hover].note)),
+        oh("div", { className: "legend" }, series.map(s => oh("span", { key: s.key }, oh("i", { style: { background: s.color } }), s.legend || s.label))));
+}
+// Verlauf eines Wertes über die letzten Wochen: eine Zeile, Punkte an den Tagen mit Rückmeldung
+function MiniTrend({ label, pts, min, max, from, to, hint }) {
+    const [ref, W] = useMeasure();
+    const H = 46, pad = 7, w = Math.max(80, W);
+    const span = Math.max(1, Math.round((parseISO(to) - parseISO(from)) / 864e5));
+    const x = d => pad + (Math.round((parseISO(d) - parseISO(from)) / 864e5) / span) * (w - 2 * pad);
+    const y = v => pad + (1 - (v - min) / (max - min)) * (H - 2 * pad);
+    const last = pts.length ? pts[pts.length - 1] : null;
+    const avg = pts.length ? mean(pts.map(q => q.v)) : null;
+    return oh("div", { className: "minitrend", style: { display: "flex", alignItems: "center", gap: 12, padding: "6px 0" } },
+        oh("div", { style: { width: 92, flex: "0 0 auto" } },
+            oh("div", { style: { fontSize: 12.5, fontWeight: 650 } }, label),
+            oh("div", { style: { fontSize: 10.5, color: "var(--muted)" } }, hint)),
+        oh("div", { ref, style: { flex: 1, minWidth: 0 } },
+            pts.length ? oh("svg", { viewBox: `0 0 ${w} ${H}`, width: "100%", height: H, role: "img", "aria-label": label + " – Verlauf, zuletzt " + (last ? nf(last.v) : "–") },
+                oh("line", { x1: pad, x2: w - pad, y1: y(min), y2: y(min), stroke: "var(--line)", strokeWidth: "1" }),
+                oh("line", { x1: pad, x2: w - pad, y1: y(max), y2: y(max), stroke: "var(--line)", strokeWidth: "1" }),
+                pts.length > 1 && oh("path", { d: pts.map((q, i) => (i ? "L" : "M") + x(q.date).toFixed(1) + "," + y(q.v).toFixed(1)).join(" "), fill: "none", stroke: "var(--s1)", strokeWidth: "2", strokeLinejoin: "round", strokeLinecap: "round" }),
+                pts.map((q, i) => oh("circle", { key: i, cx: x(q.date), cy: y(q.v), r: i === pts.length - 1 ? 4 : 3, fill: "var(--s1)", stroke: "var(--surface)", strokeWidth: "2" },
+                    oh("title", null, fmtDay(q.date) + " " + fmtDate(q.date) + ": " + nf(q.v)))))
+                : oh("div", { style: { fontSize: 12, color: "var(--muted)" } }, "noch keine Werte")),
+        oh("div", { className: "num", style: { minWidth: 46, textAlign: "right" } }, avg === null ? "–" : nf1(avg), oh("small", { style: { display: "block" } }, "Ø · " + pts.length + (pts.length === 1 ? " Wert" : " Werte"))));
+}
 function TableToggle({ children, rows, cols }) {
     const [open, setOpen] = useState(false);
     return (React.createElement("div", null,
@@ -19146,7 +19244,9 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
     const forget = () => { if (setMeId)
         setMeId(null); setPlayerId(null); setStepIdx(0); };
     const next = () => setStepIdx(i => i + 1);
-    const save = (override) => {
+    const save = (override, reasonNow) => {
+        // reasonNow: Der gerade angetippte Grund steht in diesem Durchlauf noch nicht im Zustand
+        const reason = reasonNow || absReasonSel;
         const src = override || pains;
         const gone = out || away;
         const list = gone ? [] : Object.entries(src).filter(([, v]) => v > 0).map(([region, level]) => ({ region, level: Number(level) }));
@@ -19156,11 +19256,11 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
             rpe: gone ? 0 : rpe, minutes: mins, pains: list, mood, sleep, stress,
             status: out ? "injured" : away ? "absent" : "trained",
             injury: out ? { region: injRegion, level: injLevel, onset: injOnset, activity: injActivity, medical: injMedical } : null,
-            absence: away ? { reason: absReasonSel } : null,
+            absence: away ? { reason: reason || "sonst" } : null,
             ts: Date.now(),
         };
         onSave(rec);
-        setDone({ player, session, rpe, mood, pains: list, minutes: mins, out, away, injRegion, reason: absReasonSel });
+        setDone({ player, session, rpe, mood, pains: list, minutes: mins, out, away, injRegion, reason: reason || "sonst" });
         toast("Danke, " + player.name.split(" ")[0] + "! Eintrag gespeichert.");
     };
     if (done) {
@@ -19284,7 +19384,7 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
                     if (a.key === "krank")
                         next();
                     else
-                        setTimeout(() => save({}), 0);
+                        save({}, a.key);
                 } },
                 React.createElement("span", { style: { fontSize: 24, width: 32, textAlign: "center" } }, a.em),
                 React.createElement("span", { style: { flex: 1 } },
@@ -19375,7 +19475,9 @@ function InputView({ squad, calendar, entries, today, submitted, onSave, toast, 
    ============================================================ */
 function ResponseOverview({ squad, calendar, entries, submitted, today, shareLink, onCopy, focus, onlyIds }) {
     const [showAll, setShowAll] = useState(false);
-    const past0 = calendar.filter(s => s.date <= today);
+    // Nur gelaufene Einheiten – außer der Trainer wählt die heutige ausdrücklich aus
+    const due0 = dueSessions(calendar, today, entries, submitted);
+    const past0 = focus && !due0.some(s => s.id === focus.id) ? calendar.filter(s => s.date <= today) : due0;
     // gewählte Einheit steht links und ist Grundlage für Quote und "Es fehlen"
     const fi = focus ? past0.findIndex(s => s.id === focus.id) : -1;
     const past = fi >= 0 ? past0.slice(0, fi + 1) : past0;
@@ -19549,8 +19651,8 @@ function ResponseStats({ squad, calendar, entries, submitted, today, onCopy, onD
     const [range, setRange] = useState("all");
     const [sort, setSort] = useState("low");
     const [showAll, setShowAll] = useState(false);
-    const sess = useMemo(() => calendar.filter(s => s.date <= today
-        && (range === "all" || s.date >= addDays(today, -(parseInt(range) - 1)))), [calendar, today, range]);
+    const sess = useMemo(() => dueSessions(calendar, today, entries, submitted)
+        .filter(s => range === "all" || s.date >= addDays(today, -(parseInt(range) - 1))), [calendar, today, range, entries, submitted]);
     const stats = useMemo(() => {
         const sids = new Set(sess.map(s => s.id));
         const by = {};
@@ -19652,7 +19754,8 @@ function ResponsesView({ squad, calendar, entries, submitted, today, shareLink, 
     const [sess, setSess] = useState("all"); // einzelne Einheit
     const [resp, setResp] = useState("all"); // all | yes | no
     const past = calendar.filter(s => s.date <= today);
-    const lastSession = past.length ? past[past.length - 1] : null;
+    const dueList = dueSessions(calendar, today, entries, submitted);
+    const lastSession = dueList.length ? dueList[dueList.length - 1] : null;
     const selSession = sess !== "all" ? past.find(c => c.id === sess) || null : null;
     const scopeSession = selSession || (range === "last" ? lastSession : null);
     const basePeople = useMemo(() => squad.filter(p => (group === "all" || (group === "gk" ? p.gk : !p.gk)) && (who === "all" || p.id === who)), [squad, group, who]);
@@ -20284,7 +20387,7 @@ function MatchWeek({ calendar, today }) {
 /* ============================================================
    7e) DIE LAGE IN KLARTEXT
    ============================================================ */
-function Situation({ scoped, metrics, counts, fit, weekLoad, delta, quote, respondedToday, nextMatch, hist, teamAcwr, avgSleep, todaySessions, lastPlan }) {
+function Situation({ scoped, metrics, counts, fit, weekLoad, delta, quote, respondedToday, nextMatch, hist, teamAcwr, avgSleep, todaySessions, lastPlan, lastDue, today }) {
     const red = metrics.filter(m => m.status.key === "red");
     const lines = [];
     lines.push({
@@ -20338,7 +20441,7 @@ function Situation({ scoped, metrics, counts, fit, weekLoad, delta, quote, respo
             : React.createElement(React.Fragment, null, "Niemand muss heute individuell gesteuert werden."),
     });
     if (nextMatch) {
-        const d = Math.round((parseISO(nextMatch.date) - parseISO(iso(new Date()))) / 864e5);
+        const d = Math.round((parseISO(nextMatch.date) - parseISO(today || localIso())) / 864e5);
         lines.push({
             c: "var(--s1)", icon: I.cal,
             t: React.createElement(React.Fragment, null,
@@ -20376,14 +20479,15 @@ function Situation({ scoped, metrics, counts, fit, weekLoad, delta, quote, respo
                 r.over && r.under ? " " + r.over + " über, " + r.under + " unter Plan – die Einheit ist unterschiedlich angekommen." : ""),
         });
     }
-    if (quote < 75 && todaySessions.length) {
+    // Erst am Folgetag mahnen – direkt nach dem Abpfiff ist eine niedrige Quote normal
+    if (lastDue && quote !== null && quote < 75 && lastDue.date < (today || localIso())) {
         lines.push({ c: "var(--warn)", icon: I.eye,
             t: React.createElement(React.Fragment, null,
                 "Nur ",
                 React.createElement("b", null,
                     quote,
                     " %"),
-                " haben sich heute gemeldet (",
+                " haben sich zu \u201E" + lastDue.label + "\u201C (" + fmtDay(lastDue.date) + " " + fmtDate(lastDue.date) + ") gemeldet (",
                 respondedToday,
                 " von ",
                 scoped.length,
@@ -20429,7 +20533,9 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
     const prevWeek = sum(days14.slice(0, 7).map(d => d.load));
     const delta = prevWeek > 0 ? (weekLoad - prevWeek) / prevWeek : null;
     const last7Entries = scopedEntries.filter(e => parseISO(e.date) >= parseISO(addDays(today, -6)));
-    const avgRpe = last7Entries.length ? mean(last7Entries.map(e => e.rpe)) : 0;
+    // Abmeldungen und Ausfälle haben keine Anstrengung – sie zogen den Schnitt vorher mit einer 0 nach unten
+    const trained7 = last7Entries.filter(e => !isOut(e) && e.rpe > 0);
+    const avgRpe = trained7.length ? mean(trained7.map(e => e.rpe)) : 0;
     const scopedMetrics = metrics.filter(m => scopeIds.has(m.player.id));
     const counts = { green: 0, amber: 0, red: 0, none: 0, injured: 0, ill: 0, away: 0 };
     scopedMetrics.forEach(m => { counts[m.status.key]++; });
@@ -20442,8 +20548,11 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
     const slTeam = last7Entries.filter(e => e.sleep > 0).map(e => e.sleep);
     const avgSleepTeam = slTeam.length ? mean(slTeam) : null;
     const lastPlan = planRows(calendar, scopedEntries, today, 0).filter(r => r.n > 0)[0] || null;
-    const respondedToday = new Set(scopedEntries.filter(e => e.date === today).map(e => e.playerId)).size;
-    const quote = scoped.length ? Math.round(respondedToday / scoped.length * 100) : 0;
+    // Rückmeldequote bezieht sich auf die letzte gelaufene Einheit, nicht auf den Kalendertag
+    const dueList = dueSessions(calendar, today, entries);
+    const lastDue = dueList.length ? dueList[dueList.length - 1] : null;
+    const respondedToday = lastDue ? new Set(scopedEntries.filter(e => e.sessionId === lastDue.id).map(e => e.playerId)).size : 0;
+    const quote = lastDue && scoped.length ? Math.round(respondedToday / scoped.length * 100) : null;
     const colData = days7.map(d => {
         const sess = calendar.filter(s => s.date === d.date);
         return {
@@ -20523,7 +20632,7 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
             React.createElement("div", { className: "viewswitch" },
                 React.createElement("button", { "aria-pressed": !detail, onClick: () => setDetail(false) }, "Einfach"),
                 React.createElement("button", { "aria-pressed": detail, onClick: () => setDetail(true) }, "Alle Details"))),
-        React.createElement(Situation, { scoped: scoped, metrics: scopedMetrics, counts: counts, fit: fit, weekLoad: weekLoad, delta: delta, quote: quote, respondedToday: respondedToday, nextMatch: nextMatch, hist: H, teamAcwr: teamAcwr, avgSleep: avgSleepTeam, todaySessions: todaySessions, lastPlan: lastPlan }),
+        React.createElement(Situation, { scoped: scoped, metrics: scopedMetrics, counts: counts, fit: fit, weekLoad: weekLoad, delta: delta, quote: quote, respondedToday: respondedToday, nextMatch: nextMatch, hist: H, teamAcwr: teamAcwr, avgSleep: avgSleepTeam, todaySessions: todaySessions, lastPlan: lastPlan, lastDue: lastDue, today: today }),
         !H.mature && (React.createElement("div", { className: "card", style: { marginTop: 12, borderColor: "rgba(10,132,255,0.35)", background: "rgba(10,132,255,0.06)" } },
             React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
                 React.createElement("span", { style: { width: 36, height: 36, borderRadius: 10, background: "rgba(10,132,255,0.16)", color: "var(--s1)",
@@ -20558,17 +20667,12 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                     away.length ? " · " + away.length + " abgemeldet" : "")),
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" },
-                    "R\u00FCckmeldung heute",
+                    "R\u00FCckmeldung letzte Einheit",
                     React.createElement(Help, { text: HELP.quote })),
-                React.createElement("span", { className: "v", style: { color: quote >= 80 ? "var(--good)" : quote >= 50 ? "var(--warn)" : "var(--crit)" } },
-                    quote,
-                    " %"),
-                React.createElement("span", { className: "d" },
-                    respondedToday,
-                    " / ",
-                    scoped.length,
-                    " ",
-                    todaySessions.length ? "· " + todaySessions[0].label : "· kein Training")),
+                React.createElement("span", { className: "v", style: { color: quote === null ? "var(--muted)" : quote >= 80 ? "var(--good)" : lastDue.date === today ? "var(--ink)" : quote >= 50 ? "var(--warn)" : "var(--crit)" } }, quote === null ? "–" : quote + " %"),
+                React.createElement("span", { className: "d" }, lastDue
+                    ? respondedToday + " / " + scoped.length + " · " + (lastDue.date === today ? "heute, läuft noch ein · " : fmtDay(lastDue.date) + " " + fmtShort(lastDue.date) + " ") + lastDue.label
+                    : "noch keine Einheit gelaufen")),
             React.createElement("div", { className: "tile" },
                 React.createElement("span", { className: "lab" },
                     "Belastungspunkte",
@@ -20585,7 +20689,7 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                 React.createElement("span", { className: "v" }, nf1(avgRpe)),
                 React.createElement("span", { className: "d" },
                     "von 10 \u00B7 ",
-                    last7Entries.length,
+                    trained7.length,
                     " R\u00FCckmeldungen"))),
         React.createElement("div", { className: "card", style: { marginTop: 12 } },
             React.createElement("div", { className: "card-head" },
@@ -20701,6 +20805,30 @@ function Dashboard({ squad, entries, today, metrics, calendar, hist, onOpenPlaye
                         React.createElement(Help, { text: HELP.gleich })),
                     React.createElement("span", { className: "v", style: { fontSize: 19, color: H.days < 7 ? "var(--muted)" : teamMono >= 2.2 ? "var(--warn)" : "var(--good)" } }, H.days < 7 ? "–" : teamMono >= 2.2 ? "zu gleichförmig" : "gut verteilt"),
                     React.createElement("span", { className: "d" }, H.days < 7 ? "ab einer vollen Woche" : "Wert " + nf1(teamMono) + " · gut ist unter 2,0"))),
+            (() => {
+                const wk = weekPlanRows(calendar, scopedEntries, today, 6);
+                if (!wk.some(w => w.n > 0))
+                    return null;
+                const data = wk.map(w => ({ label: "KW " + w.kw, sub: fmtShort(w.mon) + "–" + fmtShort(w.end), plan: w.plan, act: w.act,
+                    full: "KW " + w.kw + " · " + fmtDate(w.mon) + "–" + fmtDate(w.end) + (w.running ? " · läuft noch" : ""),
+                    note: w.n ? w.n + " Training" + (w.n === 1 ? "" : "s") + (w.d === null ? "" : " · " + (w.d > 0 ? "+" : "") + nf(w.d * 100) + " % gegenüber Plan") : "keine Trainings mit Rückmeldung" }));
+                const done = wk.filter(w => w.n > 0 && !w.running);
+                const avgD = done.length ? mean(done.map(w => w.d)) : null;
+                return React.createElement("div", { className: "card", style: { marginTop: 12 }, id: "weekplan" },
+                    React.createElement("div", { className: "card-head" },
+                        React.createElement("div", null,
+                            React.createElement("h3", null, "Trainingswoche: geplant gegen angekommen"),
+                            React.createElement("p", null, "Belastungspunkte eines Spielers, der alle Trainings der Woche mitgemacht hat. Ohne Spiele – dort entscheidet die Einsatzzeit."))),
+                    React.createElement(TableToggle, { cols: ["Woche", "Trainings", "Geplant", "Angekommen", "Abweichung"], rows: wk.map(w => ["KW " + w.kw + " (" + fmtDate(w.mon) + "–" + fmtDate(w.end) + ")", w.n, nf(w.plan), nf(w.act), w.d === null ? "–" : (w.d > 0 ? "+" : "") + nf(w.d * 100) + " %"]) },
+                        React.createElement(PairColumns, { data: data, series: [
+                                { key: "plan", color: "var(--muted)", label: "Geplant", legend: "Geplant (Dauer × geplante Intensität)" },
+                                { key: "act", color: "var(--s1)", label: "Angekommen", legend: "Angekommen (Dauer × empfundene Anstrengung)" },
+                            ] })),
+                    avgD !== null && React.createElement("p", { style: { fontSize: 12, color: "var(--ink-2)", margin: "10px 0 0", lineHeight: 1.6 } },
+                        "Über die abgeschlossenen Wochen kamen eure Trainings im Schnitt ",
+                        React.createElement("b", { style: { color: Math.abs(avgD) <= 0.1 ? "var(--good)" : avgD > 0 ? "var(--s2)" : "var(--s1)" } }, Math.abs(avgD) <= 0.1 ? "so an wie geplant" : (avgD > 0 ? "+" : "") + nf(avgD * 100) + " % " + (avgD > 0 ? "härter an als geplant" : "lockerer an als geplant")),
+                        ". Bis 10 % Abweichung ist das im Rahmen."));
+            })(),
             React.createElement("div", { className: "card", style: { marginTop: 12 } },
                 React.createElement("div", { className: "card-head" },
                     React.createElement("div", null,
@@ -20747,7 +20875,8 @@ function buildReport({ squad, entries, metrics, today, calendar, hist }) {
     const teamLoad = sum(days7.map(d => d.load));
     const prevLoad = sum(days14.slice(0, 7).map(d => d.load));
     const delta = prevLoad > 0 ? (teamLoad - prevLoad) / prevLoad : null;
-    const avgRpe = week.length ? mean(week.map(e => e.rpe)) : 0;
+    const weekTrained = week.filter(e => !isOut(e) && e.rpe > 0);
+    const avgRpe = weekTrained.length ? mean(weekTrained.map(e => e.rpe)) : 0;
     const wSleep = week.filter(e => e.sleep > 0).map(e => e.sleep);
     const wStress = week.filter(e => e.stress > 0).map(e => e.stress);
     const avgSleepW = wSleep.length ? mean(wSleep) : null;
@@ -20759,9 +20888,11 @@ function buildReport({ squad, entries, metrics, today, calendar, hist }) {
     const teamMono = (() => { const v = days7.map(d => d.load); const s = sd(v); return s > 0 ? mean(v) / s : 0; })();
     const counts = { green: 0, amber: 0, red: 0, none: 0, injured: 0, ill: 0, away: 0 };
     metrics.forEach(m => counts[m.status.key]++);
+    const dueIds = new Set(dueSessions(sessions, today, entries).map(s => s.id));
     const respondQuote = (() => {
         let expected = 0, got = 0;
-        sessions.forEach(s => { expected += squad.length; got += new Set(entries.filter(e => e.sessionId === s.id).map(e => e.playerId)).size; });
+        sessions.forEach(s => { if (!dueIds.has(s.id))
+            return; expected += squad.length; got += new Set(entries.filter(e => e.sessionId === s.id).map(e => e.playerId)).size; });
         return expected ? Math.round(got / expected * 100) : 0;
     })();
     const nextMatch = (() => { for (let i = 1; i <= 7; i++) {
@@ -21027,7 +21158,7 @@ function buildShortReport({ squad, entries, metrics, today, calendar, hist }) {
     const fit = squad.length - inj.length - ill.length;
     const sl = week.filter(e => e.sleep > 0).map(e => e.sleep);
     const st = week.filter(e => e.stress > 0).map(e => e.stress);
-    const sessions = calendar.filter(c => c.date >= from && c.date <= today);
+    const sessions = dueSessions(calendar.filter(c => c.date >= from && c.date <= today), today, entries);
     let expected = 0, got = 0;
     sessions.forEach(c => { expected += squad.length; got += new Set(entries.filter(e => e.sessionId === c.id).map(e => e.playerId)).size; });
     const quote = expected ? Math.round(got / expected * 100) : 0;
@@ -21118,7 +21249,7 @@ function ReportView({ report, shortReport, allReports, onCopy, onDownload }) {
 function buildPlayerReport(m, { entries, calendar, today, mode }) {
     const p = m.player;
     const from = addDays(today, -6);
-    const sess = calendar.filter(c => c.date >= from && c.date <= today);
+    const sess = dueSessions(calendar.filter(c => c.date >= from && c.date <= today), today, entries);
     const mine = entries.filter(e => e.playerId === p.id && e.date >= from);
     const got = new Set(mine.map(e => e.sessionId)).size;
     const trained = mine.filter(e => !isOut(e));
@@ -21321,6 +21452,17 @@ function PlayerDetail({ m, entries, today }) {
         React.createElement("ul", { style: { margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 } }, m.status.reasons.map((r, i) => React.createElement("li", { key: i }, r))),
         React.createElement("div", { style: { margin: "18px 0 8px" }, className: "eyebrow" }, "Tagesbelastung \u00B7 14 Tage"),
         React.createElement(ColumnChart, { data: data, avgLine: false }),
+        (() => {
+            const from = addDays(today, -27);
+            const all = entries.filter(e => e.playerId === p.id && e.date >= from && e.date <= today).sort((a, b) => a.date < b.date ? -1 : 1);
+            if (all.length < 2)
+                return null;
+            return React.createElement("div", { id: "trend28" },
+                React.createElement("div", { style: { margin: "18px 0 4px" }, className: "eyebrow" }, "Verlauf \u00B7 28 Tage"),
+                React.createElement(MiniTrend, { label: "Anstrengung", hint: "1\u201310", min: 1, max: 10, from: from, to: today, pts: all.filter(e => !isOut(e) && e.rpe > 0).map(e => ({ date: e.date, v: e.rpe })) }),
+                React.createElement(MiniTrend, { label: "Schlaf", hint: "1\u20135, hoch ist gut", min: 1, max: 5, from: from, to: today, pts: all.filter(e => e.sleep > 0).map(e => ({ date: e.date, v: e.sleep })) }),
+                React.createElement(MiniTrend, { label: "Stress", hint: "1\u20135, niedrig ist gut", min: 1, max: 5, from: from, to: today, pts: all.filter(e => e.stress > 0).map(e => ({ date: e.date, v: e.stress })) }));
+        })(),
         React.createElement("div", { style: { margin: "18px 0 8px" }, className: "eyebrow" }, "Letzte R\u00FCckmeldungen"),
         React.createElement("div", { className: "rows" }, mine.length ? mine.map(e => {
             const mood = MOODS.find(x => x.key === e.mood) || MOODS[0];
@@ -24002,7 +24144,16 @@ function ClubLogo({ size = 40 }) {
         style: { width: size + "px", height: size + "px", borderRadius: "50%", objectFit: "cover" }, onError: () => setFailed(true) });
 }
 function App() {
-    const today = useMemo(() => iso(new Date()), []);
+    // Ortszeit statt Weltzeit, und das Datum läuft mit: Eine App, die seit Dienstag auf dem
+    // Startbildschirm im Speicher liegt, kannte am Donnerstag die neue Einheit sonst nicht.
+    const [today, setToday] = useState(() => localIso());
+    useEffect(() => {
+        const upd = () => setToday(t => { const n = localIso(); return n === t ? t : n; });
+        const iv = setInterval(upd, 30000);
+        document.addEventListener("visibilitychange", upd);
+        window.addEventListener("focus", upd);
+        return () => { clearInterval(iv); document.removeEventListener("visibilitychange", upd); window.removeEventListener("focus", upd); };
+    }, []);
     const [mode, setMode] = useState(() => store.get("mode", null) === "player" ? "player" : null);
     const [pin, setPin] = useState(() => String(store.get("pin", "1234")));
     const [orgaPin, setOrgaPin] = useState(() => String(store.get("orgaPin", "1234")));
