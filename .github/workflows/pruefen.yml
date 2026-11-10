@@ -1,0 +1,28 @@
+# Prüft jede Änderung: passt index.html zum Quelltext, und laufen alle Tests?
+name: Prüfen
+on:
+  push:
+    paths-ignore: ["spielplan.json", "t/**"]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pruefen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TZ: Europe/Berlin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: index.html passt zum Quelltext
+        run: bash build.sh --check
+      - name: Testwerkzeug installieren
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Tests
+        run: node tests/run.js

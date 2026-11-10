@@ -1,0 +1,37 @@
+# Wöchentliche, verschlüsselte Sicherung der Teamdaten aus Supabase.
+# Einmalig einrichten (Settings → Secrets and variables → Actions → New repository secret):
+#   SUPABASE_URL       Project URL aus Supabase
+#   SUPABASE_ANON_KEY  der "anon public"-Schlüssel (NICHT service_role)
+#   BACKUP_PASSWORD    langes eigenes Passwort, mindestens 12 Zeichen – gut aufbewahren!
+#   MED_PIN            optional: Medizin-PIN, dann werden auch die Arztakten gesichert
+# Die Sicherung liegt danach 90 Tage unter Actions → Sicherung → jeweiliger Lauf → Artifacts.
+name: Sicherung
+on:
+  schedule:
+    - cron: "17 3 * * 1"   # montags 03:17 UTC
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sicherung:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Sichern und verschlüsseln
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+          MED_PIN: ${{ secrets.MED_PIN }}
+          TEAM: fcs-liga
+        run: node scripts/sicherung.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sicherung-${{ github.run_number }}
+          path: sicherung/*.json.enc
+          retention-days: 90
+          if-no-files-found: error
