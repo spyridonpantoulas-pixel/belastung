@@ -18537,6 +18537,28 @@ function playerMetrics(entries, player, today, hist) {
     const avgStress = stressVals.length ? mean(stressVals) : null;
     const badSleepDays = new Set(all7.filter(e => e.sleep > 0 && e.sleep <= 2).map(e => e.date)).size;
     const highStressDays = new Set(all7.filter(e => e.stress >= 4).map(e => e.date)).size;
+    /* Persönliche Normalwerte: die vier Wochen vor der laufenden Woche (Tag -34 bis -7).
+       Anstrengung wird relativ zur Mannschaft gerechnet (eigener Wert minus Schnitt der anderen in
+       derselben Einheit) – sonst sähe nach einer harten Woche jeder "härter als sonst" aus. */
+    const bFrom = addDays(today, -34), bTo = addDays(today, -7);
+    const inBase = e => e.date >= bFrom && e.date <= bTo;
+    const baseStat = vals => ({ n: vals.length, mean: vals.length ? mean(vals) : null, sd: sd(vals) });
+    const sAgg = {};
+    entries.forEach(e => {
+        if (e.date >= bFrom && e.date <= today && !isOut(e) && e.rpe > 0) {
+            const a = sAgg[e.sessionId] || (sAgg[e.sessionId] = { s: 0, n: 0 });
+            a.s += e.rpe;
+            a.n++;
+        }
+    });
+    const relOf = e => { const a = sAgg[e.sessionId]; return a && a.n >= 4 && e.rpe > 0 ? e.rpe - (a.s - e.rpe) / (a.n - 1) : null; };
+    const relWeekVals = last7.map(relOf).filter(v => v !== null);
+    const base = {
+        from: bFrom, to: bTo,
+        sleep: baseStat(mineAll.filter(e => inBase(e) && e.sleep > 0).map(e => e.sleep)),
+        stress: baseStat(mineAll.filter(e => inBase(e) && e.stress > 0).map(e => e.stress)),
+        rel: baseStat(mine.filter(inBase).map(relOf).filter(v => v !== null)),
+    };
     // Aktuellster Eintrag
     const sorted = [...mineAll].sort((a, b) => a.date < b.date ? 1 : -1);
     const latest = sorted[0] || null;
@@ -18569,6 +18591,8 @@ function playerMetrics(entries, player, today, hist) {
     return {
         player, acute, chronic, acwr, monotony, strain, avgRpe, minutes,
         avgSleep, avgStress, badSleepDays, highStressDays,
+        base, relWeek: relWeekVals.length ? mean(relWeekVals) : null, relWeekN: relWeekVals.length,
+        sleepWeekN: sleepVals.length, stressWeekN: stressVals.length,
         acwrUsable, hist: H,
         injury, injuredNow, missedSessions, injLast7: injLast7.length, injAll,
         absence, absAll, absLast7: absLast7.length, absMissed: absAll.length,
@@ -18577,6 +18601,9 @@ function playerMetrics(entries, player, today, hist) {
         sessions: last7.length, entriesAll: mineAll, daily: dailyLoads(entries, player.id, today, 28),
     };
 }
+// Ab wie vielen Werten aus den vier Wochen davor gilt der eigene Normalwert statt der festen Grenze
+const BASE_MIN = 6;
+const hasBase = (b, nWeek) => !!b && b.n >= BASE_MIN && nWeek >= 2;
 function statusOf(m, today) {
     if (m.injuredNow && m.injury) {
         const inj = m.injury.injury || {};
@@ -18642,13 +18669,41 @@ function statusOf(m, today) {
         bump(2, "Zuletzt „angeschlagen“ gemeldet");
     else if (m.tiredStreak >= 3)
         bump(1, m.tiredStreak + "× in Folge „müde“ gemeldet");
-    if (m.avgRpe >= 8.2)
-        bump(1, "Alle Einheiten sehr hart empfunden (Ø " + nf1(m.avgRpe) + " von 10)");
-    if (m.badSleepDays >= 3)
+    /* Schlaf, Stress und Anstrengung: verglichen wird mit den eigenen vier Wochen davor.
+       Wer immer 2–3 beim Schlaf angibt, steht damit nicht dauerhaft auf Gelb – wer sonst 4 angibt
+       und plötzlich 2,5, fällt früher auf. Ohne genug eigene Werte gelten die festen Grenzen. */
+    const B = m.base || {};
+    const relUp = hasBase(B.rel, m.relWeekN) ? m.relWeek - B.rel.mean : null;
+    if (relUp !== null && relUp >= Math.min(2, Math.max(1, B.rel.sd)))
+        bump(1, "Einheiten härter empfunden als sonst – " + nf1(relUp) + " Punkte über dem eigenen üblichen Abstand zur Mannschaft");
+    else if (m.avgRpe >= 8.2)
+        bump(relUp !== null ? 0 : 1, relUp !== null
+            ? "Einheiten sehr hart empfunden (Ø " + nf1(m.avgRpe) + " von 10) – im Vergleich zur Mannschaft wie gewohnt"
+            : "Alle Einheiten sehr hart empfunden (Ø " + nf1(m.avgRpe) + " von 10)");
+    if (hasBase(B.sleep, m.sleepWeekN) && m.avgSleep !== null) {
+        const drop = B.sleep.mean - m.avgSleep, thr = Math.min(1.5, Math.max(0.8, B.sleep.sd));
+        if (drop >= thr)
+            bump(m.badSleepDays >= 3 ? 2 : 1, "Schlaf deutlich schlechter als sonst (" + nf1(m.avgSleep) + " statt " + nf1(B.sleep.mean) + " von 5)"
+                + (m.badSleepDays >= 3 ? " – an " + m.badSleepDays + " Tagen schlecht" : ""));
+        else if (m.avgSleep <= 1.7)
+            bump(1, "Sehr schlecht geschlafen (" + nf1(m.avgSleep) + " von 5)");
+        else if (m.badSleepDays >= 3 || m.avgSleep <= 2.5)
+            bump(0, "Schlaf niedrig, aber wie gewohnt (" + nf1(m.avgSleep) + " von 5 · Normalwert " + nf1(B.sleep.mean) + ")");
+    }
+    else if (m.badSleepDays >= 3)
         bump(2, "An " + m.badSleepDays + " Tagen schlecht geschlafen – Erholung fehlt");
     else if (m.avgSleep !== null && m.avgSleep <= 2.5)
         bump(1, "Schlaf im Schnitt schlecht (" + nf1(m.avgSleep) + " von 5)");
-    if (m.highStressDays >= 3)
+    if (hasBase(B.stress, m.stressWeekN) && m.avgStress !== null) {
+        const rise = m.avgStress - B.stress.mean, thr = Math.min(1.5, Math.max(0.8, B.stress.sd));
+        if (rise >= thr)
+            bump(1, "Deutlich mehr Stress als sonst (" + nf1(m.avgStress) + " statt " + nf1(B.stress.mean) + " von 5)");
+        else if (m.avgStress >= 4.6)
+            bump(1, "Sehr viel Stress außerhalb des Platzes (" + nf1(m.avgStress) + " von 5)");
+        else if (m.highStressDays >= 3 || m.avgStress >= 4)
+            bump(0, "Stress hoch, aber wie gewohnt (" + nf1(m.avgStress) + " von 5 · Normalwert " + nf1(B.stress.mean) + ")");
+    }
+    else if (m.highStressDays >= 3)
         bump(1, "An " + m.highStressDays + " Tagen viel Stress außerhalb des Platzes");
     else if (m.avgStress !== null && m.avgStress >= 4)
         bump(1, "Viel Stress außerhalb des Platzes (" + nf1(m.avgStress) + " von 5)");
@@ -18851,6 +18906,66 @@ const api = {
     },
     ping: cfg => sbFetch(cfg, "load_meta?select=team&limit=1"),
 };
+/* ---------- Kader und Einheiten: Änderungen als Aufträge ----------
+   Früher schickte jedes Gerät bei jeder Änderung seine komplette Einheitenliste.
+   Ein Gerät mit altem Stand hat damit die Liste aller anderen überschrieben –
+   so sind im September die August-Einheiten verschwunden.
+   Jetzt wird nur die einzelne Änderung auf den frischen Serverstand angewendet. */
+const applyMetaOps = (list, ops) => {
+    let out = (list || []).slice();
+    (ops || []).forEach(op => {
+        if (op.k === "put") {
+            const i = out.findIndex(x => x.id === op.s.id);
+            if (i >= 0)
+                out[i] = op.s;
+            else
+                out.push(op.s);
+        }
+        else if (op.k === "add") {
+            if (!out.some(x => x.id === op.s.id))
+                out.push(op.s);
+        }
+        else if (op.k === "del")
+            out = out.filter(x => x.id !== op.id);
+    });
+    return out;
+};
+const squadOfOps = ops => { let s = null; (ops || []).forEach(op => { if (op.k === "squad")
+    s = op.squad; }); return s; };
+const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// Unterschied zweier Einheitenlisten als Aufträge. Neue Einheiten nur anlegen, wenn sie
+// auf dem Server noch fehlen ("add") – eine dort schon bearbeitete Fassung bleibt stehen.
+const sessionOpsDiff = (prev, next) => {
+    const a = new Map((prev || []).map(x => [x.id, x])), b = new Map((next || []).map(x => [x.id, x]));
+    const ops = [];
+    b.forEach((s, id) => { if (!a.has(id))
+        ops.push({ k: "add", s });
+    else if (!sameJson(a.get(id), s))
+        ops.push({ k: "put", s }); });
+    a.forEach((s, id) => { if (!b.has(id))
+        ops.push({ k: "del", id }); });
+    return ops;
+};
+// Rückmeldungen, deren Einheit nicht mehr in der Liste steht, nach Einheit gebündelt
+function orphanGroups(entries, sessions, hidden) {
+    const ids = new Set((sessions || []).map(s => s.id));
+    const hid = new Set(hidden || []);
+    const by = {};
+    (entries || []).forEach(e => {
+        if (!e.sessionId || ids.has(e.sessionId) || hid.has(e.sessionId))
+            return;
+        const g = by[e.sessionId] || (by[e.sessionId] = { id: e.sessionId, date: e.date, type: e.type || "Training", n: 0, mins: {} });
+        g.n++;
+        if (e.minutes > 0)
+            g.mins[e.minutes] = (g.mins[e.minutes] || 0) + 1;
+    });
+    return Object.values(by).map(g => {
+        const top = Object.entries(g.mins).sort((x, y) => y[1] - x[1])[0];
+        const def = (SESSION_TYPES.find(t => t.type === g.type) || SESSION_TYPES[0]);
+        return { id: g.id, date: g.date, type: g.type, n: g.n,
+            minutes: g.type === "Spiel" || g.type === "Testspiel" ? def.minutes : (top ? Number(top[0]) : def.minutes), label: def.label };
+    }).sort((x, y) => x.date < y.date ? 1 : x.date > y.date ? -1 : 0);
+}
 /* ============================================================
    5) KLEINE UI-BAUSTEINE
    ============================================================ */
@@ -19139,7 +19254,7 @@ function PairColumns({ data, series, unit = "Punkte" }) {
         oh("div", { className: "legend" }, series.map(s => oh("span", { key: s.key }, oh("i", { style: { background: s.color } }), s.legend || s.label))));
 }
 // Verlauf eines Wertes über die letzten Wochen: eine Zeile, Punkte an den Tagen mit Rückmeldung
-function MiniTrend({ label, pts, min, max, from, to, hint }) {
+function MiniTrend({ label, pts, min, max, from, to, hint, base }) {
     const [ref, W] = useMeasure();
     const H = 46, pad = 7, w = Math.max(80, W);
     const span = Math.max(1, Math.round((parseISO(to) - parseISO(from)) / 864e5));
@@ -19155,11 +19270,13 @@ function MiniTrend({ label, pts, min, max, from, to, hint }) {
             pts.length ? oh("svg", { viewBox: `0 0 ${w} ${H}`, width: "100%", height: H, role: "img", "aria-label": label + " – Verlauf, zuletzt " + (last ? nf(last.v) : "–") },
                 oh("line", { x1: pad, x2: w - pad, y1: y(min), y2: y(min), stroke: "var(--line)", strokeWidth: "1" }),
                 oh("line", { x1: pad, x2: w - pad, y1: y(max), y2: y(max), stroke: "var(--line)", strokeWidth: "1" }),
+                base != null && oh("line", { x1: pad, x2: w - pad, y1: y(base), y2: y(base), stroke: "var(--ink-2)", strokeWidth: "1", opacity: 0.7 }, oh("title", null, "Normalwert " + nf1(base))),
                 pts.length > 1 && oh("path", { d: pts.map((q, i) => (i ? "L" : "M") + x(q.date).toFixed(1) + "," + y(q.v).toFixed(1)).join(" "), fill: "none", stroke: "var(--s1)", strokeWidth: "2", strokeLinejoin: "round", strokeLinecap: "round" }),
                 pts.map((q, i) => oh("circle", { key: i, cx: x(q.date), cy: y(q.v), r: i === pts.length - 1 ? 4 : 3, fill: "var(--s1)", stroke: "var(--surface)", strokeWidth: "2" },
                     oh("title", null, fmtDay(q.date) + " " + fmtDate(q.date) + ": " + nf(q.v)))))
                 : oh("div", { style: { fontSize: 12, color: "var(--muted)" } }, "noch keine Werte")),
-        oh("div", { className: "num", style: { minWidth: 46, textAlign: "right" } }, avg === null ? "–" : nf1(avg), oh("small", { style: { display: "block" } }, "Ø · " + pts.length + (pts.length === 1 ? " Wert" : " Werte"))));
+        oh("div", { className: "num", style: { minWidth: 46, textAlign: "right" } }, avg === null ? "–" : nf1(avg), oh("small", { style: { display: "block" } }, "Ø · " + pts.length + (pts.length === 1 ? " Wert" : " Werte")),
+            base != null && oh("small", { style: { display: "block" } }, "normal " + nf1(base))));
 }
 function TableToggle({ children, rows, cols }) {
     const [open, setOpen] = useState(false);
@@ -21460,8 +21577,9 @@ function PlayerDetail({ m, entries, today }) {
             return React.createElement("div", { id: "trend28" },
                 React.createElement("div", { style: { margin: "18px 0 4px" }, className: "eyebrow" }, "Verlauf \u00B7 28 Tage"),
                 React.createElement(MiniTrend, { label: "Anstrengung", hint: "1\u201310", min: 1, max: 10, from: from, to: today, pts: all.filter(e => !isOut(e) && e.rpe > 0).map(e => ({ date: e.date, v: e.rpe })) }),
-                React.createElement(MiniTrend, { label: "Schlaf", hint: "1\u20135, hoch ist gut", min: 1, max: 5, from: from, to: today, pts: all.filter(e => e.sleep > 0).map(e => ({ date: e.date, v: e.sleep })) }),
-                React.createElement(MiniTrend, { label: "Stress", hint: "1\u20135, niedrig ist gut", min: 1, max: 5, from: from, to: today, pts: all.filter(e => e.stress > 0).map(e => ({ date: e.date, v: e.stress })) }));
+                React.createElement(MiniTrend, { label: "Schlaf", hint: "1\u20135, hoch ist gut", min: 1, max: 5, from: from, to: today, base: m.base && m.base.sleep.n >= BASE_MIN ? m.base.sleep.mean : null, pts: all.filter(e => e.sleep > 0).map(e => ({ date: e.date, v: e.sleep })) }),
+                React.createElement(MiniTrend, { label: "Stress", hint: "1\u20135, niedrig ist gut", min: 1, max: 5, from: from, to: today, base: m.base && m.base.stress.n >= BASE_MIN ? m.base.stress.mean : null, pts: all.filter(e => e.stress > 0).map(e => ({ date: e.date, v: e.stress })) }),
+                m.base && (m.base.sleep.n >= BASE_MIN || m.base.stress.n >= BASE_MIN) && React.createElement("p", { id: "base-note", style: { fontSize: 11, color: "var(--muted)", margin: "4px 0 0", lineHeight: 1.55 } }, "Die durchgezogene Linie ist der eigene Normalwert aus den vier Wochen vor der laufenden Woche. Die Ampel vergleicht damit statt mit festen Grenzen, sobald mindestens " + BASE_MIN + " Werte vorliegen."));
         })(),
         React.createElement("div", { style: { margin: "18px 0 8px" }, className: "eyebrow" }, "Letzte R\u00FCckmeldungen"),
         React.createElement("div", { className: "rows" }, mine.length ? mine.map(e => {
@@ -21554,7 +21672,11 @@ function PlayerSheet({ m, entries, calendar, today, onCopy, onClose }) {
 /* ============================================================
    10b) EINHEITEN-VERWALTUNG (Trainer)
    ============================================================ */
-function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose }) {
+function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose, orphans, onRestore, onHide }) {
+    const orph = orphans || [];
+    const orphN = orph.reduce((a, g) => a + g.n, 0);
+    const [orphAll, setOrphAll] = useState(false);
+    const [armDel, setArmDel] = useState(null);
     const [form, setForm] = useState({ date: today, type: "Training", minutes: 90, label: "Training", planRpe: 6 });
     const [editId, setEditId] = useState(null);
     const set = (k, v) => setForm(f => {
@@ -21590,6 +21712,23 @@ function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose }) {
                     React.createElement("div", { style: { fontSize: 12, color: "var(--muted)" } }, "Training, Spiele und Sondereinheiten anlegen")),
                 React.createElement("button", { className: "icon-btn", onClick: onClose, "aria-label": "Schlie\u00DFen" },
                     React.createElement(Icon, { d: I.x, size: 16 }))),
+            orph.length > 0 && oh("div", { id: "orphan-card", className: "card", style: { background: "rgba(255,204,0,0.07)", borderColor: "rgba(255,204,0,0.45)", padding: 14, marginBottom: 16 } },
+                oh("h3", { style: { fontSize: 14.5, color: "var(--warn)", marginBottom: 4 } }, orphN + " Rückmeldung" + (orphN === 1 ? "" : "en") + " ohne Einheit"),
+                oh("p", { style: { margin: "0 0 10px", fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.6 } },
+                    "Diese Rückmeldungen liegen auf dem Server, aber ihre Einheit steht nicht mehr in der Liste. Sie zählen deshalb in keiner Auswertung. Wiederherstellen legt die Einheit wieder an – die Rückmeldungen hängen sofort wieder daran."),
+                oh("div", { className: "rows" }, orph.slice(0, orphAll ? 99 : 6).map(g => oh("div", { key: g.id, className: "prow", style: { cursor: "default" } },
+                    oh("span", { className: "nr", style: { width: 44, fontSize: 11, lineHeight: 1.1, flexDirection: "column", display: "flex", justifyContent: "center" } },
+                        oh("span", { style: { color: "var(--muted)" } }, fmtDay(g.date)),
+                        oh("span", { style: { fontSize: 12, fontWeight: 700 } }, fmtDate(g.date).slice(0, 5))),
+                    oh("span", { className: "grow" },
+                        oh("span", { className: "nm" }, g.type),
+                        oh("span", { className: "sub" }, g.n + " Rückmeldung" + (g.n === 1 ? "" : "en") + (sessions.some(x => x.date === g.date && x.type === g.type) ? " · für diesen Tag gibt es schon eine Einheit dieser Art" : ""))),
+                    oh("button", { className: "btn sm ghost", onClick: () => onRestore([g]) }, "Wiederherstellen"),
+                    oh("button", { className: "linkbtn", onClick: () => onHide([g.id]) }, "Ausblenden")))),
+                orph.length > 6 && !orphAll && oh("button", { className: "linkbtn", style: { marginTop: 8 }, onClick: () => setOrphAll(true) }, "… und " + (orph.length - 6) + " weitere anzeigen"),
+                oh("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 } },
+                    orph.length > 1 && oh("button", { className: "btn sm", onClick: () => onRestore(orph) }, "Alle " + orph.length + " wiederherstellen"),
+                    orph.length > 1 && oh("button", { className: "btn sm ghost", onClick: () => onHide(orph.map(g => g.id)) }, "Alle ausblenden"))),
             React.createElement("div", { className: "card", style: { background: "var(--surface-2)", padding: 14, marginBottom: 16 } },
                 React.createElement("div", { className: "eyebrow", style: { marginBottom: 10 } }, editId ? "Einheit bearbeiten" : "Neue Einheit"),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
@@ -21662,16 +21801,21 @@ function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose }) {
                         " R\u00FCckmeldung",
                         count(x.id) === 1 ? "" : "en",
                         x.auto === "fx" ? " · automatisch aus Spielplan" : "",
-                        x.date === today ? " · heute" : "")),
+                        x.restored ? " · wiederhergestellt" : "",
+                        x.date === today ? " · heute" : "",
+                        armDel === x.id ? React.createElement("span", { style: { display: "block", color: "var(--crit)" } }, "Zum Löschen den Papierkorb noch einmal antippen – " + count(x.id) + " Rückmeldung" + (count(x.id) === 1 ? " fällt" : "en fallen") + " aus der Auswertung.") : null)),
                 React.createElement("button", { className: "icon-btn", style: { width: 32, height: 30 }, onClick: () => edit(x), "aria-label": "Bearbeiten" },
                     React.createElement(Icon, { d: I.pen, size: 14 })),
-                React.createElement("button", { className: "icon-btn", style: { width: 32, height: 30 }, onClick: () => onDelete(x), "aria-label": "L\u00F6schen" },
+                React.createElement("button", { className: "icon-btn", onClick: () => { if (count(x.id) > 0 && armDel !== x.id) {
+                        setArmDel(x.id);
+                        return;
+                    } setArmDel(null); onDelete(x); }, "aria-label": armDel === x.id ? "L\u00F6schen best\u00E4tigen" : "L\u00F6schen", style: armDel === x.id ? { width: 32, height: 30, color: "var(--crit)", borderColor: "var(--crit)" } : { width: 32, height: 30 } },
                     React.createElement(Icon, { d: I.trash, size: 14 }))))))) : (React.createElement("p", { style: { fontSize: 13, color: "var(--muted)", margin: 0 } }, "Noch keine Einheit angelegt.")))));
 }
 /* ============================================================
    11) EINSTELLUNGEN — KADER + DATEN
    ============================================================ */
-function SettingsSheet({ squad, setSquad, pin, setPin, onClose, onExport, onImport, onDemo, onClear, toast }) {
+function SettingsSheet({ squad, setSquad, pin, setPin, onClose, onExport, onImport, onDemo, onClear, toast, backup, connected, today }) {
     const [list, setList] = useState(squad);
     const upd = (id, k, v) => setList(l => l.map(p => p.id === id ? { ...p, [k]: k === "nr" ? (parseInt(v) || 0) : v } : p));
     const add = () => setList(l => [...l, { id: "p" + Date.now(), nr: 0, name: "Neuer Spieler", pos: "", gk: false }]);
@@ -21685,6 +21829,17 @@ function SettingsSheet({ squad, setSquad, pin, setPin, onClose, onExport, onImpo
                     React.createElement("div", { style: { fontSize: 12, color: "var(--muted)" } }, "Spieler pflegen, Daten sichern oder laden")),
                 React.createElement("button", { className: "icon-btn", onClick: onClose, "aria-label": "Schlie\u00DFen" },
                     React.createElement(Icon, { d: I.x, size: 16 }))),
+            connected && (() => {
+                // Wöchentliche Sicherung über GitHub Actions – hier nur der Zeitpunkt, keine Daten
+                const at = backup && backup.at ? localIsoOf(new Date(backup.at)) : null;
+                const age = at ? Math.round((parseISO(today) - parseISO(at)) / 864e5) : null;
+                const late = age === null || age > 9;
+                return React.createElement("p", { id: "backup-line", style: { fontSize: 12, lineHeight: 1.55, margin: "-6px 0 14px", color: late ? "var(--warn)" : "var(--muted)" } },
+                    at ? "Letzte Sicherung: " + (age === 0 ? "heute" : age === 1 ? "gestern" : fmtDay(at) + " " + fmtDate(at) + " (vor " + age + " Tagen)") + "."
+                        + (backup.counts ? " " + backup.counts.rueckmeldungen + " Rückmeldungen, " + backup.counts.einheiten + " Einheiten." : "")
+                        + (late ? " Die wöchentliche Sicherung ist überfällig – in GitHub unter Actions → Sicherung nachsehen." : "")
+                        : "Noch keine automatische Sicherung gelaufen. Einrichtung: siehe SICHERUNG.md im Repository.");
+            })(),
             React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 } },
                 React.createElement("button", { className: "btn sm ghost", onClick: onExport },
                     React.createElement(Icon, { d: I.down, size: 15 }),
@@ -21912,11 +22067,12 @@ function SyncSheet({ cfg, setCfg, sync, squad, sessions, entryCount, onPushAll, 
         }
         catch (e) { }
         toast("Verbunden. Kader, Einheiten" + (entryCount ? " und " + entryCount + " Rückmeldungen" : "") + " werden hochgeladen.");
-        setTimeout(onPushMeta, 200);
+        setTimeout(() => onPushMeta(false), 200);
         if (entryCount)
             setTimeout(onPushAll, 600);
     };
     const disconnect = () => {
+        store.del("metaq");
         setCfg(null);
         try {
             history.replaceState(null, "", location.origin + location.pathname);
@@ -21965,7 +22121,7 @@ function SyncSheet({ cfg, setCfg, sync, squad, sessions, entryCount, onPushAll, 
             cfg && (React.createElement(React.Fragment, null,
                 React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 } },
                     React.createElement("button", { className: "btn sm ghost", onClick: onPull }, "Jetzt abgleichen"),
-                    React.createElement("button", { className: "btn sm ghost", onClick: () => { onPushMeta(); toast("Kader und Einheiten hochgeladen."); } }, "Kader & Einheiten hochladen"),
+                    React.createElement("button", { className: "btn sm ghost", onClick: () => { onPushMeta(true); toast("Kader und Einheiten werden hochgeladen."); } }, "Kader & Einheiten hochladen"),
                     React.createElement("button", { className: "btn sm ghost", onClick: () => { onPushAll(); toast("Alle lokalen Rückmeldungen werden hochgeladen."); } }, "Alle R\u00FCckmeldungen hochladen")),
                 React.createElement("div", { className: "eyebrow", style: { marginBottom: 8 } }, "Team-Link zum Teilen"),
                 React.createElement("div", { style: { background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)",
@@ -22301,6 +22457,7 @@ function mdTag(date, fixtures) {
     }
     return null;
 }
+const localIsoOf = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 const localIso = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 const nowHM = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
 const fixSessionId = f => "fx-" + f.id;
@@ -23884,6 +24041,130 @@ function MedTable({ med, cases, sq, byPid, mByPid, me, toast, onOpenFile }) {
                 oh("optgroup", { label: "Kader" }, rest.map(p => oh("option", { key: p.id, value: p.id }, pName(p)))))));
 }
 /* ---------- Hauptbereich ---------- */
+/* ---------- Verletzungsbilanz der Saison ----------
+   Grundlage sind die Arztakten: Ausfalltage = Tage von "seit" bis zum Abschluss der Akte (offene
+   Akten bis heute), nur der Anteil in der laufenden Saison (ab 1. Juli). Dazu aus den
+   Rückmeldungen der Spieler die Belastung in den Wochen vor Beginn. Bleibt im Medizin-Bereich. */
+const seasonStartOf = today => { const y = Number(today.slice(0, 4)), mo = Number(today.slice(5, 7)); return (mo >= 7 ? y : y - 1) + "-07-01"; };
+const dayDiff = (a, b) => Math.round((parseISO(b) - parseISO(a)) / 864e5);
+function medBilanz(cases, entries, squad, today) {
+    const from = seasonStartOf(today);
+    const rows = (cases || []).filter(c => c.pid && c.opened && c.opened <= today && (medIsOpen(c) || !c.closed || c.closed >= from)).map(c => {
+        const open = medIsOpen(c) || !c.closed;
+        const start = c.opened < from ? from : c.opened;
+        const end = open ? today : c.closed;
+        const days = Math.max(1, dayDiff(start, end) + (open ? 1 : 0));
+        // Belastung vor Beginn: letzte 7 Tage gegen den Wochenschnitt der 28 Tage davor
+        const before = addDays(c.opened, -1);
+        const d28 = dailyLoads(entries, c.pid, before, 28);
+        const acute = sum(d28.slice(-7).map(d => d.load));
+        const chronic = sum(d28.map(d => d.load)) / 4;
+        // Ohne Belastung in der Woche davor (z. B. Rückfall aus einer Pause) sagt der Faktor nichts aus
+        const idle = chronic > 0 && acute === 0;
+        const factor = !idle && chronic > 0 && d28.filter(d => d.load > 0).length >= 4 ? acute / chronic : null;
+        const missed = entries.filter(e => e.playerId === c.pid && isInjured(e) && e.date >= c.opened && e.date <= end).length;
+        return { c, open, start, end, days, acute, chronic, factor, idle, missed };
+    }).sort((a, b) => a.c.opened < b.c.opened ? 1 : a.c.opened > b.c.opened ? -1 : 0);
+    const group = keyOf => {
+        const by = {};
+        rows.forEach(r => { const k = keyOf(r); const g = by[k] || (by[k] = { key: k, days: 0, n: 0, open: 0, missed: 0 }); g.days += r.days; g.n++; g.missed += r.missed; if (r.open)
+            g.open++; });
+        return Object.values(by).sort((a, b) => b.days - a.days || b.n - a.n);
+    };
+    // Vom Spieler als verletzt gemeldet, aber ohne Arztakte in diesem Zeitraum
+    const loose = [];
+    (squad || []).forEach(pl => injuryCases(entries, pl.id).forEach(ic => {
+        if (ic.to < from)
+            return;
+        const covered = rows.some(r => r.c.pid === pl.id && ic.to >= addDays(r.c.opened, -7) && ic.from <= addDays(r.end, 7));
+        if (!covered)
+            loose.push({ pid: pl.id, region: ic.region, from: ic.from, to: ic.to, missed: ic.missed });
+    }));
+    loose.sort((a, b) => a.to < b.to ? 1 : -1);
+    const closed = rows.filter(r => !r.open);
+    const withF = rows.filter(r => r.factor !== null);
+    return { from, rows, loose, byRegion: group(r => r.c.region || "ohne Angabe"), byPlayer: group(r => r.c.pid),
+        total: sum(rows.map(r => r.days)), openN: rows.filter(r => r.open).length,
+        avgClosed: closed.length ? sum(closed.map(r => r.days)) / closed.length : null,
+        withF: withF.length, spike: withF.filter(r => r.factor > 1.3).length };
+}
+function MedBilanz({ cases, entries, sq, byPid, today, copyText, onOpenFile }) {
+    const b = useMemo(() => medBilanz(cases, entries, sq, today), [cases, entries, sq, today]);
+    const nm = pid => byPid[pid] ? pName(byPid[pid]) : "Nicht mehr im Kader";
+    const tage = n => n + (n === 1 ? " Tag" : " Tage");
+    const faelle = n => n + (n === 1 ? " Fall" : " Fälle");
+    const fTxt = r => r.factor === null ? (r.idle ? "ohne Belastung (Pause)" : "keine Belastungsdaten") : acwrWord(r.factor) + " (Faktor " + nf2(r.factor) + ")";
+    const bars = (list, label, onPick) => {
+        const max = Math.max(1, ...list.map(g => g.days));
+        return oh("div", { className: "rows" }, list.map(g => oh(onPick ? "button" : "div", { key: g.key, className: "prow", style: { cursor: onPick ? "pointer" : "default" }, onClick: onPick ? () => onPick(g.key) : undefined },
+            oh("span", { className: "grow" },
+                oh("span", { className: "nm" }, label(g.key)),
+                oh("span", { style: { display: "block", height: 8, marginTop: 6, borderRadius: 4, background: "var(--surface-2)" } },
+                    oh("span", { style: { display: "block", height: 8, width: Math.max(2, g.days / max * 100) + "%", borderRadius: 4, background: "var(--s1)" } }))),
+            oh("span", { className: "num", style: { minWidth: 64 } }, g.days, oh("small", null, g.days === 1 ? "Tag" : "Tage")),
+            oh("span", { className: "num", style: { minWidth: 58 } }, g.n, oh("small", null, g.n === 1 ? "Fall" : "Fälle" + (g.open ? " · " + g.open + " offen" : ""))))));
+    };
+    const text = () => {
+        const L = ["Verletzungsbilanz " + CLUB + " · Saison seit " + fmtDate(b.from) + " · Stand " + fmtDate(today), "",
+            faelle(b.rows.length) + " · " + tage(b.total) + " Ausfall · " + b.openN + " offen" + (b.avgClosed !== null ? " · Ø " + nf(b.avgClosed) + " Tage je abgeschlossenem Fall" : ""), "", "NACH KÖRPERREGION"];
+        b.byRegion.forEach(g => L.push("• " + g.key + ": " + tage(g.days) + ", " + faelle(g.n)));
+        L.push("", "NACH SPIELER");
+        b.byPlayer.forEach(g => L.push("• " + nm(g.key) + ": " + tage(g.days) + ", " + faelle(g.n) + (g.missed ? ", " + g.missed + " Einheiten verpasst gemeldet" : "")));
+        L.push("", "FÄLLE UND BELASTUNG DAVOR");
+        b.rows.forEach(r => L.push("• " + nm(r.c.pid) + " – " + medWhere(r.c) + " · seit " + fmtDate(r.c.opened) + (r.open ? " (offen)" : " bis " + fmtDate(r.end)) + " · " + tage(r.days)
+            + (r.c.mech ? " · " + r.c.mech : "") + " · Woche davor: " + fTxt(r)));
+        if (b.loose.length) {
+            L.push("", "SELBST GEMELDET, OHNE AKTE");
+            b.loose.forEach(x => L.push("• " + nm(x.pid) + " – " + x.region + " · " + fmtDate(x.from) + (x.to !== x.from ? "–" + fmtDate(x.to) : "") + " · " + x.missed + " Einheit" + (x.missed === 1 ? "" : "en")));
+        }
+        return L.join("\n");
+    };
+    if (!b.rows.length && !b.loose.length)
+        return oh("div", { className: "card", id: "med-bilanz" }, oh("div", { className: "card-head" }, oh("div", null,
+            oh("h3", null, "Verletzungsbilanz"), oh("p", null, "In dieser Saison (seit " + fmtDate(b.from) + ") gibt es noch keine Akte und keine Verletzungsmeldung."))));
+    return oh("div", { id: "med-bilanz", style: { display: "flex", flexDirection: "column", gap: 12 } },
+        oh("div", { className: "card" },
+            oh("div", { className: "card-head" },
+                oh("div", null, oh("h3", null, "Verletzungsbilanz der Saison"),
+                    oh("p", null, "Saison ab " + fmtDate(b.from) + " Ausfalltage zählen von „seit“ bis zum Abschluss der Akte, offene Akten bis heute.")),
+                oh("button", { className: "btn sm ghost", onClick: () => copyText(text(), "Bilanz kopiert.") }, oh(Icon, { d: I.copy, size: 14 }), " Als Text kopieren")),
+            oh("div", { className: "tiles four", style: { marginTop: 0 } },
+                oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Fälle"), oh("span", { className: "v" }, b.rows.length), oh("span", { className: "d" }, b.openN + " offen")),
+                oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Ausfalltage"), oh("span", { className: "v" }, nf(b.total)), oh("span", { className: "d" }, "alle Fälle zusammen")),
+                oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Ø Dauer"), oh("span", { className: "v" }, b.avgClosed === null ? "–" : nf(b.avgClosed)), oh("span", { className: "d" }, b.avgClosed === null ? "noch kein Fall abgeschlossen" : "Tage je abgeschlossenem Fall")),
+                oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Nach Belastungssprung"), oh("span", { className: "v" }, b.withF ? b.spike + " / " + b.withF : "–"), oh("span", { className: "d" }, b.withF ? "Fälle mit Faktor über 1,30 in der Woche davor" : "noch keine Belastungsdaten")))),
+        b.byRegion.length > 0 && oh("div", { className: "card" },
+            oh("div", { className: "card-head" }, oh("div", null, oh("h3", null, "Nach Körperregion"), oh("p", null, "Wo die meisten Ausfalltage entstehen."))),
+            bars(b.byRegion, k => k)),
+        b.byPlayer.length > 0 && oh("div", { className: "card" },
+            oh("div", { className: "card-head" }, oh("div", null, oh("h3", null, "Nach Spieler"), oh("p", null, "Antippen öffnet die Akte."))),
+            bars(b.byPlayer, nm, pid => { if (byPid[pid])
+                onOpenFile(byPid[pid]); })),
+        b.rows.length > 0 && oh("div", { className: "card" },
+            oh("div", { className: "card-head" }, oh("div", null, oh("h3", null, "Fälle und Belastung davor"),
+                oh("p", null, "Belastungspunkte der 7 Tage vor Beginn gegen den Wochenschnitt der vier Wochen davor – aus den Rückmeldungen des Spielers."))),
+            oh("div", { className: "rows" }, b.rows.map(r => oh("div", { key: r.c.id, className: "prow", style: { cursor: "default" } },
+                oh("span", { className: "grow" },
+                    oh("span", { className: "nm" }, nm(r.c.pid) + " · " + medWhere(r.c)),
+                    oh("span", { className: "sub" },
+                        oh("span", null, "seit " + fmtDate(r.c.opened) + (r.open ? " · offen" : " bis " + fmtDate(r.end))),
+                        r.c.mech ? oh("span", null, "· " + r.c.mech) : null,
+                        r.missed ? oh("span", null, "· " + r.missed + " Einheit" + (r.missed === 1 ? "" : "en") + " verpasst gemeldet") : null)),
+                oh("span", { className: "num", style: { minWidth: 96, color: r.factor === null ? "var(--muted)" : acwrColor(r.factor) } }, r.factor === null ? "–" : acwrShort(r.factor),
+                    oh("small", null, r.factor === null ? (r.idle ? "Pause davor" : "keine Daten") : "Faktor " + nf2(r.factor) + " davor")),
+                oh("span", { className: "num", style: { minWidth: 56 } }, r.days, oh("small", null, r.days === 1 ? "Tag" : "Tage"))))),
+            oh("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "12px 0 0", lineHeight: 1.6 } },
+                "Ein Faktor über 1,30 heißt: Die Woche vor der Verletzung war deutlich härter als gewohnt. Das ist ein Hinweis, kein Beweis – bei Verletzungen mit Gegnerkontakt spielt die Belastung meist keine Rolle. Aussagekräftig wird das Muster erst über mehrere Fälle.")),
+        b.loose.length > 0 && oh("div", { className: "card", id: "med-loose" },
+            oh("div", { className: "card-head" }, oh("div", null, oh("h3", null, "Selbst gemeldet, ohne Akte"),
+                oh("p", null, "Spieler haben sich verletzt abgemeldet, in diesem Zeitraum gibt es aber keine Arztakte. Zählt nicht in die Ausfalltage oben."))),
+            oh("div", { className: "rows" }, b.loose.slice(0, 30).map((x, i) => oh("button", { key: i, className: "prow", onClick: () => { if (byPid[x.pid])
+                    onOpenFile(byPid[x.pid]); } },
+                oh("span", { className: "grow" },
+                    oh("span", { className: "nm" }, nm(x.pid) + " · " + x.region),
+                    oh("span", { className: "sub" }, fmtDate(x.from) + (x.to !== x.from ? " – " + fmtDate(x.to) : ""))),
+                oh("span", { className: "num", style: { minWidth: 70 } }, x.missed, oh("small", null, x.missed === 1 ? "Einheit" : "Einheiten")))))));
+}
 function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, copyText }) {
     const today = localIso();
     const [view, setView] = useState(() => store.get("med.view", "tabelle"));
@@ -24083,7 +24364,8 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
             oh("div", { className: "viewswitch" },
                 oh("button", { "aria-pressed": view === "tabelle", onClick: () => setView("tabelle") }, "Übersicht"),
                 oh("button", { "aria-pressed": view === "briefing", onClick: () => setView("briefing") }, "Briefing"),
-                oh("button", { "aria-pressed": view === "akten", onClick: () => setView("akten") }, "Akten")),
+                oh("button", { "aria-pressed": view === "akten", onClick: () => setView("akten") }, "Akten"),
+                oh("button", { "aria-pressed": view === "bilanz", onClick: () => setView("bilanz") }, "Bilanz")),
             oh("select", { id: "med-me", className: "sel", value: me, onChange: e => setMe(e.target.value), "aria-label": "Wer bist du?" },
                 oh("option", { value: "" }, "Ich bin …"), (persons || []).map(p => oh("option", { key: p.id, value: p.id }, p.name || p.role))),
             oh("div", { style: { flex: 1 } }),
@@ -24106,7 +24388,7 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
                     if (r === "ok")
                         setPinForm(null);
                 } }, "Ändern")),
-        view === "tabelle" ? oh(MedTable, { med, cases, sq, byPid, mByPid, me, toast, onOpenFile: p => setFile({ p }) }) : view === "briefing" ? renderBriefing() : renderFiles(),
+        view === "tabelle" ? oh(MedTable, { med, cases, sq, byPid, mByPid, me, toast, onOpenFile: p => setFile({ p }) }) : view === "briefing" ? renderBriefing() : view === "bilanz" ? oh(MedBilanz, { cases, entries, sq, byPid, today, copyText, onOpenFile: p => setFile({ p }) }) : renderFiles(),
         file && oh(MedFile, { key: file.p.id, player: file.p, prefill: file.prefill, cases, entries, me, pname, onSaveCase: saveCase, onDeleteCase: deleteCase, onClose: () => setFile(null) }));
 }
 const UNDO_ICON = React.createElement(React.Fragment, null,
@@ -24218,6 +24500,14 @@ function App() {
     useEffect(() => { meRef.current = meId; }, [meId]);
     const entriesRef = useRef(entries);
     useEffect(() => { entriesRef.current = entries; }, [entries]);
+    const squadRef = useRef(squad);
+    useEffect(() => { squadRef.current = squad; }, [squad]);
+    const sessionsRef = useRef(sessions);
+    useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
+    // Noch nicht hochgeladene Änderungen an Kader/Einheiten – überleben auch ein Schließen der App
+    const metaQ = useRef(store.get("metaq", []) || []);
+    const metaBusy = useRef(false);
+    const metaVer = useRef(0);
     /* ---------- Synchronisation ---------- */
     // Ein Abgleich darf niemals Angaben löschen, die lokal vorhanden sind.
     // Genau das ist passiert, solange der Datenbank Spalten fehlten: Der Server
@@ -24261,14 +24551,21 @@ function App() {
             return;
         setSync(s => ({ ...s, state: "busy" }));
         try {
+            const v0 = metaVer.current;
             const meta = await api.meta(c);
             metaOk.current = true;
             const row = meta && meta[0];
-            if (row) {
-                if (Array.isArray(row.squad) && row.squad.length)
-                    setSquad(row.squad);
-                if (Array.isArray(row.sessions))
-                    setSessions(row.sessions);
+            // Wurde währenddessen eine eigene Änderung hochgeladen, ist diese Antwort veraltet
+            if (row && v0 === metaVer.current && !metaBusy.current) {
+                const q = metaQ.current;
+                if (Array.isArray(row.squad) && row.squad.length) {
+                    const sq = squadOfOps(q) || row.squad;
+                    setSquad(prev => sameJson(prev, sq) ? prev : sq);
+                }
+                if (Array.isArray(row.sessions)) {
+                    const ns = applyMetaOps(row.sessions, q);
+                    setSessions(prev => sameJson(prev, ns) ? prev : ns);
+                }
             }
             let schemaOk = null;
             if (modeRef.current === "coach" || modeRef.current === "med") {
@@ -24313,8 +24610,9 @@ function App() {
                 else
                     throw err;
             }
-            const ids = new Set(pend.map(e => e.id));
-            setEntries(list => list.map(e => ids.has(e.id) ? { ...e, _pending: false } : e));
+            // Wurde ein Eintrag während des Sendens noch einmal geändert, bleibt er offen
+            const sent = new Map(pend.map(e => [e.id, e.ts]));
+            setEntries(list => list.map(e => sent.has(e.id) && sent.get(e.id) === e.ts ? { ...e, _pending: false } : e));
             setSubmitted(list => {
                 const seen = new Set(list.map(x => x.playerId + "|" + x.sessionId));
                 const add = pend.filter(e => !seen.has(e.playerId + "|" + e.sessionId))
@@ -24332,29 +24630,62 @@ function App() {
         setEntries(list => list.map(e => ({ ...e, _pending: true })));
         setTimeout(() => flush(), 80);
     }, [flush]);
-    const pushMeta = useCallback(async (nextSquad, nextSessions) => {
+    // Offene Aufträge auf den frischen Serverstand anwenden und zurückschreiben
+    const flushMeta = useCallback(async () => {
         const c = cfgRef.current;
-        if (!c)
+        if (!c || !metaQ.current.length || metaBusy.current)
             return;
+        metaBusy.current = true;
+        const q = metaQ.current.slice();
         try {
-            await api.putMeta(c, nextSquad, nextSessions);
+            const meta = await api.meta(c);
+            const row = meta && meta[0];
+            // Gibt es das Team auf dem Server noch nicht, ist der lokale Stand der Anfang
+            const base = row && Array.isArray(row.sessions) ? row.sessions : sessionsRef.current;
+            const nextS = applyMetaOps(base, q);
+            const sq = squadOfOps(q) || (row && Array.isArray(row.squad) && row.squad.length ? row.squad : squadRef.current);
+            await api.putMeta(c, sq, nextS);
+            metaQ.current = metaQ.current.slice(q.length);
+            store.set("metaq", metaQ.current);
+            metaVer.current++;
+            metaOk.current = true;
+            const rest = metaQ.current;
+            const ns = applyMetaOps(nextS, rest), sq2 = squadOfOps(rest) || sq;
+            setSessions(prev => sameJson(prev, ns) ? prev : ns);
+            setSquad(prev => sameJson(prev, sq2) ? prev : sq2);
             setSync(s => ({ ...s, state: "ok", msg: "", at: Date.now() }));
         }
         catch (e) {
             setSync(s => ({ ...s, state: "error", msg: String((e && e.message) || e), at: Date.now() }));
         }
+        metaBusy.current = false;
+        if (metaQ.current.length && cfgRef.current && !document.hidden)
+            setTimeout(() => flushMeta(), 400); // inzwischen kam eine weitere Änderung dazu
     }, []);
+    const commitMeta = useCallback(ops => {
+        if (!ops || !ops.length)
+            return;
+        const so = ops.filter(o => o.k !== "squad");
+        if (so.length)
+            setSessions(prev => applyMetaOps(prev, so));
+        const sq = squadOfOps(ops);
+        if (sq)
+            setSquad(sq);
+        if (cfgRef.current) {
+            metaQ.current = metaQ.current.concat(ops);
+            store.set("metaq", metaQ.current);
+            setTimeout(() => flushMeta(), 0);
+        }
+    }, [flushMeta]);
+    // "init" ändert nichts, sorgt aber dafür, dass ein neues Team seine erste Zeile bekommt
+    const uploadMeta = useCallback(force => commitMeta([{ k: "init" }]
+        .concat(sessionsRef.current.map(s => ({ k: force ? "put" : "add", s })))
+        .concat(force ? [{ k: "squad", squad: squadRef.current }] : [])), [commitMeta]);
     // Spielplan aus dem Orga-Bereich hält die Spiel-Einheiten aktuell – erst nach dem ersten Abgleich,
     // damit ein Gerät mit altem Stand keine Einheiten anderer überschreibt
     const orgaFixtures = useMemo(() => Object.values(orga.items).filter(v => v.kind === "fixture" && !v._del).map(v => v.data), [orga.items]);
     const applySessions = next => {
-        const prevById = new Map(sessions.map(x => [x.id, x]));
-        setSessions(next);
-        setEntries(list => list.map(e => {
-            const n = next.find(x => x.id === e.sessionId), o = prevById.get(e.sessionId);
-            return n && o && (n.date !== o.date || n.type !== o.type) ? { ...e, date: n.date, type: n.type } : e;
-        }));
-        pushMeta(squad, next);
+        commitMeta(sessionOpsDiff(sessions, next));
     };
     useEffect(() => {
         if (!orgaOn)
@@ -24387,17 +24718,11 @@ function App() {
         orgaFeedChanges(orga.items, feed).forEach(([k, d]) => orga.put(k, "fixture", d));
     }, [feed, orgaOn, orga.items, orga.st.state]);
     const addSessions = list => {
-        if (cfg && !metaOk.current) {
-            toast("Noch nicht mit dem Team abgeglichen – bitte kurz warten.");
-            return;
-        }
         const ids = new Set(sessions.map(x => x.id));
         const add = list.filter(x => !ids.has(x.id));
         if (!add.length)
             return;
-        const next = [...sessions, ...add];
-        setSessions(next);
-        pushMeta(squad, next);
+        commitMeta(add.map(s => ({ k: "add", s })));
         toast(add.length + (add.length === 1 ? " Einheit angelegt." : " Einheiten angelegt."));
     };
     // Erstabgleich + regelmäßiges Nachladen, solange die App sichtbar ist
@@ -24410,7 +24735,7 @@ function App() {
         const tick = () => {
             if (!alive || document.visibilityState !== "visible")
                 return;
-            flush().then(pull);
+            flush().then(flushMeta).then(pull);
         };
         tick();
         const iv = setInterval(tick, 25000);
@@ -24418,17 +24743,43 @@ function App() {
             tick(); };
         document.addEventListener("visibilitychange", onVis);
         return () => { alive = false; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
-    }, [cfg, mode, flush, pull]);
+    }, [cfg, mode, flush, flushMeta, pull]);
     // Spieler wählt sich aus -> eigene Einträge nachladen
     useEffect(() => { if (cfg && mode === "player" && meId)
         pull(); }, [meId, mode, cfg, pull]);
-    const hist = useMemo(() => historyInfo(entries, today), [entries, today]);
+    // Ausgewertet wird nur, was zu einer bestehenden Einheit gehört. Wird eine Einheit gelöscht,
+    // verschwinden ihre Rückmeldungen damit wirklich aus der Auswertung – auf dem Server bleiben
+    // sie liegen und lassen sich über "Einheiten" wiederherstellen.
+    const sessById = useMemo(() => new Map(sessions.map(s => [s.id, s])), [sessions]);
+    // Datum und Art einer Rückmeldung kommen immer von ihrer Einheit: Wird eine Einheit verlegt,
+    // wandern die Rückmeldungen mit – vorher blieben sie auf dem alten Tag hängen.
+    const allEntries = useMemo(() => entries.map(e => {
+        const s = sessById.get(e.sessionId);
+        return s && s.date && (e.date !== s.date || e.type !== s.type) ? { ...e, date: s.date, type: s.type } : e;
+    }), [entries, sessById]);
+    const live = useMemo(() => allEntries.filter(e => sessById.has(e.sessionId)), [allEntries, sessById]);
+    const [hiddenLocal, setHiddenLocal] = useState(() => store.get("hiddenSess", []) || []);
+    useEffect(() => { store.set("hiddenSess", hiddenLocal); }, [hiddenLocal]);
+    const orgaSettings = (orga.items["settings:main"] && !orga.items["settings:main"]._del && orga.items["settings:main"].data) || null;
+    const hiddenSess = useMemo(() => Array.from(new Set([...(hiddenLocal || []), ...((orgaSettings && orgaSettings.hiddenSess) || [])])), [hiddenLocal, orgaSettings]);
+    const orphans = useMemo(() => mode === "coach" ? orphanGroups(entries, sessions, hiddenSess) : [], [mode, entries, sessions, hiddenSess]);
+    // extra: weitere Felder der Team-Einstellungen, die im selben Schritt geschrieben werden sollen
+    const hideSessions = (ids, extra) => {
+        setHiddenLocal(l => Array.from(new Set([...(l || []), ...ids])));
+        if (orgaSettings)
+            orga.put("settings:main", "settings", { ...orgaSettings, ...(extra || {}), hiddenSess: Array.from(new Set([...(orgaSettings.hiddenSess || []), ...ids])).slice(-300) });
+    };
+    const restoreSessions = list => {
+        commitMeta(list.map(g => ({ k: "add", s: { id: g.id, date: g.date, type: g.type, minutes: g.minutes, planRpe: null, label: g.label, restored: true } })));
+        toast(list.length === 1 ? "Einheit wiederhergestellt." : list.length + " Einheiten wiederhergestellt.");
+    };
+    const hist = useMemo(() => historyInfo(live, today), [live, today]);
     const metrics = useMemo(() => squad.map(p => {
-        const m = playerMetrics(entries, p, today, hist);
+        const m = playerMetrics(live, p, today, hist);
         return { ...m, status: statusOf(m, today) };
-    }), [entries, squad, today, hist]);
-    const report = useMemo(() => buildReport({ squad, entries, metrics, today, calendar, hist }), [squad, entries, metrics, today, calendar, hist]);
-    const shortReport = useMemo(() => buildShortReport({ squad, entries, metrics, today, calendar, hist }), [squad, entries, metrics, today, calendar, hist]);
+    }), [live, squad, today, hist]);
+    const report = useMemo(() => buildReport({ squad, entries: live, metrics, today, calendar, hist }), [squad, live, metrics, today, calendar, hist]);
+    const shortReport = useMemo(() => buildShortReport({ squad, entries: live, metrics, today, calendar, hist }), [squad, live, metrics, today, calendar, hist]);
     const saveEntry = e => {
         const rec = { ...e, _pending: !!cfgRef.current };
         setEntries(list => [...list.filter(x => x.id !== rec.id), rec]);
@@ -24438,28 +24789,29 @@ function App() {
             setTimeout(() => { flush(); }, 60);
     };
     const saveSession = sn => {
-        const next = sessions.some(x => x.id === sn.id) ? sessions.map(x => x.id === sn.id ? sn : x) : [...sessions, sn];
-        setSessions(next);
-        setEntries(list => list.map(e => e.sessionId === sn.id ? { ...e, date: sn.date, type: sn.type } : e));
         toast(sessions.some(x => x.id === sn.id) ? "Einheit aktualisiert." : "Einheit angelegt.");
-        pushMeta(squad, next);
+        commitMeta([{ k: "put", s: sn }]);
     };
     const deleteSession = sn => {
         const n = entries.filter(e => e.sessionId === sn.id).length;
-        const next = sessions.filter(x => x.id !== sn.id);
-        setSessions(next);
-        setEntries(list => list.filter(e => e.sessionId !== sn.id));
-        toast("Einheit gelöscht" + (n ? " – inkl. " + n + " Rückmeldung" + (n === 1 ? "" : "en") : "") + ".");
-        pushMeta(squad, next);
+        commitMeta([{ k: "del", id: sn.id }]);
         // Automatisch angelegtes Training bewusst gelöscht -> nicht wieder anlegen
+        let extra = null;
         if (sn.auto === "fx" && orga.items["settings:main"]) {
             const ost = orga.items["settings:main"].data || {};
             const skipTr = (ost.skipTr || []).filter(id => id.slice(3) >= addDays(today, -60));
             if (!skipTr.includes(sn.id))
-                orga.put("settings:main", "settings", { ...ost, skipTr: [...skipTr, sn.id] });
+                extra = { skipTr: [...skipTr, sn.id] };
         }
+        if (!cfgRef.current)
+            setEntries(list => list.filter(e => e.sessionId !== sn.id));
+        else if (n)
+            hideSessions([sn.id], extra); // bewusst gelöscht – nicht als "ohne Einheit" wieder anbieten
+        if (extra && !(cfgRef.current && n && orgaSettings))
+            orga.put("settings:main", "settings", { ...(orga.items["settings:main"].data || {}), ...extra });
+        toast("Einheit gelöscht" + (n ? " – " + n + " Rückmeldung" + (n === 1 ? "" : "en") + " aus der Auswertung genommen" : "") + ".");
     };
-    const applySquad = next => { setSquad(next); pushMeta(next, sessions); };
+    const applySquad = next => commitMeta([{ k: "squad", squad: next }]);
     const copyText = async (text, okMsg) => {
         try {
             if (navigator.clipboard && window.isSecureContext)
@@ -24503,9 +24855,19 @@ function App() {
                 const d = JSON.parse(r.result);
                 if (!Array.isArray(d.squad) || !Array.isArray(d.entries))
                     throw new Error("Format");
+                const sess = Array.isArray(d.sessions) ? d.sessions : [];
+                if (cfgRef.current) {
+                    // Verbunden: Die Sicherung wird in den Teamstand eingefügt, nichts wird überschrieben
+                    const have = new Set(entriesRef.current.map(e => e.id));
+                    setEntries(list => list.concat(d.entries.filter(e => e && e.id && !have.has(e.id)).map(e => ({ ...e, _pending: true }))));
+                    commitMeta(sess.map(s => ({ k: "add", s })));
+                    setTimeout(() => { flush(); }, 150);
+                    toast("Sicherung eingefügt: fehlende Einheiten und Rückmeldungen werden hochgeladen.");
+                    return;
+                }
                 setSquad(d.squad);
                 setEntries(d.entries);
-                setSessions(Array.isArray(d.sessions) ? d.sessions : []);
+                setSessions(sess);
                 if (d.pin)
                     setPin(String(d.pin));
                 toast("Daten importiert: " + d.entries.length + " Einträge.");
@@ -24562,7 +24924,7 @@ function App() {
                 React.createElement("span", { className: "modebadge" }, "Medizin"),
                 React.createElement("button", { className: "icon-btn", onClick: leaveMode, "aria-label": "Bereich verlassen" },
                     React.createElement(Icon, { d: I.exit, size: 17 }))),
-            React.createElement(MedArea, { med: med, cfg: cfg, squad: squad, entries: entries, metrics: metrics, fixtures: orgaFixtures, persons: orgaPersons, toast: toast, copyText: copyText }),
+            React.createElement(MedArea, { med: med, cfg: cfg, squad: squad, entries: allEntries, metrics: metrics, fixtures: orgaFixtures, persons: orgaPersons, toast: toast, copyText: copyText }),
             msg && React.createElement("div", { className: "toast" }, React.createElement(Icon, { d: I.check, size: 15 }), " ", msg)));
     if (mode === "orga")
         return (React.createElement("div", { className: "app" },
@@ -24623,20 +24985,26 @@ function App() {
                             " SQL kopieren"),
                         React.createElement("button", { className: "btn sm ghost", onClick: () => { flush().then(pull); toast("Wird geprüft …"); } }, "Erneut pr\u00FCfen")),
                     React.createElement("p", { style: { margin: "10px 0 0", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.55 } }, "Bis dahin bleiben die Angaben auf diesem Ger\u00E4t erhalten \u2013 sie werden beim Abgleich nicht mehr \u00FCberschrieben."))))),
+        !isPlayer && orphans.length > 0 && React.createElement("div", { id: "orphan-banner", className: "card", style: { marginBottom: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } },
+            React.createElement("div", { style: { flex: "1 1 260px", minWidth: 0, fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.6 } },
+                React.createElement("b", { style: { color: "var(--ink)" } }, orphans.reduce((a, g) => a + g.n, 0) + " R\u00FCckmeldungen ohne Einheit."),
+                " Sie geh\u00F6ren zu " + orphans.length + (orphans.length === 1 ? " Einheit, die" : " Einheiten, die") + " nicht mehr in der Liste " + (orphans.length === 1 ? "steht" : "stehen") + ", und z\u00E4hlen deshalb nicht in der Auswertung."),
+            React.createElement("button", { className: "btn sm ghost", onClick: () => setPlanner(true) }, "Ansehen")),
         React.createElement("div", { className: "tabs", role: "tablist" }, TABS.map(t => (React.createElement("button", { key: t.key, role: "tab", "aria-selected": tab === t.key, onClick: () => setTab(t.key) },
             React.createElement(Icon, { d: t.icon, size: 17 }),
             React.createElement("span", { className: "lbl-long" }, t.label),
             React.createElement("span", { className: "lbl-short" }, t.short))))),
-        isPlayer && React.createElement(PlayerArea, { squad: squad, calendar: calendar, entries: entries, today: today, metrics: metrics, submitted: submitted, onSave: saveEntry, toast: toast, sub: tab, setSub: setTab, meId: meId, setMeId: setMeId, connected: !!cfg }),
-        !isPlayer && tab === "input" && React.createElement(InputView, { squad: squad, calendar: calendar, entries: entries, today: today, submitted: submitted, onSave: saveEntry, toast: toast, onManage: () => setPlanner(true) }),
-        !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: entries, today: today, metrics: metrics, calendar: calendar, hist: hist, onOpenPlayer: setOpenPlayer, onDownload: download, onToast: toast }),
-        !isPlayer && tab === "resp" && React.createElement(ResponsesView, { squad: squad, calendar: calendar, entries: entries, submitted: submitted, today: today, shareLink: cfg ? cfgToLink(cfg) : "", onCopy: copyText, onDownload: download }),
+        isPlayer && React.createElement(PlayerArea, { squad: squad, calendar: calendar, entries: live, today: today, metrics: metrics, submitted: submitted, onSave: saveEntry, toast: toast, sub: tab, setSub: setTab, meId: meId, setMeId: setMeId, connected: !!cfg }),
+        !isPlayer && tab === "input" && React.createElement(InputView, { squad: squad, calendar: calendar, entries: live, today: today, submitted: submitted, onSave: saveEntry, toast: toast, onManage: () => setPlanner(true) }),
+        !isPlayer && tab === "dash" && React.createElement(Dashboard, { squad: squad, entries: live, today: today, metrics: metrics, calendar: calendar, hist: hist, onOpenPlayer: setOpenPlayer, onDownload: download, onToast: toast }),
+        !isPlayer && tab === "resp" && React.createElement(ResponsesView, { squad: squad, calendar: calendar, entries: live, submitted: submitted, today: today, shareLink: cfg ? cfgToLink(cfg) : "", onCopy: copyText, onDownload: download }),
         !isPlayer && tab === "orga" && React.createElement(OrgaArea, { orga: orga, feedInfo: feed, onAddSessions: addSessions, cfg: cfg, sessions: sessions, toast: toast, copyText: copyText, navBar: false, coach: true, medCases: medCases, metrics: metrics, squad: squad, submitted: submitted, onOpenTab: setTab, orgaPin: orgaPin, setOrgaPin: setOrgaPin }),
-        !isPlayer && tab === "report" && React.createElement(ReportView, { report: report, shortReport: shortReport, allReports: m => buildAllPlayerReports({ squad, entries, metrics, calendar, today, mode: m }), onCopy: copyReport, onDownload: (t, v) => { download(t, "bericht_KW" + isoWeek(today) + "_" + v + ".txt", "text/plain;charset=utf-8"); toast("Bericht gesichert."); } }),
-        openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: entries, calendar: calendar, today: today, onCopy: copyText, onClose: () => setOpenPlayer(null) }),
-        planner && React.createElement(SessionSheet, { sessions: sessions, entries: entries, today: today, onSave: saveSession, onDelete: deleteSession, onClose: () => setPlanner(false) }),
-        settings && React.createElement(SettingsSheet, { squad: squad, setSquad: applySquad, pin: pin, setPin: setPin, onClose: () => setSettings(false), onExport: exportJson, onImport: importJson, onDemo: makeDemo, onClear: clearAll, toast: toast }),
-        syncSheet && React.createElement(SyncSheet, { cfg: cfg, setCfg: setCfg, sync: sync, squad: squad, sessions: sessions, entryCount: entries.length, onPushAll: pushAll, onPull: pull, onPushMeta: () => pushMeta(squad, sessions), onCopy: copyText, onClose: () => setSyncSheet(false), toast: toast }),
+        !isPlayer && tab === "report" && React.createElement(ReportView, { report: report, shortReport: shortReport, allReports: m => buildAllPlayerReports({ squad, entries: live, metrics, calendar, today, mode: m }), onCopy: copyReport, onDownload: (t, v) => { download(t, "bericht_KW" + isoWeek(today) + "_" + v + ".txt", "text/plain;charset=utf-8"); toast("Bericht gesichert."); } }),
+        openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: live, calendar: calendar, today: today, onCopy: copyText, onClose: () => setOpenPlayer(null) }),
+        planner && React.createElement(SessionSheet, { sessions: sessions, entries: live, today: today, onSave: saveSession, onDelete: deleteSession, onClose: () => setPlanner(false), orphans: orphans, onRestore: restoreSessions, onHide: hideSessions }),
+        settings && React.createElement(SettingsSheet, { squad: squad, setSquad: applySquad, pin: pin, setPin: setPin, onClose: () => setSettings(false), onExport: exportJson, onImport: importJson, onDemo: makeDemo, onClear: clearAll, toast: toast, connected: !!cfg, today: today,
+            backup: (orga.items["backup:last"] && orga.items["backup:last"].data) || null }),
+        syncSheet && React.createElement(SyncSheet, { cfg: cfg, setCfg: setCfg, sync: sync, squad: squad, sessions: sessions, entryCount: entries.length, onPushAll: pushAll, onPull: pull, onPushMeta: uploadMeta, onCopy: copyText, onClose: () => setSyncSheet(false), toast: toast }),
         msg && React.createElement("div", { className: "toast" },
             React.createElement(Icon, { d: I.check, size: 15 }),
             " ",

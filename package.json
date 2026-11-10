@@ -1,0 +1,14 @@
+{
+  "name": "belastung",
+  "private": true,
+  "description": "Belastungssteuerung FC Süderelbe – Quelltext, Tests und Sicherung",
+  "scripts": {
+    "build": "bash build.sh",
+    "check": "bash build.sh --check",
+    "test": "node tests/run.js",
+    "sicherung": "node scripts/sicherung.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
