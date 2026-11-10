@@ -29,7 +29,12 @@ const fs = require("fs"), path = require("path"), os = require("os");
   const json = path.join(out, file.replace(/\.enc$/, ""));
   const doc = JSON.parse(fs.readFileSync(json, "utf8"));
   check("Entschlüsselt: vollständig", doc.entries.length === entries.length && doc.sessions.length === sessions.length && doc.med.length === 1, r.stdout.trim().split("\n").pop());
-  r = await run("sicherung.mjs", [], { ...env, SUPABASE_ANON_KEY: "", });
+  // Nur mit Passwort: Adresse, Schlüssel und Team kommen aus dem Team-Link
+  const linkFile = path.join(out, "team-link.html");
+  fs.writeFileSync(linkFile, '<meta http-equiv="refresh" content="0; url=' + s.link("t1") + '">');
+  r = await run("sicherung.mjs", [], { SUPABASE_URL: "", SUPABASE_ANON_KEY: "", TEAM: "", TEAM_LINK_FILE: linkFile, BACKUP_PASSWORD: env.BACKUP_PASSWORD, OUT: path.join(out, "nurpw") });
+  check("Nur mit Passwort: Zugang wird aus dem Team-Link gelesen", r.status === 0 && fs.readdirSync(path.join(out, "nurpw")).some(f => /sicherung_t1_/.test(f)), (r.stdout + r.stderr).trim().split("\n").pop());
+  r = await run("sicherung.mjs", [], { SUPABASE_URL: "", SUPABASE_ANON_KEY: "", TEAM_LINK_FILE: path.join(out, "gibtsnicht.html"), BACKUP_PASSWORD: env.BACKUP_PASSWORD, OUT: out });
   check("Ohne Zugangsdaten: klare Fehlermeldung", r.status !== 0 && /SUPABASE_URL und SUPABASE_ANON_KEY fehlen/.test(r.stderr));
   r = await run("sicherung.mjs", [], { ...env, BACKUP_PASSWORD: "kurz" });
   check("Zu kurzes Passwort wird abgelehnt", r.status !== 0 && /BACKUP_PASSWORD/.test(r.stderr));
