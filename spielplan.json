@@ -2,8 +2,8 @@
  "team": "FC Süderelbe",
  "league": "Oberliga Hamburg",
  "season": "2026/27",
- "source": "https://www.fussball.de/ajax.team.matchplan/-/mode/PAGE/team-id/011MIFC4S0000000VTVG0001VTR8C1K7",
- "updated": "2026-11-16T08:17:44+00:00",
+ "source": "https://www.landkreis-fussball.de/verein/fc_suederelbe/spielplan_liga/2026",
+ "updated": "2026-11-23T08:34:34+00:00",
  "note": "Ergebnisse aus Sicht des FC Süderelbe (eigene Tore zuerst). id bleibt pro Begegnung stabil.",
  "fixtures": [
   {
@@ -159,7 +159,7 @@
   {
    "id": "fx2627-16",
    "st": 16,
-   "date": "2026-11-13",
+   "date": "2026-12-08",
    "time": "19:30",
    "home": true,
    "opp": "ETSV Hamburg",
