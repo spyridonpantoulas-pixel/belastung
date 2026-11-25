@@ -1,7 +1,7 @@
 // Mini-Nachbau der Supabase-REST-Schnittstelle + statischer Server für die Tests
 const http = require("http"), fs = require("fs"), path = require("path"), url = require("url");
 function start(root, port = 0) {
-  const db = { load_meta: [], load_entries: [], orga_items: [], med: null, log: [], fail: false, delay: 0, noOrga: false, version: null };
+  const db = { load_meta: [], load_entries: [], orga_items: [], med: null, scout: null, log: [], fail: false, delay: 0, noOrga: false, version: null };
   const filt = (rows, q) => rows.filter(r => Object.entries(q).every(([k, v]) => {
     if (["select", "order", "limit", "offset", "ts"].includes(k)) return true;
     const m = /^eq\.(.*)$/.exec(v); return m ? String(r[k]) === m[1] : true;
@@ -17,6 +17,29 @@ function start(root, port = 0) {
         const t = u.pathname.slice(9);
         db.log.push(req.method + " " + t + (u.search || "").slice(0, 80));
         if (db.fail) return send(503, { message: "down" });
+        if (t.startsWith("rpc/scout_")) {
+          // Nachbau der Scouting-Funktionen aus supabase/scouting.sql
+          if (!db.scout) return send(404, { code: "PGRST202", message: "could not find function" });
+          const b = JSON.parse(raw || "{}"), sc = db.scout;
+          if (t === "rpc/scout_has_pin") return send(200, !!sc.pin);
+          if (t === "rpc/scout_set_pin") {
+            if (!/^\d{6}$/.test(b.p_new || "")) return send(200, { ok: false, error: "format" });
+            if (!sc.pin) { sc.pin = b.p_new; return send(200, { ok: true, created: true }); }
+            if (b.p_old !== sc.pin) return send(200, { ok: false, error: "pin" });
+            sc.pin = b.p_new; return send(200, { ok: true });
+          }
+          if (!sc.pin) return send(200, { ok: false, error: "nopin" });
+          if (b.p_pin !== sc.pin) return send(200, { ok: false, error: "pin" });
+          if (t === "rpc/scout_list") return send(200, { ok: true, items: sc.items });
+          if (t === "rpc/scout_put") {
+            if (sc.offline) return send(503, { message: "down" });
+            for (const it of b.p_items || []) if (!["player", "report"].includes(it.kind)) return send(200, { ok: false, error: "format" });
+            (b.p_items || []).forEach(it => { const i = sc.items.findIndex(x => x.id === it.id); const row = { id: it.id, kind: it.kind, data: it.data, updated_at: new Date().toISOString(), updated_by: b.p_by };
+              if (it.deleted) { if (i >= 0) sc.items.splice(i, 1); } else if (i >= 0) sc.items[i] = row; else sc.items.push(row); });
+            return send(200, { ok: true });
+          }
+          return send(404, { code: "PGRST202", message: "could not find function" });
+        }
         if (t.startsWith("rpc/")) {
           if (!db.med) return send(404, { code: "PGRST202", message: "could not find function" });
           const b = JSON.parse(raw || "{}");
