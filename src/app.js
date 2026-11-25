@@ -3777,7 +3777,7 @@ function SessionSheet({ sessions, entries, today, onSave, onDelete, onClose, orp
 /* ============================================================
    11) EINSTELLUNGEN — KADER + DATEN
    ============================================================ */
-function SettingsSheet({ squad, setSquad, pin, setPin, onClose, onExport, onImport, onDemo, onClear, toast, backup, connected, today }) {
+function SettingsSheet({ squad, setSquad, pin, setPin, onClose, onExport, onImport, onDemo, onClear, toast, backup, connected, today, scout }) {
     const [list, setList] = useState(squad);
     const upd = (id, k, v) => setList(l => l.map(p => p.id === id ? { ...p, [k]: k === "nr" ? (parseInt(v) || 0) : v } : p));
     const add = () => setList(l => [...l, { id: "p" + Date.now(), nr: 0, name: "Neuer Spieler", pos: "", gk: false }]);
@@ -3813,6 +3813,7 @@ function SettingsSheet({ squad, setSquad, pin, setPin, onClose, onExport, onImpo
                 React.createElement("button", { className: "btn sm ghost", onClick: onClear }, "Alle Eingaben l\u00F6schen"),
                 React.createElement("input", { ref: fileRef, type: "file", accept: "application/json,.json", style: { display: "none" }, onChange: e => { const f = e.target.files && e.target.files[0]; if (f)
                         onImport(f); e.target.value = ""; } })),
+            connected && scout && React.createElement(ScoutPinBox, { sc: scout }),
             React.createElement("div", { className: "eyebrow", style: { marginBottom: 8 } }, "Trainer-PIN"),
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 18 } },
                 React.createElement("input", { className: "sel", inputMode: "numeric", maxLength: 4, value: pin, onChange: e => setPin(e.target.value.replace(/\D/g, "").slice(0, 4)), style: { width: 92, textAlign: "center", letterSpacing: "0.3em", backgroundImage: "none" }, "aria-label": "Trainer-PIN" }),
@@ -3895,6 +3896,15 @@ function RoleGate({ pin, orgaPin, onPick, connected }) {
                             React.createElement("span", { style: { color: "var(--muted)", display: "inline-flex", verticalAlign: "-2px", marginLeft: 4 } },
                                 React.createElement(Icon, { d: I.lock, size: 13 }))),
                         React.createElement("span", { className: "rd" }, "Akten und \u00DCbersicht f\u00FCr Mannschaftsarzt und Trainerteam. Mit Medizin-PIN."))),
+                React.createElement("button", { className: "rolecard", id: "role-scout", onClick: () => onPick("scout") },
+                    React.createElement("span", { className: "ri", style: { background: "rgba(10,132,255,0.12)", color: "var(--s1)" } },
+                        React.createElement(Icon, { d: I.eye, size: 23 })),
+                    React.createElement("span", { style: { flex: 1 } },
+                        React.createElement("span", { className: "rt" },
+                            "Scouting ",
+                            React.createElement("span", { style: { color: "var(--muted)", display: "inline-flex", verticalAlign: "-2px", marginLeft: 4 } },
+                                React.createElement(Icon, { d: I.lock, size: 13 }))),
+                        React.createElement("span", { className: "rd" }, "Beobachtete Spieler anderer Vereine: Berichte der Scouts, Bewertung, Empfehlung. Mit Scouting-PIN."))),
                 connected ? (React.createElement("p", { style: { fontSize: 11.5, color: "var(--muted)", textAlign: "center", margin: "20px 0 0", lineHeight: 1.6 } }, "Mit dem Team verbunden. Das Kabinen-Handy bleibt im Spielerbereich \u2013 dort sind fremde Werte nicht einsehbar.")) : (React.createElement("p", { style: { fontSize: 12, color: "var(--crit)", textAlign: "center", margin: "20px 0 0", lineHeight: 1.6,
                         background: "rgba(255,59,48,0.10)", border: "1px solid rgba(255,59,48,0.35)",
                         borderRadius: "var(--r-sm)", padding: "10px 12px" } },
@@ -6361,6 +6371,536 @@ const MORE_ICON = React.createElement(React.Fragment, null,
     React.createElement("circle", { cx: "5", cy: "12", r: "1.6", fill: "currentColor", stroke: "none" }),
     React.createElement("circle", { cx: "12", cy: "12", r: "1.6", fill: "currentColor", stroke: "none" }),
     React.createElement("circle", { cx: "19", cy: "12", r: "1.6", fill: "currentColor", stroke: "none" }));
+/* ============================================================
+   15) SCOUTING – Spieler anderer Vereine, die unsere Scouts beobachtet haben
+   Daten nur über Server-Funktionen mit Scouting-PIN (scout_list / scout_put).
+   Nur sportliche Einschätzungen – keine Gesundheits- oder Privatangaben.
+   ============================================================ */
+const SC_STATUS = [
+    { key: "verpflichten", label: "Verpflichten", color: "var(--good)", order: 0 },
+    { key: "einladen", label: "Probetraining", color: "var(--s1)", order: 1 },
+    { key: "beobachten", label: "Beobachten", color: "var(--warn)", order: 2 },
+    { key: "offen", label: "Offen", color: "var(--ink-2)", order: 3 },
+    { key: "kein", label: "Kein Interesse", color: "var(--muted)", order: 4 },
+];
+const SC_REC = [
+    { key: "verpflichten", label: "Verpflichten", short: "Verpflichten" },
+    { key: "einladen", label: "Zum Probetraining einladen", short: "Probetraining" },
+    { key: "beobachten", label: "Weiter beobachten", short: "Beobachten" },
+    { key: "kein", label: "Kein Interesse", short: "Kein Interesse" },
+];
+const SC_CRIT = [["technik", "Technik"], ["tempo", "Tempo"], ["spiel", "Spielverständnis"], ["zweikampf", "Zweikampf"], ["mental", "Mentalität"]];
+const SC_POS = ["TW", "IV", "AV", "DM", "ZM", "OM", "Flügel", "Sturm"];
+const SC_FOOT = ["rechts", "links", "beidfüßig"];
+const scStatus = k => SC_STATUS.find(s => s.key === k) || SC_STATUS[3];
+const scRec = k => SC_REC.find(s => s.key === k) || null;
+const scId = p => p + ":" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const scStars = (v, max = 5) => v == null ? "–" : "★".repeat(Math.round(v)) + "☆".repeat(max - Math.round(v));
+const scLink = u => { const t = String(u || "").trim(); return /^https?:\/\//i.test(t) ? t : ""; };
+
+/* ---------- Zustand: entsperren, laden, speichern (auch ohne Netz) ---------- */
+function useScout(cfg) {
+    const [st, setSt] = useState({ locked: true, items: {}, err: null, busy: false });
+    const [pending, setPending] = useState(0);
+    const pinRef = useRef(null), lastAct = useRef(Date.now()), cfgRef = useRef(cfg), itemsRef = useRef({});
+    const queue = useRef([]);
+    const qKey = () => "scout.q." + (cfgRef.current ? cfgRef.current.team : "-");
+    useEffect(() => {
+        cfgRef.current = cfg;
+        // Noch nicht gesendete Berichte überleben das Schließen der App – sie liegen nur auf diesem Gerät
+        queue.current = (cfg && store.get("scout.q." + cfg.team, [])) || [];
+        setPending(queue.current.length);
+    }, [cfg]);
+    const saveQ = () => { store.set(qKey(), queue.current); setPending(queue.current.length); };
+    const rpc = (fn, body) => sbFetch(cfgRef.current, "rpc/" + fn, { method: "POST", body: JSON.stringify(body) });
+    const errOf = e => /PGRST202|PGRST205|scout_|could not find|HTTP 404/i.test(String((e && e.message) || e)) ? "setup" : "net";
+    const withQueue = map => {
+        const m = { ...map };
+        queue.current.forEach(x => { if (x.deleted)
+            delete m[x.id];
+        else
+            m[x.id] = { kind: x.kind, data: x.data, at: new Date().toISOString(), by: x.by || null, local: true }; });
+        return m;
+    };
+    const toMap = list => { const m = {}; (list || []).forEach(r => { m[r.id] = { kind: r.kind, data: r.data, at: r.updated_at, by: r.updated_by }; }); return withQueue(m); };
+    const lock = useCallback(() => {
+        pinRef.current = null;
+        itemsRef.current = {};
+        setSt({ locked: true, items: {}, err: null, busy: false });
+    }, []);
+    const send = useCallback(async () => {
+        if (!queue.current.length || !pinRef.current || !cfgRef.current)
+            return !queue.current.length;
+        const batch = queue.current.slice(0, 100);
+        try {
+            const r = await rpc("scout_put", { p_team: cfgRef.current.team, p_pin: pinRef.current, p_items: batch.map(x => ({ id: x.id, kind: x.kind, data: x.data, deleted: !!x.deleted })), p_by: batch[0].by || null });
+            if (!r || !r.ok) {
+                if (r && r.error === "pin")
+                    lock();
+                return false;
+            }
+            queue.current = queue.current.slice(batch.length);
+            saveQ();
+            if (queue.current.length)
+                return send();
+            return true;
+        }
+        catch (e) {
+            return false;
+        }
+    }, [lock]);
+    const unlock = useCallback(async pin => {
+        if (!cfgRef.current) {
+            setSt(s => ({ ...s, err: "nocfg" }));
+            return false;
+        }
+        setSt(s => ({ ...s, busy: true, err: null }));
+        try {
+            const r = await rpc("scout_list", { p_team: cfgRef.current.team, p_pin: pin });
+            if (!r || !r.ok) {
+                setSt(s => ({ ...s, busy: false, err: (r && r.error) || "pin" }));
+                return false;
+            }
+            pinRef.current = pin;
+            lastAct.current = Date.now();
+            const items = toMap(r.items);
+            itemsRef.current = items;
+            setSt({ locked: false, items, err: null, busy: false });
+            send();
+            return true;
+        }
+        catch (e) {
+            setSt(s => ({ ...s, busy: false, err: errOf(e) }));
+            return false;
+        }
+    }, [send]);
+    const refresh = useCallback(async () => {
+        if (!pinRef.current || !cfgRef.current)
+            return;
+        await send();
+        try {
+            const r = await rpc("scout_list", { p_team: cfgRef.current.team, p_pin: pinRef.current });
+            if (r && r.ok) {
+                const items = toMap(r.items);
+                itemsRef.current = items;
+                setSt(s => ({ ...s, items }));
+            }
+            else if (r && r.error === "pin")
+                lock();
+        }
+        catch (e) { }
+    }, [send, lock]);
+    // Änderungen sofort anzeigen, dann senden. Ohne Netz bleiben sie in der Warteschlange.
+    const put = useCallback((list, by) => {
+        lastAct.current = Date.now();
+        const items = { ...itemsRef.current };
+        list.forEach(x => { if (x.deleted)
+            delete items[x.id];
+        else
+            items[x.id] = { kind: x.kind, data: x.data, at: new Date().toISOString(), by: by || null, local: true }; });
+        itemsRef.current = items;
+        setSt(s => ({ ...s, items }));
+        queue.current = [...queue.current, ...list.map(x => ({ ...x, by: by || null }))];
+        saveQ();
+        return send();
+    }, [send]);
+    const setPin = useCallback(async (oldPin, newPin) => {
+        try {
+            const r = await rpc("scout_set_pin", { p_team: cfgRef.current.team, p_old: oldPin || "", p_new: newPin });
+            if (r && r.ok) {
+                if (pinRef.current)
+                    pinRef.current = newPin;
+                return r.created ? "created" : "ok";
+            }
+            return (r && r.error) || "fehler";
+        }
+        catch (e) {
+            return errOf(e);
+        }
+    }, []);
+    const hasPin = useCallback(async () => {
+        try {
+            return !!(await rpc("scout_has_pin", { p_team: cfgRef.current.team }));
+        }
+        catch (e) {
+            return null;
+        }
+    }, []);
+    const touch = useCallback(() => { lastAct.current = Date.now(); }, []);
+    // Nach 60 Minuten ohne Bedienung sperren; jede Minute abgleichen und Wartendes senden
+    useEffect(() => {
+        if (st.locked)
+            return;
+        const iv = setInterval(() => {
+            if (Date.now() - lastAct.current > 60 * 60 * 1000)
+                lock();
+            else if (document.visibilityState === "visible")
+                refresh();
+        }, 60 * 1000);
+        const on = () => refresh();
+        window.addEventListener("online", on);
+        return () => { clearInterval(iv); window.removeEventListener("online", on); };
+    }, [st.locked, lock, refresh]);
+    useEffect(() => { if (!cfg && !st.locked)
+        lock(); }, [cfg]);
+    return { ...st, pending, unlock, lock, put, refresh, touch, setPin, hasPin, retry: send };
+}
+
+/* ---------- Sperrbildschirm ---------- */
+function ScoutLock({ sc, cfg }) {
+    const [code, setCode] = useState("");
+    const LEN = 6;
+    useEffect(() => {
+        if (code.length < LEN)
+            return;
+        sc.unlock(code).then(ok => { if (!ok)
+            setTimeout(() => setCode(""), 500); });
+    }, [code]);
+    const tap = d => setCode(c => c.length >= LEN ? c : c + d);
+    const errText = {
+        pin: "Falsche PIN.",
+        locked: "Zu viele Fehlversuche. Der Zugang ist 15 Minuten gesperrt.",
+        nopin: "Für euer Team ist noch keine Scouting-PIN festgelegt. Das Trainerteam legt sie im Trainerbereich unter „Kader & Daten“ fest.",
+        setup: "Der Scouting-Bereich ist auf dem Server noch nicht eingerichtet.",
+        net: "Keine Verbindung zum Server. Bitte gleich noch einmal versuchen.",
+        nocfg: "Nur mit Team-Verbindung verfügbar.",
+    }[sc.err];
+    if (!cfg)
+        return oh("div", { className: "card med-lock" },
+            oh("h3", null, "Scouting"),
+            oh("p", { className: "med-p" }, "Berichte liegen nur auf dem Team-Server. Öffne die App über den Team-Link, dann ist der Bereich verfügbar."));
+    return oh("div", { className: "med-lock", id: "scout-lock" },
+        oh("div", { className: "med-lockhead" },
+            oh("span", { className: "med-cross", style: { background: "rgba(10,132,255,0.16)", color: "var(--s1)" }, "aria-hidden": "true" }, oh(Icon, { d: I.eye, size: 22 })),
+            oh("h3", null, "Scouting"),
+            oh("p", { className: "med-p" }, "Beobachtete Spieler und Berichte. Eigene Scouting-PIN, geprüft auf dem Server.")),
+        sc.pending > 0 && oh("p", { className: "med-p", style: { color: "var(--warn)", margin: "12px 0 0" } }, sc.pending + (sc.pending === 1 ? " Eintrag wartet" : " Einträge warten") + " auf diesem Handy. Nach der PIN werden sie gesendet."),
+        oh("div", { className: "pindots" + (sc.err === "pin" ? " err" : ""), style: { margin: "18px 0 20px" } }, Array.from({ length: LEN }, (_, i) => oh("i", { key: i, className: code.length > i ? "on" : "" }))),
+        errText && oh("p", { className: "med-err" }, errText),
+        oh("div", { className: "numpad", "aria-busy": sc.busy },
+            [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => oh("button", { key: n, onClick: () => tap(String(n)), disabled: sc.busy }, n)),
+            oh("button", { style: { opacity: 0 }, disabled: true, "aria-hidden": "true" }),
+            oh("button", { onClick: () => tap("0"), disabled: sc.busy }, "0"),
+            oh("button", { onClick: () => setCode(c => c.slice(0, -1)), "aria-label": "Löschen" }, oh(Icon, { d: I.back, size: 20 }))));
+}
+
+/* ---------- Kleine Bausteine ---------- */
+function ScoutScale({ value, onChange, label, small }) {
+    return oh("div", { style: { marginTop: small ? 8 : 0 } },
+        label && oh("div", { style: { fontSize: 12.5, fontWeight: 600, marginBottom: 5 } }, label),
+        oh("div", { className: "scale5", role: "radiogroup", "aria-label": label || "Bewertung", style: { gridTemplateColumns: "repeat(5, minmax(0, 1fr))" } }, [1, 2, 3, 4, 5].map(v => oh("button", { key: v, type: "button", className: "sbtn", role: "radio", "aria-checked": value === v, "aria-pressed": value === v, onClick: () => onChange(value === v ? null : v), style: { minHeight: small ? 40 : 52 } },
+            oh("span", { className: "se", style: { fontSize: small ? 15 : 19, fontWeight: 700 } }, v),
+            !small && oh("span", { className: "sl" }, ["schwach", "mäßig", "solide", "gut", "top"][v - 1])))));
+}
+function ScoutMeter({ v, label, n }) {
+    return oh("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "5px 0" } },
+        oh("span", { style: { width: 128, fontSize: 12.5, color: "var(--ink-2)" } }, label),
+        oh("span", { style: { flex: 1, height: 8, borderRadius: 4, background: "var(--surface-2)", overflow: "hidden" } },
+            v != null && oh("span", { style: { display: "block", height: 8, width: (v / 5 * 100) + "%", borderRadius: 4, background: "var(--s1)" } })),
+        oh("span", { className: "num", style: { minWidth: 52, textAlign: "right", fontSize: 13 } }, v == null ? "–" : nf1(v), oh("small", null, n ? n + "×" : "")));
+}
+
+/* ---------- Bericht anlegen / bearbeiten ---------- */
+function ScoutReportForm({ players, preset, edit, me, setMe, onSave, onCancel }) {
+    const today = localIso();
+    const [pid, setPid] = useState(() => edit ? edit.pid : (preset || ""));
+    const [np, setNp] = useState({ name: "", club: "", year: "", pos: "", foot: "" });
+    const [r, setR] = useState(() => edit ? { ...edit, ratings: { ...(edit.ratings || {}) } } : { date: today, match: "", overall: null, ratings: {}, rec: "", strengths: "", weaknesses: "", notes: "", video: "" });
+    const [q, setQ] = useState("");
+    const [tried, setTried] = useState(false);
+    const [askName, setAskName] = useState(() => !me.trim());
+    const set = (k, v) => setR(x => ({ ...x, [k]: v }));
+    const sorted = players.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), "de"));
+    const chosen = players.find(p => p.id === pid) || null;
+    const isNew = pid === "__neu";
+    const hits = q.trim().length >= 2 ? sorted.filter(p => (p.name + " " + (p.club || "")).toLowerCase().includes(q.trim().toLowerCase())).slice(0, 8) : [];
+    const twin = isNew && np.name.trim().length >= 3 ? players.find(p => p.name.trim().toLowerCase() === np.name.trim().toLowerCase()) : null;
+    const missing = [];
+    if (!me.trim())
+        missing.push("dein Name");
+    if (!pid || (isNew && (!np.name.trim() || !np.club.trim())))
+        missing.push("Spieler mit Name und Verein");
+    if (!r.overall)
+        missing.push("Gesamteindruck");
+    if (!r.rec)
+        missing.push("Empfehlung");
+    const save = () => {
+        setTried(true);
+        if (missing.length)
+            return;
+        const list = [];
+        let id = pid;
+        if (isNew) {
+            id = scId("player");
+            list.push({ id, kind: "player", data: { name: np.name.trim(), club: np.club.trim(), year: np.year.replace(/\D/g, "").slice(0, 4), pos: np.pos, foot: np.foot, status: "offen", created: today, createdBy: me.trim() } });
+        }
+        const ratings = {};
+        SC_CRIT.forEach(([k]) => { if (r.ratings[k])
+            ratings[k] = r.ratings[k]; });
+        list.push({ id: edit ? edit.id : scId("report"), kind: "report", data: {
+                pid: id, scout: edit ? edit.scout : me.trim(), date: r.date || today, match: (r.match || "").trim(), overall: r.overall, ratings, rec: r.rec,
+                strengths: (r.strengths || "").trim(), weaknesses: (r.weaknesses || "").trim(), notes: (r.notes || "").trim(), video: scLink(r.video),
+                ...(edit ? { editedBy: me.trim(), editedAt: today } : {}) } });
+        onSave(list, id);
+    };
+    const lab = t => oh("span", { style: { fontSize: 11.5, color: "var(--muted)", fontWeight: 650 } }, t);
+    const fld = (t, el) => oh("label", { style: { display: "block" } }, lab(t), el);
+    return oh("div", { className: "card", id: "scout-form" },
+        oh("div", { className: "card-head" }, oh("div", null,
+            oh("h3", null, edit ? "Bericht bearbeiten" : "Neuer Bericht"),
+            oh("p", null, "Nur sportliche Eindrücke – keine Angaben zu Gesundheit, Familie oder Privatem."))),
+        askName && !edit ? fld("Dein Name (Scout)", oh("input", { id: "sc-me", className: "sel og-in", value: me, placeholder: "z. B. Jens", onChange: e => setMe(e.target.value) }))
+            : oh("p", { style: { fontSize: 12.5, color: "var(--muted)", margin: "0 0 4px" } }, "Bericht von ", oh("b", { style: { color: "var(--ink)" } }, edit ? edit.scout : me), edit ? "" : " · ", !edit && oh("button", { className: "linkbtn", onClick: () => setAskName(true) }, "nicht ich?")),
+        oh("div", { className: "eyebrow", style: { margin: "14px 0 6px" } }, "Spieler"),
+        chosen && !edit ? oh("div", { className: "prow", style: { cursor: "default" } },
+            oh("span", { className: "grow" }, oh("span", { className: "nm" }, chosen.name), oh("span", { className: "sub" }, [chosen.club, chosen.year, chosen.pos].filter(Boolean).join(" · "))),
+            oh("button", { className: "btn sm ghost", onClick: () => { setPid(""); setQ(""); } }, "Anderer Spieler"))
+            : chosen && edit ? oh("p", { style: { margin: 0, fontWeight: 650 } }, chosen.name, oh("span", { style: { color: "var(--muted)", fontWeight: 400 } }, " · " + (chosen.club || "")))
+                : isNew ? oh("div", { id: "sc-new" },
+                    oh("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 } },
+                        fld("Name *", oh("input", { id: "sc-name", className: "sel og-in", value: np.name, onChange: e => setNp(x => ({ ...x, name: e.target.value })) })),
+                        fld("Verein *", oh("input", { id: "sc-club", className: "sel og-in", value: np.club, onChange: e => setNp(x => ({ ...x, club: e.target.value })) })),
+                        fld("Jahrgang", oh("input", { id: "sc-year", className: "sel og-in", inputMode: "numeric", placeholder: "z. B. 2004", value: np.year, onChange: e => setNp(x => ({ ...x, year: e.target.value })) }))),
+                    twin && oh("p", { style: { fontSize: 12.5, color: "var(--warn)", margin: "8px 0 0" } }, "Es gibt schon „" + twin.name + "“ (" + (twin.club || "ohne Verein") + "). ",
+                        oh("button", { className: "linkbtn", onClick: () => setPid(twin.id) }, "Diesen nehmen")),
+                    oh("div", { style: { fontSize: 12.5, fontWeight: 600, margin: "10px 0 5px" } }, "Position"),
+                    oh("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, SC_POS.map(x => oh("button", { key: x, type: "button", className: "chip", "aria-pressed": np.pos === x, style: { padding: "6px 12px", fontSize: 13 }, onClick: () => setNp(v => ({ ...v, pos: v.pos === x ? "" : x })) }, x))),
+                    oh("div", { style: { fontSize: 12.5, fontWeight: 600, margin: "10px 0 5px" } }, "Starker Fuß"),
+                    oh("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, SC_FOOT.map(x => oh("button", { key: x, type: "button", className: "chip", "aria-pressed": np.foot === x, style: { padding: "6px 12px", fontSize: 13 }, onClick: () => setNp(v => ({ ...v, foot: v.foot === x ? "" : x })) }, x))),
+                    oh("button", { className: "linkbtn", style: { marginTop: 10 }, onClick: () => setPid("") }, "Doch einen vorhandenen Spieler wählen"))
+                    : oh("div", null,
+                        oh("input", { id: "sc-search", className: "sel og-in", placeholder: players.length ? "Name oder Verein suchen …" : "Noch keine Spieler – unten neu anlegen", value: q, onChange: e => setQ(e.target.value) }),
+                        hits.length > 0 && oh("div", { className: "rows", style: { marginTop: 8 } }, hits.map(p => oh("button", { key: p.id, className: "prow", onClick: () => setPid(p.id) },
+                            oh("span", { className: "grow" }, oh("span", { className: "nm" }, p.name), oh("span", { className: "sub" }, [p.club, p.year, p.pos].filter(Boolean).join(" · ")))))),
+                        oh("button", { className: "btn sm ghost", id: "sc-newbtn", style: { marginTop: 8 }, onClick: () => { setPid("__neu"); setNp(x => ({ ...x, name: q.trim() })); } }, oh(Icon, { d: I.plus, size: 14 }), " Neuen Spieler anlegen")),
+        oh("div", { className: "eyebrow", style: { margin: "18px 0 6px" } }, "Beobachtung"),
+        oh("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 } },
+            fld("Datum", oh("input", { id: "sc-date", className: "sel og-in", type: "date", value: r.date, onChange: e => set("date", e.target.value) })),
+            fld("Spiel", oh("input", { id: "sc-match", className: "sel og-in", placeholder: "z. B. Altona 93 – Teutonia 05", value: r.match, onChange: e => set("match", e.target.value) }))),
+        oh("div", { className: "eyebrow", style: { margin: "18px 0 6px" } }, "Gesamteindruck *"),
+        oh(ScoutScale, { value: r.overall, onChange: v => set("overall", v) }),
+        oh("details", { style: { marginTop: 12 }, open: !!(edit && Object.keys(edit.ratings || {}).length) },
+            oh("summary", { style: { fontSize: 13, fontWeight: 600, cursor: "pointer", color: "var(--s1)" } }, "Einzelnoten (optional)"),
+            SC_CRIT.map(([k, l]) => oh(ScoutScale, { key: k, small: true, label: l, value: r.ratings[k] || null, onChange: v => setR(x => ({ ...x, ratings: { ...x.ratings, [k]: v } })) }))),
+        oh("div", { className: "eyebrow", style: { margin: "18px 0 6px" } }, "Empfehlung *"),
+        oh("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 6 } }, SC_REC.map(x => oh("button", { key: x.key, type: "button", className: "chip", "aria-pressed": r.rec === x.key, style: { padding: "10px 12px", fontSize: 13.5, textAlign: "left" }, onClick: () => set("rec", x.key) }, x.label))),
+        oh("div", { style: { display: "grid", gap: 8, marginTop: 14 } },
+            fld("Stärken", oh("textarea", { id: "sc-str", className: "sel og-in", rows: 2, value: r.strengths, onChange: e => set("strengths", e.target.value) })),
+            fld("Schwächen", oh("textarea", { id: "sc-weak", className: "sel og-in", rows: 2, value: r.weaknesses, onChange: e => set("weaknesses", e.target.value) })),
+            fld("Notizen", oh("textarea", { id: "sc-notes", className: "sel og-in", rows: 3, value: r.notes, onChange: e => set("notes", e.target.value) })),
+            fld("Video- oder Profil-Link (optional)", oh("input", { id: "sc-video", className: "sel og-in", type: "url", inputMode: "url", placeholder: "https://…", value: r.video, onChange: e => set("video", e.target.value) }))),
+        tried && missing.length > 0 && oh("p", { id: "sc-missing", style: { color: "var(--crit)", fontSize: 13, margin: "12px 0 0" } }, "Es fehlt noch: " + missing.join(", ") + "."),
+        oh("div", { style: { display: "flex", gap: 8, marginTop: 14 } },
+            oh("button", { className: "btn ghost", onClick: onCancel }, "Abbrechen"),
+            oh("button", { className: "btn", id: "sc-save", onClick: save }, oh(Icon, { d: I.check, size: 16 }), " ", edit ? "Änderung speichern" : "Bericht speichern")));
+}
+
+/* ---------- Spielerblatt ---------- */
+function scSummary(p, rs) {
+    const ov = rs.filter(r => r.overall > 0).map(r => r.overall);
+    const crit = {};
+    SC_CRIT.forEach(([k]) => { const v = rs.map(r => (r.ratings || {})[k]).filter(x => x > 0); crit[k] = { v: v.length ? mean(v) : null, n: v.length }; });
+    const recs = {};
+    rs.forEach(r => { if (r.rec)
+        recs[r.rec] = (recs[r.rec] || 0) + 1; });
+    return { avg: ov.length ? mean(ov) : null, n: rs.length, crit, recs, last: rs[0] || null, scouts: Array.from(new Set(rs.map(r => r.scout).filter(Boolean))) };
+}
+function scText(p, rs) {
+    const s = scSummary(p, rs);
+    const L = ["🔎 " + p.name + " (" + [p.club, p.year ? "Jg. " + p.year : "", p.pos, p.foot ? "Fuß " + p.foot : ""].filter(Boolean).join(", ") + ")",
+        "Status: " + scStatus(p.status).label + " · " + s.n + " Bericht" + (s.n === 1 ? "" : "e") + (s.avg != null ? " · Gesamteindruck Ø " + nf1(s.avg) + " von 5" : "")];
+    if (Object.keys(s.recs).length)
+        L.push("Empfehlungen: " + SC_REC.filter(x => s.recs[x.key]).map(x => s.recs[x.key] + "× " + x.label.toLowerCase()).join(", "));
+    rs.slice(0, 3).forEach(r => {
+        L.push("");
+        L.push("• " + fmtDate(r.date) + (r.match ? " · " + r.match : "") + " · " + (r.scout || "?") + ": " + r.overall + "/5, " + (scRec(r.rec) ? scRec(r.rec).label.toLowerCase() : "–"));
+        if (r.strengths)
+            L.push("  + " + r.strengths);
+        if (r.weaknesses)
+            L.push("  − " + r.weaknesses);
+    });
+    if (p.link || (rs.find(r => r.video) || {}).video)
+        L.push("", "Link: " + (p.link || rs.find(r => r.video).video));
+    return L.join("\n");
+}
+function ScoutPlayerSheet({ p, rs, me, onClose, onPut, onNewReport, onEditReport, copyText }) {
+    const s = scSummary(p, rs);
+    const [edit, setEdit] = useState(false);
+    const [f, setF] = useState(p);
+    const [armDel, setArmDel] = useState(null);
+    useEffect(() => { setF(p); }, [p.id]);
+    const st = scStatus(p.status);
+    const saveData = data => onPut([{ id: p.id, kind: "player", data }]);
+    const lab = t => oh("span", { style: { fontSize: 11.5, color: "var(--muted)", fontWeight: 650 } }, t);
+    return oh("div", { className: "ov", onClick: onClose },
+        oh("div", { className: "sheet", id: "scout-sheet", onClick: e => e.stopPropagation() },
+            oh("div", { style: { display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 } },
+                oh("div", { style: { flex: 1, minWidth: 0 } },
+                    oh("h3", { style: { fontSize: 18 } }, p.name),
+                    oh("div", { style: { fontSize: 13, color: "var(--muted)", marginTop: 2 } }, [p.club, p.year ? "Jg. " + p.year : "", p.pos, p.foot ? "Fuß " + p.foot : ""].filter(Boolean).join(" · ") || "ohne Angaben")),
+                oh("button", { className: "icon-btn", onClick: () => setEdit(e => !e), "aria-label": "Stammdaten bearbeiten" }, oh(Icon, { d: I.pen, size: 15 })),
+                oh("button", { className: "icon-btn", onClick: onClose, "aria-label": "Schließen" }, oh(Icon, { d: I.x, size: 16 }))),
+            edit && oh("div", { className: "card", style: { background: "var(--surface-2)", padding: 12, marginBottom: 12 } },
+                oh("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 } },
+                    oh("label", null, lab("Name"), oh("input", { className: "sel og-in", value: f.name || "", onChange: e => setF(x => ({ ...x, name: e.target.value })) })),
+                    oh("label", null, lab("Verein"), oh("input", { className: "sel og-in", value: f.club || "", onChange: e => setF(x => ({ ...x, club: e.target.value })) })),
+                    oh("label", null, lab("Jahrgang"), oh("input", { className: "sel og-in", inputMode: "numeric", value: f.year || "", onChange: e => setF(x => ({ ...x, year: e.target.value.replace(/\D/g, "").slice(0, 4) })) })),
+                    oh("label", null, lab("Position"), oh("select", { className: "sel og-in", value: f.pos || "", onChange: e => setF(x => ({ ...x, pos: e.target.value })) }, oh("option", { value: "" }, "–"), SC_POS.map(x => oh("option", { key: x, value: x }, x)))),
+                    oh("label", null, lab("Starker Fuß"), oh("select", { className: "sel og-in", value: f.foot || "", onChange: e => setF(x => ({ ...x, foot: e.target.value })) }, oh("option", { value: "" }, "–"), SC_FOOT.map(x => oh("option", { key: x, value: x }, x)))),
+                    oh("label", null, lab("Profil-Link"), oh("input", { className: "sel og-in", type: "url", placeholder: "https://…", value: f.link || "", onChange: e => setF(x => ({ ...x, link: e.target.value })) }))),
+                oh("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
+                    oh("button", { className: "btn sm ghost", onClick: () => { setF(p); setEdit(false); } }, "Abbrechen"),
+                    oh("button", { className: "btn sm", disabled: !String(f.name || "").trim(), onClick: () => { const d = { ...f, name: String(f.name).trim(), link: scLink(f.link) }; delete d.id; delete d.at; delete d.by; saveData(d); setEdit(false); } }, "Speichern"))),
+            oh("div", { className: "eyebrow", style: { marginBottom: 6 } }, "Entscheidung Trainerteam"),
+            oh("div", { id: "sc-status", style: { display: "flex", gap: 6, flexWrap: "wrap" } }, SC_STATUS.map(x => oh("button", { key: x.key, className: "chip", "aria-pressed": st.key === x.key, style: { padding: "6px 12px", fontSize: 13 },
+                onClick: () => { if (st.key === x.key)
+                    return; const d = { ...p, status: x.key, statusBy: me || null, statusAt: localIso() }; delete d.id; delete d.at; delete d.by; saveData(d); } }, x.label))),
+            p.statusAt && oh("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "6px 0 0" } }, "Zuletzt geändert " + fmtDate(p.statusAt) + (p.statusBy ? " von " + p.statusBy : "")),
+            oh("div", { className: "tiles", style: { gridTemplateColumns: "repeat(3,1fr)", marginTop: 14 } },
+                oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Gesamteindruck"), oh("span", { className: "v" }, s.avg == null ? "–" : nf1(s.avg)), oh("span", { className: "d" }, "von 5 · Ø aller Berichte")),
+                oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Berichte"), oh("span", { className: "v" }, s.n), oh("span", { className: "d" }, s.scouts.length + (s.scouts.length === 1 ? " Scout" : " Scouts"))),
+                oh("div", { className: "tile" }, oh("span", { className: "lab" }, "Zuletzt gesehen"), oh("span", { className: "v", style: { fontSize: 18 } }, s.last ? fmtDate(s.last.date).slice(0, 6) : "–"), oh("span", { className: "d" }, s.last && s.last.match ? s.last.match : ""))),
+            Object.keys(s.recs).length > 0 && oh("p", { style: { fontSize: 13, color: "var(--ink-2)", margin: "12px 0 0" } }, "Empfehlungen: ",
+                SC_REC.filter(x => s.recs[x.key]).map(x => s.recs[x.key] + "× " + x.label.toLowerCase()).join(" · ")),
+            SC_CRIT.some(([k]) => s.crit[k].n) && oh("div", { style: { marginTop: 10 } }, SC_CRIT.map(([k, l]) => oh(ScoutMeter, { key: k, label: l, v: s.crit[k].v, n: s.crit[k].n }))),
+            p.link && oh("p", { style: { margin: "10px 0 0", fontSize: 13 } }, oh("a", { href: p.link, target: "_blank", rel: "noopener noreferrer", style: { color: "var(--s1)" } }, "Profil öffnen ↗")),
+            oh("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", margin: "16px 0 10px" } },
+                oh("button", { className: "btn sm", onClick: () => onNewReport(p.id) }, oh(Icon, { d: I.plus, size: 14 }), " Neuer Bericht"),
+                oh("button", { className: "btn sm ghost", onClick: () => copyText(scText(p, rs), "Zusammenfassung kopiert.") }, oh(Icon, { d: I.copy, size: 14 }), " Als Text kopieren")),
+            oh("div", { className: "eyebrow", style: { margin: "6px 0 6px" } }, "Berichte"),
+            rs.length ? oh("div", { className: "rows" }, rs.map(r => oh("div", { key: r.id, className: "prow", style: { cursor: "default", display: "block" } },
+                oh("div", { style: { display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" } },
+                    oh("b", null, fmtDate(r.date)),
+                    oh("span", { style: { color: "var(--muted)", fontSize: 12.5 } }, (r.match ? r.match + " · " : "") + (r.scout || "?")),
+                    oh("span", { style: { flex: 1 } }),
+                    oh("span", { style: { color: "var(--warn)", letterSpacing: 1 } }, scStars(r.overall)),
+                    r.rec && oh("span", { className: "pill", style: { fontSize: 11 } }, scRec(r.rec).short)),
+                Object.keys(r.ratings || {}).length > 0 && oh("div", { style: { fontSize: 12, color: "var(--muted)", marginTop: 4 } }, SC_CRIT.filter(([k]) => r.ratings[k]).map(([k, l]) => l + " " + r.ratings[k]).join(" · ")),
+                r.strengths && oh("div", { style: { fontSize: 13, marginTop: 6 } }, oh("b", { style: { color: "var(--good)" } }, "+ "), r.strengths),
+                r.weaknesses && oh("div", { style: { fontSize: 13, marginTop: 3 } }, oh("b", { style: { color: "var(--crit)" } }, "− "), r.weaknesses),
+                r.notes && oh("div", { style: { fontSize: 13, marginTop: 3, color: "var(--ink-2)", whiteSpace: "pre-wrap" } }, r.notes),
+                oh("div", { style: { display: "flex", gap: 14, marginTop: 6, alignItems: "center", flexWrap: "wrap" } },
+                    r.video && oh("a", { href: r.video, target: "_blank", rel: "noopener noreferrer", style: { color: "var(--s1)", fontSize: 12.5 } }, "Video / Link ↗"),
+                    oh("button", { className: "linkbtn", onClick: () => onEditReport(r) }, "Bearbeiten"),
+                    armDel === r.id
+                        ? oh("button", { className: "linkbtn", style: { color: "var(--crit)" }, onClick: () => { setArmDel(null); onPut([{ id: r.id, kind: "report", data: {}, deleted: true }]); } }, "Wirklich löschen")
+                        : oh("button", { className: "linkbtn", onClick: () => setArmDel(r.id) }, "Löschen")))))
+                : oh("p", { style: { fontSize: 13, color: "var(--muted)", margin: 0 } }, "Noch kein Bericht."),
+            rs.length === 0 && oh("div", { style: { marginTop: 14 } }, armDel === "p"
+                ? oh("button", { className: "btn sm", style: { background: "var(--crit)", borderColor: "var(--crit)" }, onClick: () => { onPut([{ id: p.id, kind: "player", data: {}, deleted: true }]); onClose(); } }, "Spieler wirklich löschen")
+                : oh("button", { className: "linkbtn", onClick: () => setArmDel("p") }, "Spieler löschen"))));
+}
+
+/* ---------- Hauptbereich ---------- */
+function ScoutArea({ sc, cfg, toast, copyText, onDownload }) {
+    const [view, setView] = useState("liste");
+    const [me, setMe] = useState(() => store.get("scout.me", ""));
+    useEffect(() => { store.set("scout.me", me); }, [me]);
+    const [open, setOpen] = useState(null);
+    const [form, setForm] = useState(null);
+    const [q, setQ] = useState("");
+    const [fSt, setFSt] = useState("alle");
+    const [fPos, setFPos] = useState("alle");
+    if (sc.locked)
+        return oh(ScoutLock, { sc, cfg });
+    const all = Object.entries(sc.items);
+    const players = all.filter(([, v]) => v.kind === "player").map(([k, v]) => ({ ...v.data, id: k, at: v.at, by: v.by }));
+    const byP = {};
+    all.filter(([, v]) => v.kind === "report").forEach(([k, v]) => { const r = { ...v.data, id: k, at: v.at, by: v.by }; (byP[r.pid] = byP[r.pid] || []).push(r); });
+    Object.values(byP).forEach(l => l.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : String(a.at) < String(b.at) ? 1 : -1));
+    const rows = players.map(p => { const rs = byP[p.id] || []; return { p, rs, s: scSummary(p, rs), st: scStatus(p.status) }; });
+    const counts = {};
+    rows.forEach(x => { counts[x.st.key] = (counts[x.st.key] || 0) + 1; });
+    const ql = q.trim().toLowerCase();
+    const shown = rows.filter(x => (fSt === "alle" || x.st.key === fSt) && (fPos === "alle" || x.p.pos === fPos)
+        && (!ql || (x.p.name + " " + (x.p.club || "")).toLowerCase().includes(ql)))
+        .sort((a, b) => a.st.order - b.st.order || (b.s.avg || 0) - (a.s.avg || 0) || String(b.s.last ? b.s.last.date : "") .localeCompare(String(a.s.last ? a.s.last.date : "")));
+    const save = (list, pid) => {
+        sc.put(list, me.trim() || null).then(ok => toast(ok ? "Gespeichert." : "Auf diesem Handy gespeichert – wird gesendet, sobald wieder Netz da ist."));
+        setForm(null);
+        setView("liste");
+        if (pid)
+            setOpen(pid);
+    };
+    const exportCsv = () => onDownload(csvFile(["Spieler", "Verein", "Jahrgang", "Position", "Fuss", "Status", "Berichte", "Gesamteindruck_Mittel",
+        "Technik", "Tempo", "Spielverstaendnis", "Zweikampf", "Mentalitaet", "Letzte_Beobachtung", "Letztes_Spiel", "Letzte_Empfehlung", "Scouts", "Link"],
+        shown.map(({ p, s, st }) => [p.name, p.club || "", p.year || "", p.pos || "", p.foot || "", st.label, s.n, de(s.avg, 1),
+            ...SC_CRIT.map(([k]) => de(s.crit[k].v, 1)), s.last ? s.last.date : "", s.last ? s.last.match || "" : "",
+            s.last && scRec(s.last.rec) ? scRec(s.last.rec).label : "", s.scouts.join(", "), p.link || ""])),
+        "scouting_" + localIso() + ".csv", "text/csv;charset=utf-8");
+    const cur = open ? rows.find(x => x.p.id === open) : null;
+    return oh("div", { className: "med-area", id: "scout-area", onPointerDown: sc.touch, onKeyDown: sc.touch },
+        oh("div", { className: "filterrow med-top" },
+            oh("div", { className: "viewswitch" },
+                oh("button", { "aria-pressed": view === "liste" && !form, onClick: () => { setForm(null); setView("liste"); } }, "Spieler"),
+                oh("button", { "aria-pressed": !!form, id: "sc-new-report", onClick: () => setForm({}) }, "Neuer Bericht")),
+            oh("input", { id: "sc-me-top", className: "sel", style: { width: 150, backgroundImage: "none" }, placeholder: "Dein Name", value: me, onChange: e => setMe(e.target.value), "aria-label": "Dein Name" }),
+            oh("div", { style: { flex: 1 } }),
+            sc.pending > 0 && oh("button", { className: "pill", style: { color: "var(--warn)", borderColor: "rgba(255,204,0,0.45)" }, onClick: () => sc.retry() }, sc.pending + " warten auf Netz"),
+            oh("button", { className: "btn sm ghost", onClick: () => sc.lock() }, oh(Icon, { d: I.lock, size: 14 }), " Sperren")),
+        form ? oh(ScoutReportForm, { key: (form.edit ? form.edit.id : "neu") + (form.pid || ""), players, preset: form.pid, edit: form.edit, me, setMe, onSave: save, onCancel: () => setForm(null) })
+            : oh("div", { className: "card" },
+                oh("div", { className: "card-head" },
+                    oh("div", null, oh("h3", null, "Beobachtete Spieler"),
+                        oh("p", null, players.length ? players.length + " Spieler · sortiert nach Entscheidung und Gesamteindruck" : "Noch niemand eingetragen. Oben auf „Neuer Bericht“ tippen.")),
+                    players.length > 0 && oh("button", { className: "btn sm ghost", onClick: exportCsv }, oh(Icon, { d: I.down, size: 14 }), " Tabelle")),
+                players.length > 0 && oh("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 } },
+                    oh("input", { id: "sc-filter", className: "sel", style: { flex: "1 1 180px", backgroundImage: "none" }, placeholder: "Name oder Verein …", value: q, onChange: e => setQ(e.target.value) }),
+                    oh("select", { className: "sel", value: fPos, onChange: e => setFPos(e.target.value), "aria-label": "Position" }, oh("option", { value: "alle" }, "Alle Positionen"), SC_POS.map(x => oh("option", { key: x, value: x }, x)))),
+                players.length > 0 && oh("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 } },
+                    oh("button", { className: "chip", "aria-pressed": fSt === "alle", style: { padding: "5px 11px", fontSize: 12.5 }, onClick: () => setFSt("alle") }, "Alle " + players.length),
+                    SC_STATUS.filter(x => counts[x.key]).map(x => oh("button", { key: x.key, className: "chip", "aria-pressed": fSt === x.key, style: { padding: "5px 11px", fontSize: 12.5 }, onClick: () => setFSt(fSt === x.key ? "alle" : x.key) }, x.label + " " + counts[x.key]))),
+                oh("div", { className: "rows" }, shown.map(({ p, s, st }) => oh("button", { key: p.id, className: "prow", onClick: () => setOpen(p.id) },
+                    oh("span", { className: "statusbar", style: { background: st.color } }),
+                    oh("span", { className: "grow" },
+                        oh("span", { className: "nm" }, p.name),
+                        oh("span", { className: "sub" }, oh("span", null, [p.club, p.year ? "Jg. " + p.year : "", p.pos].filter(Boolean).join(" · ") || "–"),
+                            s.last ? oh("span", null, "· zuletzt " + fmtDate(s.last.date).slice(0, 6) + " von " + (s.last.scout || "?")) : null)),
+                    oh("span", { className: "num", style: { minWidth: 58 } }, s.avg == null ? "–" : nf1(s.avg), oh("small", null, s.n + (s.n === 1 ? " Bericht" : " Berichte"))),
+                    oh("span", { className: "pill", style: { color: st.color, borderColor: "var(--line)", minWidth: 96, justifyContent: "center" } }, st.label)))),
+                players.length > 0 && !shown.length && oh("p", { style: { fontSize: 13, color: "var(--muted)", margin: 0 } }, "Kein Spieler passt zum Filter.")),
+        cur && oh(ScoutPlayerSheet, { key: cur.p.id, p: cur.p, rs: cur.rs, me: me.trim(), copyText, onClose: () => setOpen(null),
+            onPut: list => sc.put(list, me.trim() || null).then(ok => { if (!ok)
+                toast("Auf diesem Handy gespeichert – wird gesendet, sobald wieder Netz da ist."); }),
+            onNewReport: pid => { setOpen(null); setForm({ pid }); }, onEditReport: r => { setOpen(null); setForm({ pid: r.pid, edit: r }); } }));
+}
+
+/* ---------- Scouting-PIN im Trainerbereich festlegen ---------- */
+function ScoutPinBox({ sc }) {
+    const [has, setHas] = useState(null);
+    const [oldPin, setOld] = useState("");
+    const [newPin, setNew] = useState("");
+    const [msg, setMsg] = useState(null);
+    const [busy, setBusy] = useState(false);
+    useEffect(() => { let a = true; sc.hasPin().then(v => { if (a)
+        setHas(v); }); return () => { a = false; }; }, []);
+    const go = async () => {
+        if (!/^\d{6}$/.test(newPin) || busy)
+            return;
+        setBusy(true);
+        const r = await sc.setPin(has ? oldPin : "", newPin);
+        setBusy(false);
+        const t = { created: "Scouting-PIN festgelegt. Gib sie an eure Scouts weiter.", ok: "Scouting-PIN geändert.", pin: "Die bisherige PIN stimmt nicht.", locked: "Zu viele Fehlversuche – 15 Minuten warten.", format: "Die PIN braucht genau 6 Ziffern.", setup: "Scouting ist auf dem Server noch nicht eingerichtet.", net: "Keine Verbindung." }[r] || "Hat nicht geklappt.";
+        setMsg({ ok: r === "ok" || r === "created", t });
+        if (r === "ok" || r === "created") {
+            setHas(true);
+            setOld("");
+            setNew("");
+        }
+    };
+    const pinIn = (id, v, set, ph) => oh("input", { id, className: "sel", type: "password", inputMode: "numeric", autoComplete: "off", maxLength: 6, value: v, placeholder: ph, onChange: e => set(e.target.value.replace(/\D/g, "").slice(0, 6)), style: { width: 132, textAlign: "center", letterSpacing: "0.2em", backgroundImage: "none" } });
+    return oh("div", { id: "scout-pin", style: { marginBottom: 18 } },
+        oh("div", { className: "eyebrow", style: { marginBottom: 8 } }, "Scouting-PIN"),
+        oh("p", { style: { fontSize: 11.5, color: has === false ? "var(--warn)" : "var(--muted)", margin: "0 0 8px", lineHeight: 1.55 } }, has === null ? "Einen Moment …"
+            : has ? "Ist festgelegt. Zum Ändern die bisherige und die neue PIN eingeben."
+                : "Noch keine Scouting-PIN. Lege jetzt eine fest (6 Ziffern) – erst danach können die Scouts eintragen."),
+        has !== null && oh("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+            has && pinIn("sp-old", oldPin, setOld, "Bisherige"),
+            pinIn("sp-new", newPin, setNew, "Neue PIN"),
+            oh("button", { className: "btn sm", disabled: newPin.length !== 6 || (has && oldPin.length !== 6) || busy, onClick: go }, busy ? "…" : has ? "Ändern" : "Festlegen")),
+        msg && oh("p", { style: { fontSize: 12, margin: "8px 0 0", color: msg.ok ? "var(--good)" : "var(--crit)" } }, msg.t));
+}
+
 function MoreView({ setTab }) {
     const rows = [
         ["input", I.edit2, "Spieler-Eingabe", "Rückmeldung für Spieler ohne Handy eintragen"],
@@ -6430,6 +6970,9 @@ function App() {
     const orgaOn = mode === "coach" || mode === "orga" || mode === "med";
     const orga = useOrga(orgaOn ? cfg : null, orgaOn);
     const med = useMed(cfg);
+    const sc = useScout(cfg);
+    useEffect(() => { if (mode !== "scout" && !sc.locked)
+        sc.lock(); }, [mode]);
     // Wer den Medizin-Bereich verlässt, sperrt ihn – auch auf dem Kabinen-Handy
     useEffect(() => { if (mode !== "med" && !med.locked)
         med.lock(); }, [mode]);
@@ -6888,6 +7431,17 @@ function App() {
                     React.createElement(Icon, { d: I.exit, size: 17 }))),
             React.createElement(MedArea, { med: med, cfg: cfg, squad: squad, entries: allEntries, metrics: metrics, fixtures: orgaFixtures, persons: orgaPersons, toast: toast, copyText: copyText }),
             msg && React.createElement("div", { className: "toast" }, React.createElement(Icon, { d: I.check, size: 15 }), " ", msg)));
+    if (mode === "scout")
+        return (React.createElement("div", { className: "app" },
+            React.createElement("div", { className: "topbar" },
+                React.createElement(ClubLogo, { size: 40 }),
+                React.createElement("div", { className: "club" }, CLUB, React.createElement("small", null, "Scouting")),
+                React.createElement("div", { className: "spacer" }),
+                React.createElement("span", { className: "modebadge" }, "Scouting"),
+                React.createElement("button", { className: "icon-btn", onClick: leaveMode, "aria-label": "Bereich verlassen" },
+                    React.createElement(Icon, { d: I.exit, size: 17 }))),
+            React.createElement(ScoutArea, { sc: sc, cfg: cfg, toast: toast, copyText: copyText, onDownload: (c, n, t) => { download(c, n, t); toast("Tabelle gesichert."); } }),
+            msg && React.createElement("div", { className: "toast" }, React.createElement(Icon, { d: I.check, size: 15 }), " ", msg)));
     if (mode === "orga")
         return (React.createElement("div", { className: "app" },
             React.createElement("div", { className: "topbar" },
@@ -6964,7 +7518,7 @@ function App() {
         !isPlayer && tab === "report" && React.createElement(ReportView, { report: report, shortReport: shortReport, allReports: m => buildAllPlayerReports({ squad, entries: live, metrics, calendar, today, mode: m }), onCopy: copyReport, onDownload: (t, v) => { download(t, "bericht_KW" + isoWeek(today) + "_" + v + ".txt", "text/plain;charset=utf-8"); toast("Bericht gesichert."); } }),
         openPlayer && React.createElement(PlayerSheet, { m: openPlayer, entries: live, calendar: calendar, today: today, onCopy: copyText, onClose: () => setOpenPlayer(null) }),
         planner && React.createElement(SessionSheet, { sessions: sessions, entries: live, today: today, onSave: saveSession, onDelete: deleteSession, onClose: () => setPlanner(false), orphans: orphans, onRestore: restoreSessions, onHide: hideSessions }),
-        settings && React.createElement(SettingsSheet, { squad: squad, setSquad: applySquad, pin: pin, setPin: setPin, onClose: () => setSettings(false), onExport: exportJson, onImport: importJson, onDemo: makeDemo, onClear: clearAll, toast: toast, connected: !!cfg, today: today,
+        settings && React.createElement(SettingsSheet, { squad: squad, setSquad: applySquad, pin: pin, setPin: setPin, onClose: () => setSettings(false), onExport: exportJson, onImport: importJson, onDemo: makeDemo, onClear: clearAll, toast: toast, connected: !!cfg, today: today, scout: sc,
             backup: (orga.items["backup:last"] && orga.items["backup:last"].data) || null }),
         syncSheet && React.createElement(SyncSheet, { cfg: cfg, setCfg: setCfg, sync: sync, squad: squad, sessions: sessions, entryCount: entries.length, onPushAll: pushAll, onPull: pull, onPushMeta: uploadMeta, onCopy: copyText, onClose: () => setSyncSheet(false), toast: toast }),
         msg && React.createElement("div", { className: "toast" },
