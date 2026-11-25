@@ -17,7 +17,7 @@ Die App ist eine einzige Datei: `index.html`. GitHub Pages liefert sie aus, der 
 | `scripts/sicherung.mjs` | wöchentliche, verschlüsselte Sicherung |
 | `scripts/entschluesseln.mjs` | Sicherung wieder lesbar machen |
 | `t/index.html` | Weiterleitung für den kurzen Team-Link |
-| `supabase/` | SQL für den Medizin-Bereich |
+| `supabase/` | SQL für den Medizin- und den Scouting-Bereich (beide nur mit eigener PIN, geprüft auf dem Server) |
 | `spielplan.json` | Spielplan, wird wöchentlich aktualisiert |
 
 ## Eine Änderung machen
@@ -35,8 +35,8 @@ fehl – dann die Änderung in `src/` nachziehen.
 
 `npm test` startet einen kleinen Nachbau von Supabase und spielt typische Abläufe im echten
 Browser durch: Rückmeldungen eintragen, Verletzung und Abmeldung, Dashboard, Exporte, zwei Geräte
-gleichzeitig, verlegte Einheiten, die Ampel mit persönlichen Normalwerten, die Verletzungsbilanz
-und die Sicherung. Echte Teamdaten werden dabei nie angefasst.
+gleichzeitig, verlegte Einheiten, die Ampel mit persönlichen Normalwerten, die Verletzungsbilanz,
+das Scouting und die Sicherung. Echte Teamdaten werden dabei nie angefasst.
 
 ## Sicherung
 
