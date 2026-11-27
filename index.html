@@ -872,6 +872,34 @@ button[aria-label="Erklärung"]::after{content:"";position:absolute;inset:-16px}
   .club{font-size:16px}
 }
 @media(max-width:380px){ .club{font-size:15px;letter-spacing:-0.03em} .topbar{gap:5px} }
+
+/* ---------- Druckfassung Arztakte ---------- */
+#med-print{background:#fff;color:#111;border-radius:12px;padding:28px 30px;font-size:13px;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+#med-print h1{font-size:22px;margin:2px 0 2px;color:#111}
+#med-print h2{font-size:15px;margin:0 0 8px;color:#111;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid #ccc;padding-bottom:4px}
+#med-print h3{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#555;margin:10px 0 4px}
+#med-print p{margin:3px 0}
+#med-print table{border-collapse:collapse;width:100%}
+#med-print th{text-align:left;vertical-align:top;font-weight:600;color:#444;width:34%;padding:3px 10px 3px 0}
+#med-print td{vertical-align:top;padding:3px 0;white-space:pre-wrap}
+.mp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:8px}
+.mp-club{font-size:12px;color:#555;font-weight:600}
+.mp-meta{font-size:12px;color:#555}
+.mp-conf{font-size:10.5px;font-weight:700;color:#b00020;border:1.5px solid #b00020;border-radius:4px;padding:3px 7px;text-align:center;line-height:1.3;flex:0 0 auto}
+.mp-state{font-size:12px;font-weight:500;color:#555}
+.mp-case{margin:16px 0;break-inside:avoid-page}
+.mp-notes p,.mp-self{font-size:12.5px}
+.mp-foot{margin-top:22px;border-top:1px solid #ccc;padding-top:6px;font-size:10.5px;color:#666}
+@media (max-width:520px){#med-print{padding:18px 16px}#med-print th{width:40%}}
+@media print{
+  @page{margin:14mm}
+  html,body{background:#fff !important}
+  .topbar,.toast,.tabs,.mp-noprint{display:none !important}
+  .app{padding:0 !important;max-width:none !important}
+  #med-print{border-radius:0;padding:0;font-size:11pt}
+  #med-print *{color:#000}
+  .mp-conf{color:#b00020 !important;border-color:#b00020}
+}
 </style>
 </head>
 <body>
@@ -23900,8 +23928,74 @@ function MedCaseForm({ c, player, me, pname, onSave, onDelete, onCancel, onResto
             oh("button", { type: "button", className: "btn sm ghost", onClick: onCancel }, "Abbrechen"),
             oh("button", { type: "button", className: "btn sm", onClick: () => save() }, "Speichern")));
 }
+/* ---------- Druckfassung der Akte eines Spielers ----------
+   Ersetzt beim Öffnen den ganzen Medizin-Bildschirm, damit nur die Akte gedruckt wird
+   (Druckdialog des Geräts → Drucker oder "Als PDF sichern"). Jede Druckfassung wird
+   mit Name und Zeit festgehalten. */
+const MED_PRINT_FIELDS = [
+    ["mech", "Entstanden"], ["diagnosis", "Befund / Diagnose"], ["imaging", "Bildgebung / Befunde"],
+    ["treater", "Behandlung / Behandler"], ["meds", "Medikation"], ["plan", "Weiteres Vorgehen"],
+    ["allowed", "Erlaubt"], ["notAllowed", "Nicht erlaubt"], ["progText", "Prognose"],
+];
+function MedPrint({ player, cases, entries, me, pname, logs, onBack, onPrinted }) {
+    const [withClosed, setWithClosed] = useState(true);
+    const [withSelf, setWithSelf] = useState(true);
+    const now = new Date();
+    const stamp = now.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const mine = cases.filter(c => c.pid === player.id && (withClosed || medIsOpen(c)))
+        .sort((a, b) => (medIsOpen(b) - medIsOpen(a)) || String(b.opened || "").localeCompare(String(a.opened || "")));
+    const since = addDays(localIso(), -60);
+    const self = (entries || []).filter(e => e.playerId === player.id && e.date >= since && (isInjured(e) || (e.pains || []).length))
+        .sort((a, b) => a.date < b.date ? 1 : -1);
+    const selfLine = e => isInjured(e)
+        ? "Verletzt gemeldet: " + ((e.injury || {}).region || "?") + ((e.injury || {}).level ? " (" + PAIN_LVL[e.injury.level] + ")" : "") + " · " + labelOf(INJ_ACTIVITY, (e.injury || {}).activity)
+        : "Beschwerden: " + e.pains.map(x => (x.region || "?") + (x.level ? " " + PAIN_LVL[x.level] : "")).join(", ");
+    const d = v => v ? fmtDateFull(v) : "–";
+    const row = (l, v) => v ? oh("tr", { key: l }, oh("th", null, l), oh("td", null, v)) : null;
+    const print = () => { onPrinted(); setTimeout(() => window.print(), 60); };
+    const last = (logs || [])[0];
+    return oh("div", { id: "med-print-wrap" },
+        oh("div", { className: "mp-noprint card", style: { marginBottom: 12 } },
+            oh("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
+                oh("button", { className: "btn sm ghost", onClick: onBack }, oh(Icon, { d: I.back, size: 14 }), " Zurück"),
+                oh("div", { style: { flex: 1 } }),
+                oh("button", { className: "btn sm", id: "mp-print", onClick: print }, oh(Icon, { d: I.file, size: 14 }), " Drucken / als PDF sichern")),
+            oh("p", { style: { fontSize: 12.5, color: "var(--warn)", margin: "12px 0 0", lineHeight: 1.55 } },
+                "Enthält Gesundheitsdaten. Ausdruck oder PDF sicher aufbewahren und nur an Berechtigte geben – nicht unverschlüsselt per WhatsApp oder E-Mail verschicken. Die Druckfassung wird mit deinem Namen und der Uhrzeit festgehalten."),
+            !me && oh("p", { style: { fontSize: 12.5, color: "var(--crit)", margin: "8px 0 0" } }, "Bitte oben unter „Ich bin …“ auswählen, wer die Druckfassung erstellt."),
+            oh("div", { style: { display: "flex", gap: 16, flexWrap: "wrap", marginTop: 10, fontSize: 13 } },
+                oh("label", { style: { display: "inline-flex", gap: 6, alignItems: "center" } }, oh("input", { type: "checkbox", checked: withClosed, onChange: e => setWithClosed(e.target.checked) }), "Abgeschlossene Fälle"),
+                oh("label", { style: { display: "inline-flex", gap: 6, alignItems: "center" } }, oh("input", { type: "checkbox", checked: withSelf, onChange: e => setWithSelf(e.target.checked) }), "Selbstmeldungen (60 Tage)")),
+            last && oh("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "8px 0 0" } }, "Zuletzt gedruckt: " + new Date(last.at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) + (last.by ? " von " + pname(last.by) : "")),
+            oh("p", { style: { fontSize: 11.5, color: "var(--muted)", margin: "6px 0 0" } }, "Öffnet sich kein Druckdialog (manche Startbildschirm-Apps), die App einmal im normalen Browser öffnen.")),
+        oh("div", { id: "med-print" },
+            oh("div", { className: "mp-head" },
+                oh("div", null,
+                    oh("div", { className: "mp-club" }, CLUB + " · Medizinische Akte"),
+                    oh("h1", null, player.name),
+                    oh("div", { className: "mp-meta" }, [player.nr ? "Nr. " + player.nr : "", player.gk ? "Torwart" : (player.pos || "")].filter(Boolean).join(" · "))),
+                oh("div", { className: "mp-conf" }, "VERTRAULICH", oh("br", null), "Gesundheitsdaten")),
+            oh("div", { className: "mp-meta", style: { marginBottom: 14 } }, "Erstellt am " + stamp + (me ? " von " + pname(me) : "") + " · " + mine.length + (mine.length === 1 ? " Fall" : " Fälle")),
+            mine.length ? mine.map((c, i) => oh("section", { key: c.id, className: "mp-case" },
+                oh("h2", null, (i + 1) + ". " + medWhere(c), oh("span", { className: "mp-state" }, medIsOpen(c) ? "offen · Phase " + (Number(c.phase) || 1) + "/6 " + medPhase(c.phase).s : "abgeschlossen" + (c.closed ? " am " + d(c.closed) : ""))),
+                oh("table", null, oh("tbody", null,
+                    row("Seit", d(c.opened)),
+                    ...MED_PRINT_FIELDS.map(([k, l]) => row(l, c[k] ? String(c[k]) : "")),
+                    medIsOpen(c) ? row("Reha-Phase", c.phase ? c.phase + " von 6 – " + medPhase(c.phase).l : "") : null,
+                    row("Training ab (Prognose)", c.returnTraining ? d(c.returnTraining) : ""),
+                    row("Spielfähig ab (Prognose)", c.returnMatch ? d(c.returnMatch) : ""),
+                    row("Nächster Termin", c.nextDate ? d(c.nextDate) + (c.nextWhat ? " – " + c.nextWhat : "") : ""))),
+                (c.notes || []).length > 0 && oh("div", { className: "mp-notes" },
+                    oh("h3", null, "Verlauf"),
+                    c.notes.slice().sort((a, b) => String(a.d).localeCompare(String(b.d))).map((n, j) => oh("p", { key: j }, oh("b", null, fmtDate(n.d)), " " + n.t + (n.by ? " (" + pname(n.by) + ")" : ""))))))
+                : oh("p", null, "Keine Fälle in der Akte."),
+            withSelf && oh("section", { className: "mp-case" },
+                oh("h2", null, "Selbstmeldungen des Spielers", oh("span", { className: "mp-state" }, "letzte 60 Tage, aus der App")),
+                self.length ? self.map(e => oh("p", { key: e.id, className: "mp-self" }, oh("b", null, fmtDate(e.date)), " " + selfLine(e))) : oh("p", null, "Keine Beschwerden gemeldet.")),
+            oh("div", { className: "mp-foot" }, "Vertraulich – enthält Gesundheitsdaten (Art. 9 DSGVO). Nur für Berechtigte. " + CLUB + " · erstellt " + stamp)));
+}
 /* ---------- Akte eines Spielers ---------- */
-function MedFile({ player, cases, entries, me, pname, prefill, onSaveCase, onDeleteCase, onClose }) {
+function MedFile({ player, cases, entries, me, pname, prefill, onSaveCase, onDeleteCase, onClose, onPrint, logs }) {
     const restore = (c, data) => { onSaveCase({ ...data, id: c.id, pid: player.id }, "Früheren Stand wiederhergestellt"); setEdit(null); };
     const [edit, setEdit] = useState(() => prefill ? { pid: player.id, opened: localIso(), phase: 1, ...prefill } : null);
     const mine = cases.filter(c => c.pid === player.id).sort((a, b) => (medIsOpen(b) - medIsOpen(a)) || String(b.opened || "").localeCompare(String(a.opened || "")));
@@ -23927,7 +24021,10 @@ function MedFile({ player, cases, entries, me, pname, prefill, onSaveCase, onDel
                 : oh("div", { className: "mx-body" },
                     oh("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 } },
                         oh("div", { className: "eyebrow" }, mine.length ? mine.length + (mine.length === 1 ? " Fall" : " Fälle") : "Keine Fälle"),
-                        oh("button", { className: "btn sm", onClick: () => setEdit({ pid: player.id, opened: localIso(), phase: 1 }) }, oh(Icon, { d: I.plus, size: 15 }), " Neuer Fall")),
+                        oh("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" } },
+                            onPrint && oh("button", { className: "btn sm ghost", id: "mf-print", onClick: onPrint }, oh(Icon, { d: I.file, size: 15 }), " Druckfassung"),
+                            oh("button", { className: "btn sm", onClick: () => setEdit({ pid: player.id, opened: localIso(), phase: 1 }) }, oh(Icon, { d: I.plus, size: 15 }), " Neuer Fall"))),
+                    logs && logs.length > 0 && oh("div", { className: "med-sub", style: { fontSize: 12 } }, "Zuletzt als Druckfassung erstellt: " + new Date(logs[0].at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) + (logs[0].by ? " von " + pname(logs[0].by) : "") + (logs.length > 1 ? " · insgesamt " + logs.length + "×" : "")),
                     mine.map(c => oh("button", { key: c.id, className: "med-case" + (medIsOpen(c) ? "" : " med-closed"), onClick: () => setEdit(c) },
                         oh("div", { className: "med-casetop" },
                             oh("span", { className: "med-where" }, medWhere(c)),
@@ -24182,6 +24279,7 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
     const [me, setMe] = useState(() => store.get("med.me", ""));
     useEffect(() => { store.set("med.me", me); }, [me]);
     const [file, setFile] = useState(null);
+    const [printFor, setPrintFor] = useState(null);
     const [lines, setLines] = useState({});
     const [general, setGeneral] = useState("");
     const [loadedCall, setLoadedCall] = useState(null);
@@ -24369,6 +24467,13 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
                     oh(Icon, { d: I.right || I.back, size: 16 }));
             })));
     };
+    const logs = all.filter(([, v]) => v.kind === "log").map(([k, v]) => ({ ...v.data, id: k })).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    const logsFor = pid => logs.filter(l => l.pid === pid);
+    if (printFor && byPid[printFor])
+        return oh("div", { className: "med-area", onPointerDown: med.touch, onKeyDown: med.touch },
+            oh(MedPrint, { player: byPid[printFor], cases, entries, me, pname, logs: logsFor(printFor),
+                onBack: () => { const p = byPid[printFor]; setPrintFor(null); setFile({ p }); },
+                onPrinted: () => med.put([{ id: "log:" + Date.now().toString(36), kind: "log", data: { at: new Date().toISOString(), by: me || null, pid: printFor, what: "Druckfassung" } }], me, null, { isUndo: true }) }));
     return oh("div", { className: "med-area", onPointerDown: med.touch, onKeyDown: med.touch },
         oh("div", { className: "filterrow med-top" },
             oh("div", { className: "viewswitch" },
@@ -24399,7 +24504,8 @@ function MedArea({ med, cfg, squad, entries, metrics, fixtures, persons, toast, 
                         setPinForm(null);
                 } }, "Ändern")),
         view === "tabelle" ? oh(MedTable, { med, cases, sq, byPid, mByPid, me, toast, onOpenFile: p => setFile({ p }) }) : view === "briefing" ? renderBriefing() : view === "bilanz" ? oh(MedBilanz, { cases, entries, sq, byPid, today, copyText, onOpenFile: p => setFile({ p }) }) : renderFiles(),
-        file && oh(MedFile, { key: file.p.id, player: file.p, prefill: file.prefill, cases, entries, me, pname, onSaveCase: saveCase, onDeleteCase: deleteCase, onClose: () => setFile(null) }));
+        file && oh(MedFile, { key: file.p.id, player: file.p, prefill: file.prefill, cases, entries, me, pname, onSaveCase: saveCase, onDeleteCase: deleteCase, onClose: () => setFile(null),
+            logs: logsFor(file.p.id), onPrint: () => { setPrintFor(file.p.id); setFile(null); window.scrollTo(0, 0); } }));
 }
 const UNDO_ICON = React.createElement(React.Fragment, null,
     React.createElement("path", { d: "M9 14 4 9l5-5" }),
